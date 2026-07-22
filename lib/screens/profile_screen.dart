@@ -436,7 +436,7 @@ Widget _buildSwitchCard({
         Switch(
           value: value,
           activeTrackColor: const Color(0xFF9D4EDD),
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           onChanged: onChanged,
         ),
       ],
