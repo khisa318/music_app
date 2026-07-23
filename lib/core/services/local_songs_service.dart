@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
 class LocalSongsService {
-  static const _channel = MethodChannel('com.anand.noize/local_songs');
+  static const _channel = MethodChannel('com.anand.musicx/local_songs');
 
   static final LocalSongsService _instance = LocalSongsService._();
   factory LocalSongsService() => _instance;
