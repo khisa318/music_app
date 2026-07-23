@@ -513,11 +513,11 @@ class DownloadProvider with ChangeNotifier {
       Directory downloadBaseDir;
       if (Platform.isAndroid) {
         downloadBaseDir = Directory(
-          "/storage/emulated/0/Download/Noize/Downloads",
+          "/storage/emulated/0/Download/MusiX/Downloads",
         );
       } else {
         downloadBaseDir = Directory(
-          '${(await getApplicationDocumentsDirectory()).path}/noize/downloads',
+          '${(await getApplicationDocumentsDirectory()).path}/MusiX/Downloads',
         );
       }
 
@@ -649,7 +649,9 @@ class DownloadProvider with ChangeNotifier {
       } catch (e) {
         debugPrint('Download failed for videoId: $videoId. Exception: $e');
         _preparing.remove(videoId);
-        if (e is DioException && e.type == DioExceptionType.cancel && _isPaused) {
+        if (e is DioException &&
+            e.type == DioExceptionType.cancel &&
+            _isPaused) {
           await _updateDownloadQueueStatus(song.videoId, 'paused');
         } else {
           await _updateDownloadQueueStatus(song.videoId, 'failed');
