@@ -20,10 +20,9 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../shared/components/app_snackbar.dart';
-import '../../../search/presentation/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -684,7 +683,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return RefreshIndicator(
       color: accentColor,
@@ -694,55 +692,6 @@ class _HomeScreenState extends State<HomeScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          SliverAppBar(
-            pinned: true,
-            floating: true,
-            elevation: 0,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            title: GestureDetector(
-              onTap: () {
-                Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute(builder: (context) => const SearchScreen())
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.paddingLg,
-                  vertical: AppDimens.paddingSm,
-                ),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.black.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusFull),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.search,
-                      color: accentColor,
-                      size: AppDimens.iconSm * 1.5,
-                    ),
-                    const SizedBox(width: AppDimens.spacingMd),
-                    Expanded(
-                      child: Text(
-                        'search_hint'.tr(),
-                        style: AppTextStyles.bodyMd(
-                          isDarkMode: isDarkMode,
-                          color: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.color
-                              ?.withValues(alpha: 0.7),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
           SliverToBoxAdapter(child: _buildTabs(context)),
           if (_selectedIndex == 0) ...[
             SliverToBoxAdapter(child: RecentPlaylistsSection()),
