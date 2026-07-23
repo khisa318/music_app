@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import '../../../../core/providers/queued_provider.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:flutter/foundation.dart';

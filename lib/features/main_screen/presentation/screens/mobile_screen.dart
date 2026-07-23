@@ -342,7 +342,7 @@ class _TabWrapper extends StatelessWidget {
     required this.titleKey,
     required this.isHome,
     this.showAppBar = true,
-    this.onSearchTap,
+    this.onSearchTap = null,
   });
 
   Future<void> _showAudioOutputSheet(BuildContext context) async {

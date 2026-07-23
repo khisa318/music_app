@@ -140,7 +140,7 @@ class PlayerProvider extends ChangeNotifier {
           androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
           androidNotificationOngoing: false,
-          androidNotificationIcon: 'mipmap/ic_launcher_monochrome',
+          androidNotificationIcon: 'mipmap/ic_launcher',
         ),
       );
       debugPrint('AudioService initialized successfully');
