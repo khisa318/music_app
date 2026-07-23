@@ -92,15 +92,15 @@ flutter:
 
   assets:
     - assets/default_artwork.png
-    - assets/musix_logo.jpeg
+    - assets/musix_logo.png
     - assets/musix_mockup.jpg
     - assets/images/
     - assets/translations/
 
 flutter_native_splash:
   color: "#000000"
-  image: assets/musix_logo.jpeg
+  image: assets/musix_logo.png
   fullscreen: true
   android_12:
     color: "#000000"
-    image: assets/musix_logo.jpeg
+    image: assets/musix_logo.png
