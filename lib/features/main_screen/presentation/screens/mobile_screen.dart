@@ -16,8 +16,9 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import 'desktop_screen.dart';
-import '../../../profile/presentation/screens/profile_screen.dart';
-import '../../../library/presentation/screens/combined_library_screen.dart';
+import '../../../library/presentation/screens/library_screen.dart';
+import '../../../playlists/presentation/screens/playlists_screen.dart';
+import '../../../search/presentation/screens/search_screen.dart';
 import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
 import 'full_player_screen.dart';
 
@@ -87,12 +88,12 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                   controller: _controller,
                   tabs: [
                     PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('home_tab'),
+                      screen: _TabWrapper(
+                        key: const ValueKey('home_tab'),
+                        child: const HomeScreen(),
                         titleKey: 'home',
                         isHome: true,
-                        showAppBar: false,
-                        child: HomeScreen(),
+                        onSearchTap: () => _controller.jumpToTab(1),
                       ),
                       item: ItemConfig(
                         icon: Icon(Icons.home_rounded, size: navIconSize),
@@ -107,17 +108,15 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     ),
                     PersistentTabConfig(
                       screen: const _TabWrapper(
-                        key: ValueKey('library_tab'),
-                        titleKey: 'library',
+                        key: ValueKey('search_tab'),
+                        child: SearchScreen(),
+                        titleKey: 'search',
                         isHome: false,
-                        child: CombinedLibraryScreen(),
+                        showAppBar: false,
                       ),
                       item: ItemConfig(
-                        icon: Icon(
-                          Icons.library_music_rounded,
-                          size: navIconSize,
-                        ),
-                        title: 'library'.tr(),
+                        icon: Icon(Icons.search_rounded, size: navIconSize),
+                        title: 'search'.tr(),
                         activeForegroundColor: accentColor,
                         inactiveForegroundColor:
                             theme.textTheme.bodyLarge?.color?.withValues(
@@ -128,18 +127,38 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     ),
                     PersistentTabConfig(
                       screen: const _TabWrapper(
-                        key: ValueKey('profile_tab'),
-                        titleKey: 'Profile',
+                        key: ValueKey('playlists_tab'),
+                        child: PlaylistScreen(),
+                        titleKey: 'playlists',
                         isHome: false,
-                        showAppBar: false,
-                        child: ProfileScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(
-                          Icons.person_rounded,
+                          Icons.playlist_play_rounded,
                           size: navIconSize,
                         ),
-                        title: 'Profile',
+                        title: 'playlists'.tr(),
+                        activeForegroundColor: accentColor,
+                        inactiveForegroundColor:
+                            theme.textTheme.bodyLarge?.color?.withValues(
+                              alpha: 0.6,
+                            ) ??
+                            Colors.grey,
+                      ),
+                    ),
+                    PersistentTabConfig(
+                      screen: const _TabWrapper(
+                        key: ValueKey('library_tab'),
+                        child: LibraryScreen(),
+                        titleKey: 'library',
+                        isHome: false,
+                      ),
+                      item: ItemConfig(
+                        icon: Icon(
+                          Icons.library_music_rounded,
+                          size: navIconSize,
+                        ),
+                        title: 'library'.tr(),
                         activeForegroundColor: accentColor,
                         inactiveForegroundColor:
                             theme.textTheme.bodyLarge?.color?.withValues(
@@ -179,7 +198,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                               ),
                             ),
                           MediaQuery(
-                            data: mq.copyWith(textScaler: TextScaler.linear(navTextCap)),
+                            data: mq.copyWith(textScaleFactor: navTextCap),
                             child: MediaQuery.removePadding(
                               context: context,
                               removeBottom: true,
@@ -283,9 +302,10 @@ class _MobileFullPlayerResponsiveWrapper extends StatefulWidget {
   final VoidCallback onSwitchToDesktop;
 
   const _MobileFullPlayerResponsiveWrapper({
+    Key? key,
     required this.child,
     required this.onSwitchToDesktop,
-  });
+  }) : super(key: key);
 
   @override
   State<_MobileFullPlayerResponsiveWrapper> createState() =>
@@ -342,7 +362,7 @@ class _TabWrapper extends StatelessWidget {
     required this.titleKey,
     required this.isHome,
     this.showAppBar = true,
-    this.onSearchTap = null,
+    this.onSearchTap,
   });
 
   Future<void> _showAudioOutputSheet(BuildContext context) async {
@@ -364,10 +384,10 @@ class _TabWrapper extends StatelessWidget {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final accentColor = settingsProvider.accentColor;
     final mq = MediaQuery.of(context);
-    final double appBarIconScale = mq.textScaleFactor > 1.0
+    final double _appBarIconScale = mq.textScaleFactor > 1.0
         ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
         : 1.0;
-    final double appBarTextCap = mq.textScaleFactor > 1.0
+    final double _appBarTextCap = mq.textScaleFactor > 1.0
         ? 1.0
         : mq.textScaleFactor;
     return Scaffold(
@@ -383,13 +403,13 @@ class _TabWrapper extends StatelessWidget {
                             onTap: onSearchTap,
                             child: Container(
                               margin: EdgeInsets.only(
-                                left: AppDimens.spacingSm * appBarIconScale,
+                                left: AppDimens.spacingSm * _appBarIconScale,
                               ),
                               padding: EdgeInsets.symmetric(
                                 horizontal:
-                                    AppDimens.paddingLg * appBarIconScale,
+                                    AppDimens.paddingLg * _appBarIconScale,
                                 vertical:
-                                    AppDimens.paddingSm * appBarIconScale,
+                                    AppDimens.paddingSm * _appBarIconScale,
                               ),
                               decoration: BoxDecoration(
                                 color:
@@ -406,11 +426,11 @@ class _TabWrapper extends StatelessWidget {
                                   Icon(
                                     Icons.search,
                                     color: accentColor,
-                                    size: AppDimens.iconSm * appBarIconScale,
+                                    size: AppDimens.iconSm * _appBarIconScale,
                                   ),
                                   SizedBox(
                                     width:
-                                        AppDimens.spacingMd * appBarIconScale,
+                                        AppDimens.spacingMd * _appBarIconScale,
                                   ),
                                   Expanded(
                                     child: Text(
@@ -434,7 +454,7 @@ class _TabWrapper extends StatelessWidget {
                           )
                         : Container(
                             margin: EdgeInsets.only(
-                              left: AppDimens.spacingSm * appBarIconScale,
+                              left: AppDimens.spacingSm * _appBarIconScale,
                             ),
                             child: Text(
                               titleKey.tr(),
@@ -453,7 +473,7 @@ class _TabWrapper extends StatelessWidget {
                     IconButton(
                       icon: Icon(
                         Icons.speaker_rounded,
-                        size: AppDimens.iconLg * appBarIconScale,
+                        size: AppDimens.iconLg * _appBarIconScale,
                       ),
                       onPressed: () => _showAudioOutputSheet(context),
                       tooltip: 'Audio Output',

@@ -30,7 +30,7 @@ import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key});
+  const LibraryScreen({Key? key}) : super(key: key);
 
   @override
   _LibraryScreenState createState() => _LibraryScreenState();
