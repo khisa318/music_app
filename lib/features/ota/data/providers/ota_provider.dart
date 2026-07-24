@@ -14,7 +14,7 @@ import '../../../../core/models/ota_model.dart';
 
 class OTAProvider with ChangeNotifier {
   static const String _baseUpdateUrl =
-      'https://raw.githubusercontent.com/anandssm/noize/refs/heads/main/docs';
+      'https://raw.githubusercontent.com/khisa318/music_app/main/docs';
 
   final Dio _dio = Dio();
   String _updateChannel = 'stable';
@@ -49,7 +49,7 @@ class OTAProvider with ChangeNotifier {
     _dio.options = BaseOptions(
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {'User-Agent': 'Noize-Music-App'},
+      headers: {'User-Agent': 'MusiX-Music-App'},
     );
   }
 
@@ -110,7 +110,7 @@ class OTAProvider with ChangeNotifier {
       if (isUpdateAvailable) {
         final directory = await getApplicationDocumentsDirectory();
         final extension = Platform.isAndroid ? 'apk' : 'msix';
-        final fileName = 'noize-music-${updateInfo.latestVersion}.$extension';
+        final fileName = 'musix-music-${updateInfo.latestVersion}.$extension';
         final filePath = '${directory.path}/noize/$fileName';
         final file = File(filePath);
 
@@ -185,7 +185,7 @@ class OTAProvider with ChangeNotifier {
 
     final directory = await getApplicationDocumentsDirectory();
     final extension = Platform.isAndroid ? 'apk' : 'msix';
-    final fileName = 'noize-music-${_updateInfo!.latestVersion}.$extension';
+    final fileName = 'musix-music-${_updateInfo!.latestVersion}.$extension';
     final filePath = '${directory.path}/noize/$fileName';
     final file = File(filePath);
 
@@ -399,7 +399,7 @@ class OTAProvider with ChangeNotifier {
   }
 
   Future<void> openReleasePage() async {
-    const releaseUrl = 'https://github.com/anandssm/noize/releases';
+    const releaseUrl = 'https://github.com/khisa318/music_app/releases';
     final uri = Uri.parse(releaseUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
