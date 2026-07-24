@@ -90,10 +90,10 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     PersistentTabConfig(
                       screen: _TabWrapper(
                         key: const ValueKey('home_tab'),
-                        child: const HomeScreen(),
                         titleKey: 'home',
                         isHome: true,
                         onSearchTap: () => _controller.jumpToTab(1),
+                        child: const HomeScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(Icons.home_rounded, size: navIconSize),
@@ -109,10 +109,10 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('search_tab'),
-                        child: SearchScreen(),
                         titleKey: 'search',
                         isHome: false,
                         showAppBar: false,
+                        child: SearchScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(Icons.search_rounded, size: navIconSize),
@@ -128,9 +128,9 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('playlists_tab'),
-                        child: PlaylistScreen(),
                         titleKey: 'playlists',
                         isHome: false,
+                        child: PlaylistScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(
@@ -149,9 +149,9 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('library_tab'),
-                        child: LibraryScreen(),
                         titleKey: 'library',
                         isHome: false,
+                        child: LibraryScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(
@@ -198,7 +198,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                               ),
                             ),
                           MediaQuery(
-                            data: mq.copyWith(textScaleFactor: navTextCap),
+                            data: mq.copyWith(textScaler: TextScaler.linear(navTextCap)),
                             child: MediaQuery.removePadding(
                               context: context,
                               removeBottom: true,
@@ -302,10 +302,10 @@ class _MobileFullPlayerResponsiveWrapper extends StatefulWidget {
   final VoidCallback onSwitchToDesktop;
 
   const _MobileFullPlayerResponsiveWrapper({
-    Key? key,
+    super.key,
     required this.child,
     required this.onSwitchToDesktop,
-  }) : super(key: key);
+  });
 
   @override
   State<_MobileFullPlayerResponsiveWrapper> createState() =>
@@ -384,10 +384,10 @@ class _TabWrapper extends StatelessWidget {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final accentColor = settingsProvider.accentColor;
     final mq = MediaQuery.of(context);
-    final double _appBarIconScale = mq.textScaleFactor > 1.0
+    final double appBarIconScale = mq.textScaleFactor > 1.0
         ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
         : 1.0;
-    final double _appBarTextCap = mq.textScaleFactor > 1.0
+    final double appBarTextCap = mq.textScaleFactor > 1.0
         ? 1.0
         : mq.textScaleFactor;
     return Scaffold(
@@ -403,13 +403,13 @@ class _TabWrapper extends StatelessWidget {
                             onTap: onSearchTap,
                             child: Container(
                               margin: EdgeInsets.only(
-                                left: AppDimens.spacingSm * _appBarIconScale,
+                                left: AppDimens.spacingSm * appBarIconScale,
                               ),
                               padding: EdgeInsets.symmetric(
                                 horizontal:
-                                    AppDimens.paddingLg * _appBarIconScale,
+                                    AppDimens.paddingLg * appBarIconScale,
                                 vertical:
-                                    AppDimens.paddingSm * _appBarIconScale,
+                                    AppDimens.paddingSm * appBarIconScale,
                               ),
                               decoration: BoxDecoration(
                                 color:
@@ -426,11 +426,11 @@ class _TabWrapper extends StatelessWidget {
                                   Icon(
                                     Icons.search,
                                     color: accentColor,
-                                    size: AppDimens.iconSm * _appBarIconScale,
+                                    size: AppDimens.iconSm * appBarIconScale,
                                   ),
                                   SizedBox(
                                     width:
-                                        AppDimens.spacingMd * _appBarIconScale,
+                                        AppDimens.spacingMd * appBarIconScale,
                                   ),
                                   Expanded(
                                     child: Text(
@@ -454,7 +454,7 @@ class _TabWrapper extends StatelessWidget {
                           )
                         : Container(
                             margin: EdgeInsets.only(
-                              left: AppDimens.spacingSm * _appBarIconScale,
+                              left: AppDimens.spacingSm * appBarIconScale,
                             ),
                             child: Text(
                               titleKey.tr(),
@@ -473,7 +473,7 @@ class _TabWrapper extends StatelessWidget {
                     IconButton(
                       icon: Icon(
                         Icons.speaker_rounded,
-                        size: AppDimens.iconLg * _appBarIconScale,
+                        size: AppDimens.iconLg * appBarIconScale,
                       ),
                       onPressed: () => _showAudioOutputSheet(context),
                       tooltip: 'Audio Output',
