@@ -88,12 +88,11 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                   controller: _controller,
                   tabs: [
                     PersistentTabConfig(
-                      screen: _TabWrapper(
-                        key: const ValueKey('home_tab'),
+                      screen: const _TabWrapper(
+                        key: ValueKey('home_tab'),
                         titleKey: 'home',
                         isHome: true,
-                        onSearchTap: () => _controller.jumpToTab(1),
-                        child: const HomeScreen(),
+                        child: HomeScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(Icons.home_rounded, size: navIconSize),
@@ -198,7 +197,9 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                               ),
                             ),
                           MediaQuery(
-                            data: mq.copyWith(textScaler: TextScaler.linear(navTextCap)),
+                            data: mq.copyWith(
+                              textScaler: TextScaler.linear(navTextCap),
+                            ),
                             child: MediaQuery.removePadding(
                               context: context,
                               removeBottom: true,
@@ -398,76 +399,19 @@ class _TabWrapper extends StatelessWidget {
               title: Row(
                 children: [
                   Expanded(
-                    child: isHome
-                        ? GestureDetector(
-                            onTap: onSearchTap,
-                            child: Container(
-                              margin: EdgeInsets.only(
-                                left: AppDimens.spacingSm * appBarIconScale,
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                horizontal:
-                                    AppDimens.paddingLg * appBarIconScale,
-                                vertical:
-                                    AppDimens.paddingSm * appBarIconScale,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Colors.white.withValues(alpha: 0.1)
-                                    : Colors.black.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(
-                                  AppDimens.radiusFull,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.search,
-                                    color: accentColor,
-                                    size: AppDimens.iconSm * appBarIconScale,
-                                  ),
-                                  SizedBox(
-                                    width:
-                                        AppDimens.spacingMd * appBarIconScale,
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      'search_hint'.tr(),
-                                      style: AppTextStyles.bodyMd(
-                                        isDarkMode:
-                                            Theme.of(context).brightness ==
-                                            Brightness.dark,
-                                        color: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.color
-                                            ?.withValues(alpha: 0.7),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Container(
-                            margin: EdgeInsets.only(
-                              left: AppDimens.spacingSm * appBarIconScale,
-                            ),
-                            child: Text(
-                              titleKey.tr(),
-                              style: AppTextStyles.titleLg(
-                                isDarkMode:
-                                    Theme.of(context).brightness ==
-                                    Brightness.dark,
-                                color: Theme.of(
-                                  context,
-                                ).textTheme.titleLarge?.color,
-                              ).copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
+                    child: Container(
+                      margin: EdgeInsets.only(
+                        left: AppDimens.spacingSm * appBarIconScale,
+                      ),
+                      child: Text(
+                        isHome ? 'Musix' : titleKey.tr(),
+                        style: AppTextStyles.titleLg(
+                          isDarkMode:
+                              Theme.of(context).brightness == Brightness.dark,
+                          color: Theme.of(context).textTheme.titleLarge?.color,
+                        ).copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ),
                   if (Platform.isAndroid)
                     IconButton(
