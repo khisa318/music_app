@@ -1,6 +1,9 @@
 import 'dart:math';
+import 'dart:io';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/stat_section.dart';
@@ -20,6 +23,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../shared/components/app_snackbar.dart';
+import '../../../search/presentation/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,7 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       listen: false,
     );
-
     await homeScreenProvider.refreshData();
   }
 
@@ -286,8 +289,73 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTabs(BuildContext context) {
+  Widget _buildTopHeader(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = context.select((SettingsProvider p) => p.accentColor);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.paddingLg,
+        AppDimens.paddingSm,
+        AppDimens.paddingLg,
+        AppDimens.paddingXs,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundImage: NetworkImage(
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+            ),
+          ),
+          const SizedBox(width: AppDimens.spacingMd),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Good Morning',
+                style: AppTextStyles.caption(
+                  isDarkMode: isDarkMode,
+                ).copyWith(color: Colors.white.withValues(alpha: 0.6)),
+              ),
+              Text(
+                'Armstrong',
+                style: AppTextStyles.titleSm(
+                  isDarkMode: isDarkMode,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCircleIconBtn(
+    IconData icon,
+    Color accentColor,
+    bool isDarkMode,
+  ) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, color: Colors.white, size: 20),
+        onPressed: () {},
+      ),
+    );
+  }
+
+  Widget _buildTabs(BuildContext context) {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
 
     Widget tab(String title, int index) {
@@ -338,39 +406,43 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
         },
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.paddingMd,
-            vertical: AppDimens.paddingXs,
+            horizontal: AppDimens.paddingMd + 4,
+            vertical: AppDimens.paddingXs + 2,
           ),
           margin: const EdgeInsets.only(right: AppDimens.spacingSm),
           decoration: BoxDecoration(
             color: selected
-                ? accentColor.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                ? accentColor
+                : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
             border: Border.all(
               color: selected
-                  ? accentColor.withValues(alpha: 0.25)
-                  : Colors.transparent,
+                  ? accentColor
+                  : Colors.white.withValues(alpha: 0.12),
             ),
           ),
           child: Text(
             title,
-            style:
-                AppTextStyles.bodyMd(
-                  isDarkMode: isDarkMode,
-                  color: selected ? accentColor : null,
-                ).copyWith(
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              fontSize: 13,
+            ),
           ),
         ),
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.all(AppDimens.paddingLg),
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.paddingLg,
+        AppDimens.paddingXs,
+        AppDimens.paddingLg,
+        AppDimens.paddingSm,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -383,6 +455,243 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // --- FOR YOU CAROUSEL (uses real data from TrendingProvider) ---
+  Widget _buildForYouCarousel(BuildContext context) {
+    final trendingProvider = context.watch<TrendingProvider>();
+    final songs = trendingProvider.getTrendingSongs(
+      TrendingProvider.top100GlobalPlaylistId,
+    );
+
+    // If no trending data loaded yet, trigger loading
+    if (songs.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (trendingProvider
+            .getTrendingSongs(TrendingProvider.top100GlobalPlaylistId)
+            .isEmpty) {
+          trendingProvider.loadTrendingSongs(
+            TrendingProvider.top100GlobalPlaylistId,
+          );
+        }
+      });
+      return const SizedBox.shrink();
+    }
+
+    final displaySongs = songs.take(10).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.paddingSm,
+            AppDimens.paddingLg,
+            AppDimens.spacingSm,
+          ),
+          child: Text(
+            'For You',
+            style: AppTextStyles.titleSm(
+              isDarkMode: true,
+              color: Colors.white,
+            ).copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+        ),
+        SizedBox(
+          height: 170,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(left: AppDimens.paddingLg),
+            itemCount: displaySongs.length,
+            itemBuilder: (context, index) {
+              final song = displaySongs[index];
+              return _ForYouCard(song: song);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- POPULAR TRACKS (uses real data from PlayerProvider / FavoriteSongProvider) ---
+  Widget _buildPopularTracks(BuildContext context) {
+    final playerProvider = context.watch<PlayerProvider>();
+    final songs = playerProvider.lastPlayedSongs;
+
+    if (songs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final displaySongs = songs.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.spacingMd,
+            AppDimens.paddingLg,
+            AppDimens.spacingSm,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Popular Tracks',
+                style: AppTextStyles.titleSm(
+                  isDarkMode: true,
+                  color: Colors.white,
+                ).copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              Text(
+                'See All',
+                style: AppTextStyles.caption(
+                  isDarkMode: true,
+                ).copyWith(color: const Color(0xFFC042FF)),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+          child: Column(
+            children: displaySongs.map((songMap) {
+              final title = songMap['title'] ?? 'Unknown';
+              final artist =
+                  (songMap['artists'] != null &&
+                      (songMap['artists'] as List).isNotEmpty)
+                  ? ((songMap['artists'] as List).first is Map
+                        ? (songMap['artists'] as List).first['name'] ?? ''
+                        : (songMap['artists'] as List).first.toString())
+                  : (songMap['artist'] ?? 'Unknown Artist');
+              final thumbnail = songMap['thumbnail'] ?? '';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildPopularThumbnail(thumbnail),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            artist,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopularThumbnail(String url) {
+    if (url.isEmpty) {
+      return Container(
+        width: 48,
+        height: 48,
+        color: Colors.grey[800],
+        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+      );
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 48,
+          height: 48,
+          color: Colors.grey[800],
+          child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 48,
+          height: 48,
+          color: Colors.grey[800],
+          child: const Icon(
+            Icons.broken_image,
+            color: Colors.white54,
+            size: 24,
+          ),
+        ),
+      );
+    }
+    try {
+      final file = url.startsWith('file://')
+          ? File.fromUri(Uri.parse(url))
+          : File(url);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 48,
+            height: 48,
+            color: Colors.grey[800],
+            child: const Icon(
+              Icons.music_note,
+              color: Colors.white54,
+              size: 24,
+            ),
+          ),
+        );
+      }
+    } catch (_) {}
+    return Container(
+      width: 48,
+      height: 48,
+      color: Colors.grey[800],
+      child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
     );
   }
 
@@ -692,8 +1001,16 @@ class _HomeScreenState extends State<HomeScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
+          // Top Header with avatar, greeting, icons
+          SliverToBoxAdapter(child: _buildTopHeader(context)),
+          // Tab pills
           SliverToBoxAdapter(child: _buildTabs(context)),
           if (_selectedIndex == 0) ...[
+            // "For You" carousel at top
+            SliverToBoxAdapter(child: _buildForYouCarousel(context)),
+            // "Popular Tracks" section
+            SliverToBoxAdapter(child: _buildPopularTracks(context)),
+            // Existing sections
             SliverToBoxAdapter(child: RecentPlaylistsSection()),
             SliverToBoxAdapter(child: StatsSection()),
             SliverToBoxAdapter(child: LastPlayedSection()),
@@ -717,6 +1034,100 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           SliverToBoxAdapter(child: SizedBox(height: AppDimens.paddingXl)),
         ],
+      ),
+    );
+  }
+}
+
+// --- FOR YOU CARD (standalone widget for carousel) ---
+class _ForYouCard extends StatelessWidget {
+  final SongInfo song;
+
+  const _ForYouCard({required this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnail = song.thumbnails.isNotEmpty
+        ? song.thumbnails.last.url
+        : '';
+    final artistName = song.artists.isNotEmpty
+        ? song.artists.map((a) => a.name).join(', ')
+        : 'Unknown Artist';
+
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          // Play this song
+          context.read<TrendingProvider>().playSong(
+            song,
+            context,
+            TrendingProvider.top100GlobalPlaylistId,
+            playlistName: 'For You',
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: thumbnail.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: thumbnail,
+                      width: 140,
+                      height: 130,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 140,
+                        height: 130,
+                        color: Colors.grey[850],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 140,
+                        height: 130,
+                        color: Colors.grey[850],
+                        child: const Icon(
+                          Icons.music_note,
+                          color: Colors.white54,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      width: 140,
+                      height: 130,
+                      color: Colors.grey[850],
+                      child: const Icon(
+                        Icons.music_note,
+                        color: Colors.white54,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              song.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              artistName,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

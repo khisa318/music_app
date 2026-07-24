@@ -36,7 +36,9 @@ class LibraryScreen extends StatefulWidget {
   _LibraryScreenState createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends State<LibraryScreen> {
+class _LibraryScreenState extends State<LibraryScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   String _selectedFilter = 'All';
   bool _isSelectionMode = false;
   final Set<String> _selectedSongs = {};
@@ -45,123 +47,208 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final ContentDetailsService _contentService = ContentDetailsService();
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          _isSelectionMode = false;
+          _selectedSongs.clear();
+          switch (_tabController.index) {
+            case 0:
+              _currentTab = 'favorites';
+              break;
+            case 1:
+              _currentTab = 'downloads';
+              break;
+            case 2:
+              _currentTab = 'recently_played';
+              break;
+            case 3:
+              _currentTab = 'local_music';
+              break;
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final libraryProvider = Provider.of<LibraryProvider>(context);
     final accentColor = settingsProvider.accentColor;
-    return DefaultTabController(
-      length: 4,
-      child: Theme(
-        data: ThemeData(
-          scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-            isDarkMode,
+    return Theme(
+      data: ThemeData(
+        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
+          isDarkMode,
+        ),
+      ),
+      child: Scaffold(
+        floatingActionButton: FloatingActionButton(
+          heroTag: 'library_search_button',
+
+          backgroundColor: accentColor,
+          child: Icon(Icons.search, color: Colors.black),
+          onPressed: () {
+            showSearch(
+              context: context,
+              delegate: LibrarySongSearchDelegate(
+                libraryProvider.likedSongs,
+                libraryProvider.downloadedSongs,
+                libraryProvider.lastPlayed,
+                libraryProvider.localSongs,
+                accentColor,
+              ),
+            );
+          },
+        ),
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.paddingLg,
+                vertical: AppDimens.paddingSm,
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildGlassTab(
+                      'favorites'.tr(),
+                      0,
+                      accentColor,
+                      isDarkMode,
+                    ),
+                    const SizedBox(width: AppDimens.spacingSm),
+                    _buildGlassTab(
+                      'downloads'.tr(),
+                      1,
+                      accentColor,
+                      isDarkMode,
+                    ),
+                    const SizedBox(width: AppDimens.spacingSm),
+                    _buildGlassTab(
+                      'recently_played'.tr(),
+                      2,
+                      accentColor,
+                      isDarkMode,
+                    ),
+                    const SizedBox(width: AppDimens.spacingSm),
+                    _buildGlassTab(
+                      'local_music'.tr(),
+                      3,
+                      accentColor,
+                      isDarkMode,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_isSelectionMode) _buildSelectionMenu(accentColor, isDarkMode),
+            Expanded(
+              child: libraryProvider.isLoading
+                  ? Center(child: CircularProgressIndicator(color: accentColor))
+                  : TabBarView(
+                      controller: _tabController,
+                      physics: _isSelectionMode
+                          ? const NeverScrollableScrollPhysics()
+                          : null,
+                      children: [
+                        _buildFavoritesTab(
+                          libraryProvider,
+                          isDarkMode,
+                          accentColor,
+                        ),
+                        _buildSongList(
+                          libraryProvider.downloadedSongs,
+                          isDarkMode,
+                          'downloads',
+                          libraryProvider,
+                          accentColor,
+                        ),
+                        _buildSongList(
+                          libraryProvider.lastPlayed,
+                          isDarkMode,
+                          'recently_played',
+                          libraryProvider,
+                          accentColor,
+                        ),
+                        _buildLocalMusicTab(
+                          libraryProvider,
+                          isDarkMode,
+                          accentColor,
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassTab(
+    String label,
+    int index,
+    Color accentColor,
+    bool isDarkMode,
+  ) {
+    final isSelected = _tabController.index == index;
+    return GestureDetector(
+      onTap: () {
+        _tabController.animateTo(index);
+        setState(() {
+          _isSelectionMode = false;
+          _selectedSongs.clear();
+          switch (index) {
+            case 0:
+              _currentTab = 'favorites';
+              break;
+            case 1:
+              _currentTab = 'downloads';
+              break;
+            case 2:
+              _currentTab = 'recently_played';
+              break;
+            case 3:
+              _currentTab = 'local_music';
+              break;
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimens.paddingMd,
+          vertical: AppDimens.paddingXs,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? accentColor
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+          border: Border.all(
+            color: isSelected
+                ? accentColor
+                : Colors.white.withValues(alpha: 0.12),
           ),
         ),
-        child: Scaffold(
-          floatingActionButton: FloatingActionButton(
-            heroTag: 'library_search_button',
-
-            backgroundColor: accentColor,
-            child: Icon(Icons.search, color: Colors.black),
-            onPressed: () {
-              showSearch(
-                context: context,
-                delegate: LibrarySongSearchDelegate(
-                  libraryProvider.likedSongs,
-                  libraryProvider.downloadedSongs,
-                  libraryProvider.lastPlayed,
-                  libraryProvider.localSongs,
-                  accentColor,
-                ),
-              );
-            },
-          ),
-          body: Column(
-            children: [
-              TabBar(
-                physics: _isSelectionMode
-                    ? const NeverScrollableScrollPhysics()
-                    : null,
-                onTap: _isSelectionMode
-                    ? null
-                    : (index) {
-                        setState(() {
-                          _isSelectionMode = false;
-                          _selectedSongs.clear();
-                          switch (index) {
-                            case 0:
-                              _currentTab = 'favorites';
-                              break;
-                            case 1:
-                              _currentTab = 'downloads';
-                              break;
-                            case 2:
-                              _currentTab = 'recently_played';
-                              break;
-                            case 3:
-                              _currentTab = 'local_music';
-                              break;
-                          }
-                        });
-                      },
-                tabs: [
-                  Tab(text: 'favorites'.tr()),
-                  Tab(text: 'downloads'.tr()),
-                  Tab(text: 'recently_played'.tr()),
-                  Tab(text: 'local_music'.tr()),
-                ],
-                indicatorColor: accentColor,
-                labelStyle: AppTextStyles.bodyMd(
-                  isDarkMode: isDarkMode,
-                  color: accentColor,
-                ).copyWith(fontWeight: AppTextStyles.weightBold),
-                labelColor: accentColor,
-                unselectedLabelStyle: AppTextStyles.bodyMd(
-                  isDarkMode: isDarkMode,
-                ),
-                isScrollable: true,
-              ),
-              if (_isSelectionMode)
-                _buildSelectionMenu(accentColor, isDarkMode),
-              Expanded(
-                child: libraryProvider.isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(color: accentColor),
-                      )
-                    : TabBarView(
-                        physics: _isSelectionMode
-                            ? const NeverScrollableScrollPhysics()
-                            : null,
-                        children: [
-                          _buildFavoritesTab(
-                            libraryProvider,
-                            isDarkMode,
-                            accentColor,
-                          ),
-                          _buildSongList(
-                            libraryProvider.downloadedSongs,
-                            isDarkMode,
-                            'downloads',
-                            libraryProvider,
-                            accentColor,
-                          ),
-                          _buildSongList(
-                            libraryProvider.lastPlayed,
-                            isDarkMode,
-                            'recently_played',
-                            libraryProvider,
-                            accentColor,
-                          ),
-                          _buildLocalMusicTab(
-                            libraryProvider,
-                            isDarkMode,
-                            accentColor,
-                          ),
-                        ],
-                      ),
-              ),
-            ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 13,
           ),
         ),
       ),
