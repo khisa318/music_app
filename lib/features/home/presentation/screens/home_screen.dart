@@ -328,7 +328,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-const Spacer(),
+          const Spacer(),
+          _buildCircleIconBtn(
+            Icons.search_rounded,
+            accentColor,
+            isDarkMode,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SearchScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: AppDimens.spacingSm),
+          _buildCircleIconBtn(
+            Icons.notifications_outlined,
+            accentColor,
+            isDarkMode,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('no_notifications'.tr()),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -337,8 +362,9 @@ const Spacer(),
   Widget _buildCircleIconBtn(
     IconData icon,
     Color accentColor,
-    bool isDarkMode,
-  ) {
+    bool isDarkMode, {
+    VoidCallback? onPressed,
+  }) {
     return Container(
       width: 38,
       height: 38,
@@ -350,7 +376,7 @@ const Spacer(),
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(icon, color: Colors.white, size: 20),
-        onPressed: () {},
+        onPressed: onPressed,
       ),
     );
   }
@@ -500,7 +526,7 @@ const Spacer(),
           ),
         ),
         SizedBox(
-          height: 170,
+          height: 190,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: AppDimens.paddingLg),
@@ -1011,9 +1037,6 @@ const Spacer(),
             // "Popular Tracks" section
             SliverToBoxAdapter(child: _buildPopularTracks(context)),
             // Existing sections
-            SliverToBoxAdapter(child: RecentPlaylistsSection()),
-            SliverToBoxAdapter(child: StatsSection()),
-            SliverToBoxAdapter(child: LastPlayedSection()),
             SliverToBoxAdapter(child: LikedSongsSection()),
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
             SliverToBoxAdapter(child: HomeSections()),

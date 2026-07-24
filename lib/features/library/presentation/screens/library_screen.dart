@@ -449,10 +449,20 @@ class _LibraryScreenState extends State<LibraryScreen>
                       _playSong(song, context, tabName, songs);
                     }
                   },
-                  child: Container(
-                    color: _selectedSongs.contains(song['id'].toString())
-                        ? accentColor.withValues(alpha: 0.3)
-                        : Colors.transparent,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: _selectedSongs.contains(song['id'].toString())
+                          ? accentColor.withValues(alpha: 0.2)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                      border: _selectedSongs.contains(song['id'].toString())
+                          ? Border.all(
+                              color: accentColor.withValues(alpha: 0.4),
+                              width: 1,
+                            )
+                          : null,
+                    ),
                     child: LibrarySongListTile(
                       song: song,
                       onPlay: () {
