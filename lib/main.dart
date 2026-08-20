@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:metadata_god/metadata_god.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:get_it/get_it.dart';
@@ -33,6 +35,8 @@ import 'core/providers/connectivity_provider.dart';
 import 'core/providers/stats_provider.dart';
 import 'core/services/intent_service.dart';
 import 'core/services/crash_log_service.dart';
+import 'core/services/download_notification_service.dart';
+import 'core/services/smtc_service.dart';
 import 'core/services/windows_file_service.dart';
 
 String _ytMusicHlFromLanguage(String language) {
@@ -208,25 +212,41 @@ Future<void> main() async {
 
       await EasyLocalization.ensureInitialized();
 
-      // ===================== TEMPORARILY DISABLED FOR DEBUGGING =====================
+      if (Platform.isAndroid || Platform.isWindows || Platform.isLinux) {
+        try {
+          final notificationService = DownloadNotificationService();
+          await notificationService.initialize();
+          talker.info('Download notifications initialized');
+        } catch (e, st) {
+          talker.handle(e, st, 'Download notifications initialization failed');
+        }
+      }
 
-      // if (Platform.isAndroid || Platform.isWindows || Platform.isLinux) {
-      //   final notificationService = DownloadNotificationService();
-      //   await notificationService.initialize();
-      // }
+      if (Platform.isAndroid) {
+        try {
+          final session = await AudioSession.instance;
+          await session.configure(const AudioSessionConfiguration.music());
+          talker.info('Android audio session initialized');
+        } catch (e, st) {
+          talker.handle(e, st, 'Audio session initialization failed');
+        }
+      }
 
-      // if (Platform.isAndroid) {
-      //   final session = await AudioSession.instance;
-      //   await session.configure(const AudioSessionConfiguration.music());
-      // }
+      if (Platform.isWindows) {
+        try {
+          await SmtcService.ensureInitialized();
+          talker.info('Windows SMTC initialized');
+        } catch (e, st) {
+          talker.handle(e, st, 'Windows SMTC initialization failed');
+        }
+      }
 
-      // if (Platform.isWindows) {
-      //   await SmtcService.ensureInitialized();
-      // }
-
-      // await MetadataGod.initialize();
-
-      // ============================================================================
+      try {
+        await MetadataGod.initialize();
+        talker.info('Metadata service initialized');
+      } catch (e, st) {
+        talker.handle(e, st, 'Metadata service initialization failed');
+      }
 
       final downloadProvider = DownloadProvider();
       final queueProvider = QueueProvider();

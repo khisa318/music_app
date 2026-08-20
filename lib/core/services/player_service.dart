@@ -229,7 +229,7 @@ class PlayerService {
       }
     });
 
-    _progressSyncTimer = Timer.periodic(const Duration(milliseconds: 350), (_) {
+    _progressSyncTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
       final currentPos = _mediaKitAdapter.currentPosition;
       final currentDur = _mediaKitAdapter.currentDuration;
       final currentBuf = _mediaKitAdapter.currentBuffered;
@@ -407,8 +407,8 @@ class PlayerService {
               _tempAudioCacheService
                   .downloadAndCacheFile(audioUrl, song)
                   .catchError((e) {
-                debugPrint('Failed to cache song in background: $e');
-              }),
+                    debugPrint('Failed to cache song in background: $e');
+                  }),
             );
           }
         }
@@ -998,6 +998,7 @@ class PlayerService {
     _durationSubscription?.cancel();
     _bufferSubscription?.cancel();
     _completedSubscription?.cancel();
+    _bufferingSubscription?.cancel();
 
     await _playerStateController.close();
     await _positionController.close();

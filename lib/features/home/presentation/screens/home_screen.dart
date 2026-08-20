@@ -6,12 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/stat_section.dart';
 import '../widgets/favorite_artists_section.dart';
 import '../widgets/home_sections.dart';
-import '../widgets/last_played_section.dart';
 import '../widgets/liked_songs_section.dart';
-import '../widgets/recent_playlists_section.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
@@ -303,32 +300,65 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           CircleAvatar(
-            radius: 18,
-            backgroundImage: NetworkImage(
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+            radius: 22,
+            backgroundColor: accentColor.withValues(alpha: 0.22),
+            child: const Text(
+              'A',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          const SizedBox(width: AppDimens.spacingMd),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          const SizedBox(width: AppDimens.spacingLg),
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Text(
-                'Good Morning',
-                style: AppTextStyles.caption(
-                  isDarkMode: isDarkMode,
-                ).copyWith(color: Colors.white.withValues(alpha: 0.6)),
+              _buildCircleIconBtn(
+                Icons.notifications_none_rounded,
+                accentColor,
+                isDarkMode,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('no_notifications'.tr()),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
               ),
-              Text(
-                'Armstrong',
-                style: AppTextStyles.titleSm(
-                  isDarkMode: isDarkMode,
-                  color: Colors.white,
+              Positioned(
+                right: -2,
+                top: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text(
+                    '2',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
           const Spacer(),
+          Icon(Icons.play_circle_fill_rounded, color: accentColor, size: 36),
+          const SizedBox(width: AppDimens.spacingXs),
+          Text(
+            'Music',
+            style: AppTextStyles.titleLg(
+              isDarkMode: isDarkMode,
+              color: Colors.white,
+            ).copyWith(fontWeight: FontWeight.w800, fontSize: 28),
+          ),
+          const SizedBox(width: AppDimens.spacingSm),
           _buildCircleIconBtn(
             Icons.search_rounded,
             accentColor,
@@ -337,20 +367,6 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SearchScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: AppDimens.spacingSm),
-          _buildCircleIconBtn(
-            Icons.notifications_outlined,
-            accentColor,
-            isDarkMode,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('no_notifications'.tr()),
-                  behavior: SnackBarBehavior.floating,
-                ),
               );
             },
           ),
@@ -505,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
-    final displaySongs = songs.take(10).toList();
+    final displaySongs = songs.take(4).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,24 +533,109 @@ class _HomeScreenState extends State<HomeScreen> {
             AppDimens.paddingLg,
             AppDimens.spacingSm,
           ),
-          child: Text(
-            'For You',
-            style: AppTextStyles.titleSm(
-              isDarkMode: true,
-              color: Colors.white,
-            ).copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Covers and remixes',
+                  style: AppTextStyles.titleSm(
+                    isDarkMode: true,
+                    color: Colors.white,
+                  ).copyWith(fontWeight: FontWeight.bold, fontSize: 24),
+                ),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  if (displaySongs.isEmpty) return;
+                  context.read<TrendingProvider>().playSong(
+                    displaySongs.first,
+                    context,
+                    TrendingProvider.top100GlobalPlaylistId,
+                    playlistName: 'Covers and remixes',
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
+                  ),
+                ),
+                child: const Text('Play all'),
+              ),
+            ],
           ),
         ),
-        SizedBox(
-          height: 190,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(left: AppDimens.paddingLg),
-            itemCount: displaySongs.length,
-            itemBuilder: (context, index) {
-              final song = displaySongs[index];
-              return _ForYouCard(song: song);
-            },
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+          child: Column(
+            children: displaySongs.map((song) {
+              final artistName = song.artists.isNotEmpty
+                  ? song.artists.map((artist) => artist.name).join(', ')
+                  : 'Unknown Artist';
+              final thumbnail = song.thumbnails.isNotEmpty
+                  ? song.thumbnails.last.url
+                  : '';
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                onTap: () {
+                  context.read<TrendingProvider>().playSong(
+                    song,
+                    context,
+                    TrendingProvider.top100GlobalPlaylistId,
+                    playlistName: 'Covers and remixes',
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                        child: _buildPopularThumbnail(thumbnail, size: 64),
+                      ),
+                      const SizedBox(width: AppDimens.spacingMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              song.name,
+                              textAlign: TextAlign.left,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '$artistName • music',
+                              textAlign: TextAlign.left,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.58),
+                                fontSize: 15,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
@@ -550,7 +651,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
-    final displaySongs = songs.take(5).toList();
+    final displaySongs = songs.take(6).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,28 +664,42 @@ class _HomeScreenState extends State<HomeScreen> {
             AppDimens.spacingSm,
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Popular Tracks',
-                style: AppTextStyles.titleSm(
-                  isDarkMode: true,
-                  color: Colors.white,
-                ).copyWith(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              Text(
-                'See All',
-                style: AppTextStyles.caption(
-                  isDarkMode: true,
-                ).copyWith(color: const Color(0xFFC042FF)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ARMSTRONG KHISA',
+                    style: AppTextStyles.caption(
+                      isDarkMode: true,
+                    ).copyWith(color: Colors.white.withValues(alpha: 0.58)),
+                  ),
+                  Text(
+                    'Speed dial',
+                    style: AppTextStyles.titleLg(
+                      isDarkMode: true,
+                      color: Colors.white,
+                    ).copyWith(fontWeight: FontWeight.w900, fontSize: 28),
+                  ),
+                ],
               ),
             ],
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
-          child: Column(
-            children: displaySongs.map((songMap) {
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: displaySongs.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82,
+            ),
+            itemBuilder: (context, index) {
+              final songMap = displaySongs[index];
               final title = songMap['title'] ?? 'Unknown';
               final artist =
                   (songMap['artists'] != null &&
@@ -595,73 +710,66 @@ class _HomeScreenState extends State<HomeScreen> {
                   : (songMap['artist'] ?? 'Unknown Artist');
               final thumbnail = songMap['thumbnail'] ?? '';
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Row(
+              return InkWell(
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                onTap: () async {
+                  try {
+                    await HomeScreenQueueService(
+                      context,
+                    ).playAll('recently_played', currentIndex: index);
+                  } catch (e) {
+                    AppSnackBar.showError(
+                      context,
+                      'failed_to_play_song_error'.tr(),
+                    );
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _buildPopularThumbnail(thumbnail),
-                    ),
-                    const SizedBox(width: 14),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            artist,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
-                              fontSize: 12,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                        child: SizedBox.expand(
+                          child: _buildPopularThumbnail(thumbnail, size: 160),
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.more_vert_rounded,
-                        color: Colors.white54,
-                        size: 20,
+                    const SizedBox(height: 6),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
                       ),
-                      onPressed: () {},
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      artist,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.58),
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               );
-            }).toList(),
+            },
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPopularThumbnail(String url) {
+  Widget _buildPopularThumbnail(String url, {double size = 48}) {
     if (url.isEmpty) {
       return Container(
-        width: 48,
-        height: 48,
+        width: size,
+        height: size,
         color: Colors.grey[800],
         child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
       );
@@ -669,18 +777,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return CachedNetworkImage(
         imageUrl: url,
-        width: 48,
-        height: 48,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(
-          width: 48,
-          height: 48,
+          width: size,
+          height: size,
           color: Colors.grey[800],
           child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
         ),
         errorWidget: (context, url, error) => Container(
-          width: 48,
-          height: 48,
+          width: size,
+          height: size,
           color: Colors.grey[800],
           child: const Icon(
             Icons.broken_image,
@@ -697,12 +805,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (file.existsSync()) {
         return Image.file(
           file,
-          width: 48,
-          height: 48,
+          width: size,
+          height: size,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Container(
-            width: 48,
-            height: 48,
+            width: size,
+            height: size,
             color: Colors.grey[800],
             child: const Icon(
               Icons.music_note,
@@ -714,8 +822,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (_) {}
     return Container(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       color: Colors.grey[800],
       child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
     );
@@ -1027,16 +1135,10 @@ class _HomeScreenState extends State<HomeScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          // Top Header with avatar, greeting, icons
-          SliverToBoxAdapter(child: _buildTopHeader(context)),
-          // Tab pills
           SliverToBoxAdapter(child: _buildTabs(context)),
           if (_selectedIndex == 0) ...[
-            // "For You" carousel at top
-            SliverToBoxAdapter(child: _buildForYouCarousel(context)),
-            // "Popular Tracks" section
             SliverToBoxAdapter(child: _buildPopularTracks(context)),
-            // Existing sections
+            SliverToBoxAdapter(child: _buildForYouCarousel(context)),
             SliverToBoxAdapter(child: LikedSongsSection()),
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
             SliverToBoxAdapter(child: HomeSections()),

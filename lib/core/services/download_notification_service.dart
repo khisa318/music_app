@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-// import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class DownloadNotificationService {
   static final DownloadNotificationService _instance =
@@ -33,9 +33,9 @@ class DownloadNotificationService {
 
     const WindowsInitializationSettings initializationSettingsWindows =
         WindowsInitializationSettings(
-          appName: 'Noize',
+          appName: 'MusiX',
           iconPath: 'assets/default_artwork.png',
-          appUserModelId: 'com.anand.noize',
+          appUserModelId: 'com.anand.musix',
           guid: '27D44D0C-A542-5B90-BCDB-AC3126048BA2',
         );
 
@@ -54,7 +54,7 @@ class DownloadNotificationService {
 
     if (Platform.isAndroid) {
       await _createNotificationChannel();
-      // await _requestNotificationPermission();
+      await _requestNotificationPermission();
     }
   }
 
@@ -76,11 +76,11 @@ class DownloadNotificationService {
         ?.createNotificationChannel(channel);
   }
 
-  // Future<void> _requestNotificationPermission() async {
-  //   if (Platform.isAndroid && await Permission.notification.isDenied) {
-  //     await Permission.notification.request();
-  //   }
-  // }
+  Future<void> _requestNotificationPermission() async {
+    if (Platform.isAndroid && await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
+  }
 
   void _onDidReceiveNotificationResponse(
     NotificationResponse notificationResponse,

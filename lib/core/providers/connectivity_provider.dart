@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -90,12 +91,18 @@ class ConnectivityProvider extends ChangeNotifier {
   Future<bool> _hasInternetAccess() async {
     try {
       final result = await _connectivity.checkConnectivity();
-      return result.any(
+      final hasNetwork = result.any(
         (connectivity) =>
             connectivity == ConnectivityResult.wifi ||
             connectivity == ConnectivityResult.mobile ||
             connectivity == ConnectivityResult.ethernet,
       );
+      if (!hasNetwork) return false;
+
+      final lookup = await InternetAddress.lookup(
+        'google.com',
+      ).timeout(const Duration(seconds: 3));
+      return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
     } catch (e) {
       debugPrint('Internet access check failed: $e');
       return false;
