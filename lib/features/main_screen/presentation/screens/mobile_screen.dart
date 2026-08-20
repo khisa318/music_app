@@ -15,7 +15,6 @@ import '../../../ota/data/providers/ota_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
-import 'desktop_screen.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
@@ -303,7 +302,6 @@ class _MobileFullPlayerResponsiveWrapper extends StatefulWidget {
   final VoidCallback onSwitchToDesktop;
 
   const _MobileFullPlayerResponsiveWrapper({
-    super.key,
     required this.child,
     required this.onSwitchToDesktop,
   });
@@ -363,8 +361,7 @@ class _TabWrapper extends StatelessWidget {
     required this.titleKey,
     required this.isHome,
     this.showAppBar = true,
-    this.onSearchTap,
-  });
+  }) : onSearchTap = null;
 
   Future<void> _showAudioOutputSheet(BuildContext context) async {
     final settingsProvider = Provider.of<SettingsProvider>(
@@ -377,6 +374,21 @@ class _TabWrapper extends StatelessWidget {
       context,
       isDarkMode: isDarkMode,
       accentColor: accentColor,
+    );
+  }
+
+  void _openSearch(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const SearchScreen()));
+  }
+
+  void _showNoNotifications(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('no_notifications'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -413,6 +425,59 @@ class _TabWrapper extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (isHome) ...[
+                    CircleAvatar(
+                      radius: 17 * appBarIconScale,
+                      backgroundColor: accentColor.withValues(alpha: 0.22),
+                      child: Text(
+                        'A',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.titleLarge?.color,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.notifications_none_rounded,
+                            size: AppDimens.iconLg * appBarIconScale,
+                          ),
+                          onPressed: () => _showNoNotifications(context),
+                          tooltip: 'Notifications',
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '2',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.search_rounded,
+                        size: AppDimens.iconLg * appBarIconScale,
+                      ),
+                      onPressed: () => _openSearch(context),
+                      tooltip: 'Search',
+                    ),
+                  ],
                   if (Platform.isAndroid)
                     IconButton(
                       icon: Icon(

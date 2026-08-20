@@ -708,6 +708,9 @@ class PlayerProvider extends ChangeNotifier {
   @override
   void dispose() {
     _queueProvider.removeListener(_onQueueChanged);
+    if (_isInitialized) {
+      unawaited(_playerService.dispose());
+    }
     super.dispose();
   }
 }

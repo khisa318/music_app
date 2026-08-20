@@ -30,12 +30,13 @@ class MediaKitPlayerAdapter {
   StreamSubscription<bool>? _bufferingSub;
 
   MediaKitPlayerAdapter({Player? player})
-      : _player = player ??
-            Player(
-              configuration: const PlayerConfiguration(
-                bufferSize: 64 * 1024 * 1024, // 64 MB to cache more eagerly
-              ),
-            ) {
+    : _player =
+          player ??
+          Player(
+            configuration: const PlayerConfiguration(
+              bufferSize: 24 * 1024 * 1024,
+            ),
+          ) {
     _bindPlayerStreams(_player);
   }
 
@@ -158,9 +159,7 @@ class MediaKitPlayerAdapter {
   Future<void> _initNextPlayer({double? volume}) async {
     _cancelPrebuffer();
     _nextPlayer = Player(
-      configuration: const PlayerConfiguration(
-        bufferSize: 64 * 1024 * 1024, // 64 MB to cache more eagerly
-      ),
+      configuration: const PlayerConfiguration(bufferSize: 24 * 1024 * 1024),
     );
     if (volume != null) {
       final clamped = volume.clamp(0.0, 1.5);
