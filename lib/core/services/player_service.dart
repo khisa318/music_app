@@ -23,6 +23,7 @@ import 'temp_audio_cache_service.dart';
 
 class CanceledException implements Exception {
   final String message;
+
   CanceledException([this.message = 'Operation cancelled']);
 
   @override
@@ -41,6 +42,7 @@ class PlayerState {
 class PlayerService {
   final MediaKitPlayerAdapter _mediaKitAdapter;
   final AudioUrlService _audioUrlService;
+
   final TempAudioCacheService _tempAudioCacheService = TempAudioCacheService();
 
   final PlayerProvider playerProvider;
@@ -62,7 +64,10 @@ class PlayerService {
 
   Timer? sleepTimer;
   DateTime? sleepTimerEnd;
-  final ValueNotifier<Duration?> sleepTimerRemaining = ValueNotifier(null);
+
+  final ValueNotifier<Duration?> sleepTimerRemaining = ValueNotifier<Duration?>(
+    null,
+  );
 
   bool get isSleepTimerActive => sleepTimerEnd != null;
 
@@ -70,12 +75,16 @@ class PlayerService {
 
   final StreamController<PlayerState> _playerStateController =
       StreamController<PlayerState>.broadcast();
+
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
+
   final StreamController<Duration?> _durationController =
       StreamController<Duration?>.broadcast();
+
   final StreamController<Duration> _bufferedController =
       StreamController<Duration>.broadcast();
+
   final StreamController<bool> _playingController =
       StreamController<bool>.broadcast();
 
@@ -105,14 +114,41 @@ class PlayerService {
   }
 
   bool _isPlaying = false;
+
   Duration _position = Duration.zero;
+
   Duration? _duration;
+
   Duration _bufferedPosition = Duration.zero;
+
   double _playbackSpeed = 1.0;
+
   double _volume = 1.0;
+
   ProcessingState _processingState = ProcessingState.idle;
 
+  // ---------------------------------------------------------------------------
+  // AUDIO INTERRUPTION STATE
+  // ---------------------------------------------------------------------------
+
+  /// Whether the player was playing immediately before an audio interruption.
+  ///
+  /// This is deliberately separate from [_isPlaying].
+  ///
+  /// When Instagram, YouTube, Spotify, calls, etc. take audio focus, the
+  /// player may report itself as paused. We still need to remember that the
+  /// user did NOT manually pause it.
   bool _wasPlayingBeforeInterruption = false;
+
+  /// True while an Android/iOS audio interruption is active.
+  bool _audioInterruptionActive = false;
+
+  /// Prevents interruption callbacks from racing with one another.
+  bool _handlingInterruption = false;
+
+  /// Prevents a resume operation from being triggered multiple times.
+  bool _resumeAfterInterruptionScheduled = false;
+
   bool _isHandlingCompletion = false;
 
   static const int _prebufferThresholdSeconds = 15;
@@ -122,16 +158,28 @@ class PlayerService {
   SongInfo? _prebufferedSong;
 
   SmtcService? _smtcService;
+
   Timer? _smtcPositionTimer;
+
   AudioSession? _audioSession;
+
   Timer? _progressSyncTimer;
 
   StreamSubscription<bool>? _playingSubscription;
+
   StreamSubscription<Duration>? _positionSubscription;
+
   StreamSubscription<Duration>? _durationSubscription;
+
   StreamSubscription<Duration>? _bufferSubscription;
+
   StreamSubscription<bool>? _completedSubscription;
+
   StreamSubscription<bool>? _bufferingSubscription;
+
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
+
+  StreamSubscription<void>? _becomingNoisySubscription;
 
   String? _currentStatsSongId;
   String? _currentStatsSongTitle;
@@ -141,11 +189,15 @@ class PlayerService {
   RepeatMode _loopMode = RepeatMode.off;
 
   MediaKitPlayerAdapter get mediaKitAdapter => _mediaKitAdapter;
+
   dynamic get audioPlayerInstance => null;
+
   YoutubeExplode get yt => _yt;
 
   double get volume => _volume;
+
   bool get isPlaying => _isPlaying;
+
   PlayerState get playerStateSnapshot =>
       PlayerState(_isPlaying, _processingState);
 
@@ -157,29 +209,44 @@ class PlayerService {
   ) : _mediaKitAdapter = MediaKitPlayerAdapter(),
       _audioUrlService = AudioUrlService(downloadProvider) {
     _bindMediaKitStreams();
+
     _setupCompletionHandling();
+
     _restoreSleepTimerIfNeeded();
+
     _initializeAudioSession();
+
     _restoreSavedVolume();
+
     unawaited(_tempAudioCacheService.cleanupExpiredCache());
+
     _initSmtc();
 
     if (!GetIt.I.isRegistered<EqualizerService>()) {
       GetIt.I.registerSingleton<EqualizerService>(EqualizerService());
     }
+
     unawaited(() async {
       await GetIt.I<EqualizerService>().bindPlayer(_mediaKitAdapter);
     }());
   }
 
+  // ===========================================================================
+  // MEDIA KIT STREAMS
+  // ===========================================================================
+
   void _bindMediaKitStreams() {
     _playingSubscription = _mediaKitAdapter.playingStream.listen((playing) {
       _isPlaying = playing;
+
       if (playing && _processingState == ProcessingState.loading) {
         _processingState = ProcessingState.ready;
       }
+
       _emitState();
+
       _updateSmtcPlaybackStatus();
+
       _setupStatsOnPlayStateChange();
     });
 
@@ -193,19 +260,23 @@ class PlayerService {
       _durationController.add(duration);
     });
 
-    _bufferSubscription = _mediaKitAdapter.bufferedPositionStream.listen((b) {
-      if (b != _bufferedPosition) {
-        _bufferedPosition = b;
-        _bufferedController.add(b);
+    _bufferSubscription = _mediaKitAdapter.bufferedPositionStream.listen((
+      buffered,
+    ) {
+      if (buffered != _bufferedPosition) {
+        _bufferedPosition = buffered;
+        _bufferedController.add(buffered);
       }
     });
 
     _completedSubscription = _mediaKitAdapter.completedStream.listen((done) {
-      if (done) {
-        _processingState = ProcessingState.completed;
-        _emitState();
-        _handlePlaybackCompletion();
-      }
+      if (!done) return;
+
+      _processingState = ProcessingState.completed;
+
+      _emitState();
+
+      _handlePlaybackCompletion();
     });
 
     _bufferingSubscription = _mediaKitAdapter.bufferingStream.listen((
@@ -216,12 +287,16 @@ class PlayerService {
           _processingState = ProcessingState.buffering;
           _emitState();
         }
+
         _bufferingTimeoutTimer?.cancel();
-        _bufferingTimeoutTimer = Timer(const Duration(seconds: 15), () {
-          _handleBufferingTimeout();
-        });
+
+        _bufferingTimeoutTimer = Timer(
+          const Duration(seconds: 15),
+          _handleBufferingTimeout,
+        );
       } else {
         _bufferingTimeoutTimer?.cancel();
+
         if (_processingState == ProcessingState.buffering) {
           _processingState = ProcessingState.ready;
           _emitState();
@@ -231,22 +306,28 @@ class PlayerService {
 
     _progressSyncTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
       final currentPos = _mediaKitAdapter.currentPosition;
+
       final currentDur = _mediaKitAdapter.currentDuration;
+
       final currentBuf = _mediaKitAdapter.currentBuffered;
+
       final currentPlay = _mediaKitAdapter.currentPlaying;
 
       if (currentPos != _position) {
         _position = currentPos;
         _positionController.add(currentPos);
       }
+
       if (currentDur != _duration) {
         _duration = currentDur;
         _durationController.add(currentDur);
       }
+
       if (currentBuf != _bufferedPosition) {
         _bufferedPosition = currentBuf;
         _bufferedController.add(currentBuf);
       }
+
       if (currentPlay != _isPlaying) {
         _isPlaying = currentPlay;
         _emitState();
@@ -258,17 +339,28 @@ class PlayerService {
 
   void _setupCompletionHandling() {}
 
+  // ===========================================================================
+  // BUFFERING
+  // ===========================================================================
+
   Future<void> _handleBufferingTimeout() async {
-    if (_processingState != ProcessingState.buffering) return;
+    if (_processingState != ProcessingState.buffering) {
+      return;
+    }
 
     final currentSong = playerProvider.currentSong;
-    if (currentSong == null || playerProvider.currentLocalSong != null) return;
+
+    if (currentSong == null || playerProvider.currentLocalSong != null) {
+      return;
+    }
 
     final wasPlaying = _isPlaying;
+
     final currentPos = _position;
 
     debugPrint(
-      'Buffering timeout, retrying to fetch stream for ${currentSong.name}',
+      'Buffering timeout, retrying to fetch stream for '
+      '${currentSong.name}',
     );
 
     try {
@@ -288,76 +380,145 @@ class PlayerService {
     }
   }
 
+  // ===========================================================================
+  // STATE
+  // ===========================================================================
+
   void _emitState() {
     final state = PlayerState(_isPlaying, _processingState);
+
     _playerStateController.add(state);
+
     _playingController.add(_isPlaying);
   }
 
+  // ===========================================================================
+  // VOLUME
+  // ===========================================================================
+
   Future<void> _restoreSavedVolume() async {
     final box = await SettingsStorageService.getBox();
+
     _volume = ((box.get('volumeLevel') as num?)?.toDouble() ?? 1.0).clamp(
       0.0,
       1.5,
     );
+
     await _mediaKitAdapter.setVolume(_volume);
   }
 
   Future<void> setVolume(double value) async {
     _volume = value.clamp(0.0, 1.5);
+
     await _mediaKitAdapter.setVolume(_volume);
+
     final box = await SettingsStorageService.getBox();
+
     await box.put('volumeLevel', _volume);
   }
 
-  Future<Duration> getCurrentPosition() async => _position;
+  // ===========================================================================
+  // POSITION / SPEED
+  // ===========================================================================
 
-  double getPlaybackSpeed() => _playbackSpeed;
+  Future<Duration> getCurrentPosition() async {
+    return _position;
+  }
+
+  double getPlaybackSpeed() {
+    return _playbackSpeed;
+  }
 
   Future<void> setPlaybackSpeed(double speed) async {
     _playbackSpeed = speed;
+
     await _mediaKitAdapter.setSpeed(speed);
   }
 
   Future<void> seek(Duration position) async {
     await _mediaKitAdapter.seek(position);
+
     _position = position;
+
     _positionController.add(position);
   }
 
+  // ===========================================================================
+  // PLAY / PAUSE / STOP
+  // ===========================================================================
+
   Future<void> play() async {
-    unawaited(_setAudioSessionActive(true));
+    debugPrint('[PlayerService] play() requested');
+
+    // If we are recovering from an interruption, make sure we request
+    // audio focus again before starting playback.
+    await _setAudioSessionActive(true);
+
     await _mediaKitAdapter.play();
+
     _processingState = ProcessingState.ready;
+
     _emitState();
   }
 
   Future<void> pause() async {
+    debugPrint('[PlayerService] pause() requested');
+
     unawaited(_recordCurrentPlaybackEnd());
+
     await _mediaKitAdapter.pause();
-    unawaited(_setAudioSessionActive(false));
+
+    // IMPORTANT:
+    //
+    // A normal user pause should release audio focus.
+    //
+    // During an interruption we DON'T call this method. Instead we use
+    // _pauseForInterruption(), which keeps the interruption state alive.
+    if (!_audioInterruptionActive) {
+      await _setAudioSessionActive(false);
+    }
+
     _processingState = ProcessingState.ready;
+
     _emitState();
   }
 
   Future<void> stop() async {
+    debugPrint('[PlayerService] stop() requested');
+
     await _recordCurrentPlaybackEnd();
+
     await _mediaKitAdapter.stop();
+
     await _setAudioSessionActive(false);
+
+    _audioInterruptionActive = false;
+
+    _wasPlayingBeforeInterruption = false;
+
     _processingState = ProcessingState.idle;
+
     _position = Duration.zero;
+
     _emitState();
   }
+
+  // ===========================================================================
+  // SONG LOADING
+  // ===========================================================================
 
   Future<void> loadSong(SongInfo song) async {
     try {
       _updateSmtcMetadata(song);
+
       await _openSong(song, playWhenReady: false);
+
       updateBackgroundColor(
         song.thumbnails.isNotEmpty ? song.thumbnails.first.url : null,
       );
     } catch (e, stack) {
       debugPrint('Error loading song: $e');
+
       debugPrint('$stack');
     }
   }
@@ -368,28 +529,35 @@ class PlayerService {
     bool forceRefresh = false,
   }) async {
     _prebufferStarted = false;
+
     _prebufferedSong = null;
 
     isFetchingStreamUrlNotifier.value = true;
+
     _processingState = ProcessingState.loading;
+
     _emitState();
 
     if (playWhenReady) {
-      unawaited(_setAudioSessionActive(true));
+      await _setAudioSessionActive(true);
     }
 
     try {
       final settingsProvider = GetIt.I<SettingsProvider>();
+
       final isTempCacheEnabled = settingsProvider.audioCacheEnabled;
+
       final downloadedPath = await downloadProvider.getDownloadedSongPath(
         song.videoId,
       );
+
       if (downloadedPath != null) {
         await _mediaKitAdapter.openPath(downloadedPath, play: playWhenReady);
       } else {
         final cachedFile = isTempCacheEnabled
             ? await _tempAudioCacheService.getCachedFile(song)
             : null;
+
         if (cachedFile != null) {
           await _mediaKitAdapter.openPath(cachedFile.path, play: playWhenReady);
         } else {
@@ -397,11 +565,15 @@ class PlayerService {
             song,
             forceRefresh: forceRefresh,
           );
+
           final audioUrl = audioData?['url'] as String?;
+
           if (audioUrl == null) {
             throw Exception('Failed to get audio URL');
           }
+
           await _mediaKitAdapter.openUri(audioUrl, play: playWhenReady);
+
           if (isTempCacheEnabled) {
             unawaited(
               _tempAudioCacheService
@@ -413,33 +585,53 @@ class PlayerService {
           }
         }
       }
+
       if (GetIt.I.isRegistered<EqualizerService>()) {
         unawaited(GetIt.I<EqualizerService>().applyToBoundPlayer());
       }
+
       _duration = song.duration;
+
       _durationController.add(_duration);
+
       _processingState = ProcessingState.ready;
+
       _emitState();
     } catch (e) {
       _processingState = ProcessingState.idle;
+
       _emitState();
+
       rethrow;
     } finally {
       isFetchingStreamUrlNotifier.value = false;
     }
   }
 
+  // ===========================================================================
+  // PLAY SONG
+  // ===========================================================================
+
   Future<bool> playSong(SongInfo song, {int maxRetries = 1}) async {
     isExplicitlySettingSong = true;
 
+    // A manually selected song cancels any previous interruption recovery.
+    _audioInterruptionActive = false;
+
+    _wasPlayingBeforeInterruption = false;
+
     if (_isPlaying) {
       await _mediaKitAdapter.pause();
+
       _isPlaying = false;
+
       _emitState();
     }
 
     playerProvider.setCurrentSong(song);
+
     _updateSmtcMetadata(song);
+
     unawaited(_recordCurrentPlaybackEnd());
 
     for (int attempt = 0; attempt < maxRetries; attempt++) {
@@ -447,10 +639,14 @@ class PlayerService {
         await _openSong(song, playWhenReady: true);
 
         _currentStatsSongId = song.videoId;
+
         _currentStatsSongTitle = song.name;
+
         _currentStatsSongArtist = song.artists.map((a) => a.name).join(', ');
+
         _currentStatsSessionStartPosition =
             (await getCurrentPosition()).inSeconds;
+
         statsProvider.recordPlayStart(
           _currentStatsSongId!,
           _currentStatsSongTitle!,
@@ -459,8 +655,11 @@ class PlayerService {
         );
 
         isExplicitlySettingSong = false;
+
         return true;
       } catch (e) {
+        debugPrint('playSong attempt ${attempt + 1} failed: $e');
+
         if (attempt == maxRetries - 1) {
           isExplicitlySettingSong = false;
           return false;
@@ -469,8 +668,13 @@ class PlayerService {
     }
 
     isExplicitlySettingSong = false;
+
     return false;
   }
+
+  // ===========================================================================
+  // LOCAL AUDIO
+  // ===========================================================================
 
   Future<void> playLocalAudioWithQueue(
     String filePath,
@@ -480,7 +684,12 @@ class PlayerService {
   ) async {
     isExplicitlySettingSong = true;
 
+    _audioInterruptionActive = false;
+
+    _wasPlayingBeforeInterruption = false;
+
     await _recordCurrentPlaybackEnd();
+
     await stop();
 
     await playerProvider.setCurrentLocalSongWithQueue(
@@ -489,34 +698,50 @@ class PlayerService {
       currentIndex,
     );
 
+    await _setAudioSessionActive(true);
+
     await _mediaKitAdapter.openPath(filePath, play: true);
+
     _processingState = ProcessingState.ready;
+
     _emitState();
 
     _updateSmtcMetadataFromLocal(songData);
+
     updateBackgroundColor(songData['thumbnail']?.toString());
 
     isExplicitlySettingSong = false;
   }
 
+  // ===========================================================================
+  // NEXT
+  // ===========================================================================
+
   void playNext({int retryCount = 0}) async {
     if (playerProvider.currentLocalSong != null) {
       final nextSong = queueProvider.getNextSong();
+
       if (nextSong == null) {
         await seek(Duration.zero);
+
         await pause();
+
         return;
       }
 
       final nextIndex = queueProvider.currentIndex;
+
       final localSongs =
           playerProvider.currentLocalSong!['queue']
               as List<Map<String, dynamic>>?;
+
       if (localSongs != null &&
           nextIndex >= 0 &&
           nextIndex < localSongs.length) {
         final nextLocalSong = localSongs[nextIndex];
+
         final localPath = nextLocalSong['localPath']?.toString();
+
         if (localPath != null && localPath.isNotEmpty) {
           await playLocalAudioWithQueue(
             localPath,
@@ -526,33 +751,46 @@ class PlayerService {
           );
         }
       }
+
       return;
     }
 
     final nextSong = queueProvider.getNextSong();
+
     if (nextSong != null) {
       await playSong(nextSong);
     }
   }
 
+  // ===========================================================================
+  // PREVIOUS
+  // ===========================================================================
+
   void playPrevious({int retryCount = 0}) async {
     if (playerProvider.currentLocalSong != null) {
       final previousSong = queueProvider.getPreviousSong();
+
       if (previousSong == null) {
         await seek(Duration.zero);
+
         await pause();
+
         return;
       }
 
       final previousIndex = queueProvider.currentIndex;
+
       final localSongs =
           playerProvider.currentLocalSong!['queue']
               as List<Map<String, dynamic>>?;
+
       if (localSongs != null &&
           previousIndex >= 0 &&
           previousIndex < localSongs.length) {
         final previousLocalSong = localSongs[previousIndex];
+
         final localPath = previousLocalSong['localPath']?.toString();
+
         if (localPath != null && localPath.isNotEmpty) {
           await playLocalAudioWithQueue(
             localPath,
@@ -562,14 +800,20 @@ class PlayerService {
           );
         }
       }
+
       return;
     }
 
     final previousSong = queueProvider.getPreviousSong();
+
     if (previousSong != null) {
       await playSong(previousSong);
     }
   }
+
+  // ===========================================================================
+  // QUEUE
+  // ===========================================================================
 
   Future<void> setShuffleMode(bool enabled) async {}
 
@@ -583,23 +827,37 @@ class PlayerService {
 
   Future<void> removeFromPlaylist(int queueIndex) async {}
 
+  // ===========================================================================
+  // SLEEP TIMER
+  // ===========================================================================
+
   Future<void> startSleepTimer(Duration duration, {bool fade = false}) async {
     await cancelSleepTimer();
+
     sleepTimerEnd = DateTime.now().add(duration);
+
     sleepTimerRemaining.value = duration;
 
     final box = await SettingsStorageService.getBox();
+
     await box.put('sleep_timer_end', sleepTimerEnd!.millisecondsSinceEpoch);
+
     await box.put('sleep_timer_fade', fade);
 
-    sleepTimer = Timer.periodic(const Duration(seconds: 1), (t) async {
+    sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       final remaining = sleepTimerEnd!.difference(DateTime.now());
+
       if (remaining <= Duration.zero) {
-        t.cancel();
+        timer.cancel();
+
         sleepTimer = null;
+
         sleepTimerRemaining.value = null;
+
         sleepTimerEnd = null;
+
         await box.delete('sleep_timer_end');
+
         await box.delete('sleep_timer_fade');
 
         if (fade) {
@@ -615,10 +873,12 @@ class PlayerService {
 
   Future<void> startSleepTimerUntilEndOfTrack({bool fade = false}) async {
     final duration = _duration;
+
     final position = _position;
 
     if (duration != null) {
       final remaining = duration - position;
+
       if (remaining > Duration.zero) {
         await startSleepTimer(remaining, fade: fade);
       } else {
@@ -633,132 +893,358 @@ class PlayerService {
 
   Future<void> cancelSleepTimer() async {
     sleepTimer?.cancel();
+
     sleepTimer = null;
+
     sleepTimerEnd = null;
+
     sleepTimerRemaining.value = null;
+
     final box = await SettingsStorageService.getBox();
+
     await box.delete('sleep_timer_end');
+
     await box.delete('sleep_timer_fade');
   }
 
   Future<void> _restoreSleepTimerIfNeeded() async {
     final box = await SettingsStorageService.getBox();
+
     final endMillis = box.get('sleep_timer_end') as int?;
+
     final fade = (box.get('sleep_timer_fade') as bool?) ?? false;
+
     if (endMillis != null) {
       final end = DateTime.fromMillisecondsSinceEpoch(endMillis);
+
       final remaining = end.difference(DateTime.now());
+
       if (remaining > Duration.zero) {
         await startSleepTimer(remaining, fade: fade);
       } else {
         await box.delete('sleep_timer_end');
+
         await box.delete('sleep_timer_fade');
       }
     }
   }
+
+  // ===========================================================================
+  // FADE
+  // ===========================================================================
 
   Future<void> fadeAndStop({
     int steps = 8,
     Duration stepDelay = const Duration(milliseconds: 200),
   }) async {
     final original = _volume;
+
     try {
       for (int i = 0; i < steps; i++) {
         final v = (original * (steps - i - 1) / steps).clamp(0.0, 1.5);
+
         await _mediaKitAdapter.setVolume(v);
+
         await Future.delayed(stepDelay);
       }
     } catch (_) {}
+
     await pause();
+
     await _mediaKitAdapter.setVolume(original);
   }
+
+  // ===========================================================================
+  // STATS
+  // ===========================================================================
 
   Future<void> _recordCurrentPlaybackEnd() async {
     if (_currentStatsSongId != null &&
         _currentStatsSessionStartPosition != null) {
       final currentPosition = await getCurrentPosition();
+
       await statsProvider.recordPlayEnd(
         _currentStatsSongId,
         _currentStatsSongTitle,
         _currentStatsSongArtist,
         currentPosition.inSeconds,
       );
+
       _currentStatsSongId = null;
+
       _currentStatsSongTitle = null;
+
       _currentStatsSongArtist = null;
+
       _currentStatsSessionStartPosition = null;
     }
   }
 
   void _setupStatsOnPlayStateChange() {
-    if (_isPlaying) {
-      final currentSong = playerProvider.currentSong;
-      if (currentSong != null && playerProvider.currentLocalSong == null) {
-        _currentStatsSongId = currentSong.videoId;
-        _currentStatsSongTitle = currentSong.name;
-        _currentStatsSongArtist = currentSong.artists
-            .map((a) => a.name)
-            .join(', ');
-      }
+    if (!_isPlaying) return;
+
+    final currentSong = playerProvider.currentSong;
+
+    if (currentSong != null && playerProvider.currentLocalSong == null) {
+      _currentStatsSongId = currentSong.videoId;
+
+      _currentStatsSongTitle = currentSong.name;
+
+      _currentStatsSongArtist = currentSong.artists
+          .map((a) => a.name)
+          .join(', ');
     }
   }
 
+  // ===========================================================================
+  // AUDIO SESSION
+  // ===========================================================================
+
   Future<void> _initializeAudioSession() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return;
+    }
 
     try {
       _audioSession = await AudioSession.instance;
+
       await _audioSession!.configure(const AudioSessionConfiguration.music());
 
-      _audioSession!.interruptionEventStream.listen((event) async {
-        if (event.begin) {
-          _wasPlayingBeforeInterruption = _isPlaying;
-          switch (event.type) {
-            case AudioInterruptionType.duck:
-              await pause();
-              break;
-            case AudioInterruptionType.pause:
-              await pause();
-              break;
-            case AudioInterruptionType.unknown:
-              await pause();
-              break;
-          }
-        } else {
-          switch (event.type) {
-            case AudioInterruptionType.duck:
-              if (_wasPlayingBeforeInterruption) {
-                await play();
-              }
-              break;
-            case AudioInterruptionType.pause:
-              if (_wasPlayingBeforeInterruption) {
-                await play();
-              }
-              break;
-            case AudioInterruptionType.unknown:
-              break;
-          }
-        }
-      });
+      debugPrint('[AudioSession] configured');
 
-      _audioSession!.becomingNoisyEventStream.listen((_) async {
-        await pause();
-      });
-    } catch (_) {}
+      // -----------------------------------------------------------------------
+      // AUDIO INTERRUPTION
+      // -----------------------------------------------------------------------
+
+      _interruptionSubscription = _audioSession!.interruptionEventStream.listen(
+        (event) async {
+          await _handleAudioInterruption(event);
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // BECOMING NOISY
+      // -----------------------------------------------------------------------
+
+      _becomingNoisySubscription = _audioSession!.becomingNoisyEventStream
+          .listen((_) async {
+            debugPrint('[AudioSession] becoming noisy -> pause');
+
+            // Headphones disconnected / audio route changed.
+            //
+            // This is NOT treated as a temporary interruption.
+            _wasPlayingBeforeInterruption = false;
+
+            _audioInterruptionActive = false;
+
+            await pause();
+          });
+    } catch (e) {
+      debugPrint('[AudioSession] initialization failed: $e');
+    }
   }
 
-  Future<void> _setAudioSessionActive(bool active) async {
-    if (_audioSession == null) return;
+  // ===========================================================================
+  // INTERRUPTION HANDLER
+  // ===========================================================================
+
+  Future<void> _handleAudioInterruption(AudioInterruptionEvent event) async {
+    if (_handlingInterruption) {
+      debugPrint('[AudioSession] interruption already being handled');
+
+      return;
+    }
+
+    _handlingInterruption = true;
+
     try {
-      await _audioSession!.setActive(active);
-    } catch (_) {}
+      debugPrint(
+        '[AudioSession] interruption: '
+        'begin=${event.begin}, '
+        'type=${event.type}',
+      );
+
+      if (event.begin) {
+        // ---------------------------------------------------------------
+        // INTERRUPTION STARTED
+        // ---------------------------------------------------------------
+
+        _audioInterruptionActive = true;
+
+        // VERY IMPORTANT:
+        //
+        // Capture the playing state BEFORE pausing.
+        //
+        // If the user was actually listening, remember it.
+        //
+        // If the user had already paused manually, don't resume later.
+        _wasPlayingBeforeInterruption = _isPlaying;
+
+        debugPrint(
+          '[AudioSession] interruption started; '
+          'wasPlaying=$_wasPlayingBeforeInterruption',
+        );
+
+        switch (event.type) {
+          case AudioInterruptionType.duck:
+            // We want Instagram/other apps to get the audio focus,
+            // so pause our player rather than continuing underneath.
+            await _pauseForInterruption();
+            break;
+
+          case AudioInterruptionType.pause:
+            await _pauseForInterruption();
+            break;
+
+          case AudioInterruptionType.unknown:
+            await _pauseForInterruption();
+            break;
+        }
+      } else {
+        // ---------------------------------------------------------------
+        // INTERRUPTION ENDED
+        // ---------------------------------------------------------------
+
+        debugPrint(
+          '[AudioSession] interruption ended; '
+          'wasPlaying=$_wasPlayingBeforeInterruption',
+        );
+
+        _audioInterruptionActive = false;
+
+        if (_wasPlayingBeforeInterruption) {
+          _scheduleResumeAfterInterruption();
+        }
+      }
+    } catch (e) {
+      debugPrint('[AudioSession] interruption handling error: $e');
+    } finally {
+      _handlingInterruption = false;
+    }
   }
+
+  // ===========================================================================
+  // PAUSE FOR INTERRUPTION
+  // ===========================================================================
+
+  Future<void> _pauseForInterruption() async {
+    debugPrint('[AudioSession] _pauseForInterruption()');
+
+    try {
+      // DO NOT call pause() here.
+      //
+      // pause() releases the audio session and records a normal playback
+      // pause. During an interruption we need to keep our own state that
+      // tells us playback should resume afterward.
+
+      await _mediaKitAdapter.pause();
+
+      _isPlaying = false;
+
+      _processingState = ProcessingState.ready;
+
+      _emitState();
+
+      debugPrint('[AudioSession] paused for interruption');
+    } catch (e) {
+      debugPrint('[AudioSession] failed to pause for interruption: $e');
+    }
+  }
+
+  // ===========================================================================
+  // RESUME AFTER INTERRUPTION
+  // ===========================================================================
+
+  void _scheduleResumeAfterInterruption() {
+    if (_resumeAfterInterruptionScheduled) {
+      return;
+    }
+
+    _resumeAfterInterruptionScheduled = true;
+
+    // Small delay allows Android to finish giving the audio focus back to
+    // our application before we request it again.
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 250), () async {
+        try {
+          if (!_wasPlayingBeforeInterruption) {
+            return;
+          }
+
+          debugPrint('[AudioSession] attempting automatic resume');
+
+          // Request audio focus again.
+          final activated = await _setAudioSessionActive(true);
+
+          debugPrint(
+            '[AudioSession] audio session reactivated: '
+            '$activated',
+          );
+
+          // The user may have manually pressed pause while the
+          // interruption was active.
+          if (!_wasPlayingBeforeInterruption) {
+            return;
+          }
+
+          await _mediaKitAdapter.play();
+
+          _isPlaying = true;
+
+          _processingState = ProcessingState.ready;
+
+          _emitState();
+
+          debugPrint('[AudioSession] playback resumed after interruption');
+        } catch (e) {
+          debugPrint('[AudioSession] automatic resume failed: $e');
+        } finally {
+          _resumeAfterInterruptionScheduled = false;
+
+          // We have consumed the interruption state.
+          _wasPlayingBeforeInterruption = false;
+        }
+      }),
+    );
+  }
+
+  // ===========================================================================
+  // ACTIVATE AUDIO SESSION
+  // ===========================================================================
+
+  Future<bool> _setAudioSessionActive(bool active) async {
+    if (_audioSession == null) {
+      debugPrint('[AudioSession] no audio session');
+
+      return false;
+    }
+
+    try {
+      debugPrint('[AudioSession] setActive($active)');
+
+      final result = await _audioSession!.setActive(active);
+
+      debugPrint('[AudioSession] setActive($active) -> $result');
+
+      return result;
+    } catch (e) {
+      debugPrint('[AudioSession] setActive($active) failed: $e');
+
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // SMTC WINDOWS
+  // ===========================================================================
 
   void _initSmtc() {
-    if (!Platform.isWindows) return;
+    if (!Platform.isWindows) {
+      return;
+    }
 
     _smtcService = SmtcService();
+
     _smtcService!.initialize(
       onPlay: () => play(),
       onPause: () => pause(),
@@ -782,7 +1268,10 @@ class PlayerService {
   }
 
   void _updateSmtcPlaybackStatus() {
-    if (_smtcService == null) return;
+    if (_smtcService == null) {
+      return;
+    }
+
     if (_isPlaying) {
       _smtcService!.setIsPlaying();
       return;
@@ -805,8 +1294,15 @@ class PlayerService {
     _smtcService?.updateMetadataFromLocal(localSong);
   }
 
+  // ===========================================================================
+  // COMPLETION
+  // ===========================================================================
+
   Future<void> _handlePlaybackCompletion() async {
-    if (_isHandlingCompletion) return;
+    if (_isHandlingCompletion) {
+      return;
+    }
+
     _isHandlingCompletion = true;
 
     try {
@@ -814,12 +1310,15 @@ class PlayerService {
 
       if (_loopMode == RepeatMode.one) {
         await seek(Duration.zero);
+
         await play();
+
         return;
       }
 
       if (queueProvider.hasNext || queueProvider.isRepeatEnabled) {
         final nextSong = queueProvider.peekNext();
+
         if (nextSong != null &&
             _prebufferedSong != null &&
             _prebufferedSong!.videoId == nextSong.videoId &&
@@ -827,10 +1326,13 @@ class PlayerService {
           queueProvider.getNextSong();
 
           isExplicitlySettingSong = true;
+
           playerProvider.setCurrentSong(nextSong);
+
           _updateSmtcMetadata(nextSong);
 
           final swapped = await _mediaKitAdapter.swapToPrebuffered();
+
           if (swapped) {
             if (GetIt.I.isRegistered<EqualizerService>()) {
               unawaited(
@@ -839,21 +1341,28 @@ class PlayerService {
             }
 
             _processingState = ProcessingState.ready;
+
             _duration = nextSong.duration;
+
             _durationController.add(_duration);
+
             _emitState();
 
             _currentStatsSongId = nextSong.videoId;
+
             _currentStatsSongTitle = nextSong.name;
+
             _currentStatsSongArtist = nextSong.artists
                 .map((a) => a.name)
                 .join(', ');
+
             _currentStatsSessionStartPosition = 0;
+
             statsProvider.recordPlayStart(
               _currentStatsSongId!,
               _currentStatsSongTitle!,
               _currentStatsSongArtist!,
-              _currentStatsSessionStartPosition!,
+              0,
             );
 
             updateBackgroundColor(
@@ -863,17 +1372,25 @@ class PlayerService {
             );
 
             _prebufferStarted = false;
+
             _prebufferedSong = null;
+
             isExplicitlySettingSong = false;
+
             return;
           }
+
           isExplicitlySettingSong = false;
         }
+
         _prebufferStarted = false;
+
         _prebufferedSong = null;
+
         playNext();
       } else {
         await seek(Duration.zero);
+
         await pause();
       }
     } finally {
@@ -881,39 +1398,70 @@ class PlayerService {
     }
   }
 
+  // ===========================================================================
+  // PREBUFFER
+  // ===========================================================================
+
   void _checkAndTriggerPrebuffer(Duration position, Duration? duration) {
-    if (_prebufferStarted) return;
-    if (duration == null || duration == Duration.zero) return;
-    if (!_isPlaying) return;
+    if (_prebufferStarted) {
+      return;
+    }
+
+    if (duration == null || duration == Duration.zero) {
+      return;
+    }
+
+    if (!_isPlaying) {
+      return;
+    }
+
     try {
       final settings = GetIt.I<SettingsProvider>();
-      if (!settings.gaplessPlaybackEnabled) return;
+
+      if (!settings.gaplessPlaybackEnabled) {
+        return;
+      }
     } catch (_) {
       return;
     }
 
-    if (_loopMode == RepeatMode.one) return;
+    if (_loopMode == RepeatMode.one) {
+      return;
+    }
 
     final remaining = duration - position;
+
     if (remaining.inSeconds <= _prebufferThresholdSeconds &&
         remaining.inSeconds > 0) {
       final nextSong = queueProvider.peekNext();
-      if (nextSong == null) return;
 
-      if (playerProvider.currentLocalSong != null) return;
+      if (nextSong == null) {
+        return;
+      }
+
+      if (playerProvider.currentLocalSong != null) {
+        return;
+      }
 
       _prebufferStarted = true;
+
       _prebufferNextTrack(nextSong);
     }
   }
 
   Future<void> _prebufferNextTrack(SongInfo song) async {
     try {
-      debugPrint('[Prebuffer] Starting prebuffer for: ${song.name}');
+      debugPrint(
+        '[Prebuffer] Starting prebuffer for: '
+        '${song.name}',
+      );
+
       _prebufferedSong = song;
 
       final settingsProvider = GetIt.I<SettingsProvider>();
+
       final isTempCacheEnabled = settingsProvider.audioCacheEnabled;
+
       final downloadedPath = await downloadProvider.getDownloadedSongPath(
         song.videoId,
       );
@@ -924,6 +1472,7 @@ class PlayerService {
         final cachedFile = isTempCacheEnabled
             ? await _tempAudioCacheService.getCachedFile(song)
             : null;
+
         if (cachedFile != null) {
           await _mediaKitAdapter.prebufferPath(
             cachedFile.path,
@@ -934,13 +1483,22 @@ class PlayerService {
             song,
             isPreloading: true,
           );
+
           final audioUrl = audioData?['url'] as String?;
+
           if (audioUrl == null) {
-            debugPrint('[Prebuffer] Could not resolve URL for ${song.name}');
+            debugPrint(
+              '[Prebuffer] Could not resolve URL for '
+              '${song.name}',
+            );
+
             _prebufferedSong = null;
+
             return;
           }
+
           await _mediaKitAdapter.prebufferUri(audioUrl, volume: _volume);
+
           if (isTempCacheEnabled) {
             unawaited(
               _tempAudioCacheService
@@ -954,9 +1512,11 @@ class PlayerService {
       if (GetIt.I.isRegistered<EqualizerService>()) {
         try {
           final eqService = GetIt.I<EqualizerService>();
+
           final graph = eqService.equalizerEnabled
               ? eqService.buildFilterGraph()
               : '';
+
           await _mediaKitAdapter.applyFilterGraphToNextPlayer(graph);
         } catch (_) {}
       }
@@ -964,18 +1524,29 @@ class PlayerService {
       debugPrint('[Prebuffer] Ready: ${song.name}');
     } catch (e) {
       debugPrint('[Prebuffer] Error: $e');
+
       _prebufferedSong = null;
     }
   }
 
+  // ===========================================================================
+  // BACKGROUND COLOR
+  // ===========================================================================
+
   Future<void> updateBackgroundColor(String? thumbnailUrl) async {
     final color = await ColorPaletteService.generatePalette(thumbnailUrl ?? '');
+
     backgroundColorNotifier.value = color;
   }
+
+  // ===========================================================================
+  // DEFAULT ARTWORK
+  // ===========================================================================
 
   Future<Uri> getDefaultArtworkUri() async {
     try {
       final dir = Directory.systemTemp;
+
       return Uri.file('${dir.path}/default_artwork.png');
     } catch (_) {
       return Uri.parse(
@@ -984,30 +1555,55 @@ class PlayerService {
     }
   }
 
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
+
   Future<void> dispose() async {
     await _recordCurrentPlaybackEnd();
+
     await _setAudioSessionActive(false);
+
     sleepTimer?.cancel();
+
     _bufferingTimeoutTimer?.cancel();
+
     _smtcPositionTimer?.cancel();
+
     _progressSyncTimer?.cancel();
+
     _smtcService?.dispose();
 
-    _playingSubscription?.cancel();
-    _positionSubscription?.cancel();
-    _durationSubscription?.cancel();
-    _bufferSubscription?.cancel();
-    _completedSubscription?.cancel();
-    _bufferingSubscription?.cancel();
+    await _playingSubscription?.cancel();
+
+    await _positionSubscription?.cancel();
+
+    await _durationSubscription?.cancel();
+
+    await _bufferSubscription?.cancel();
+
+    await _completedSubscription?.cancel();
+
+    await _bufferingSubscription?.cancel();
+
+    await _interruptionSubscription?.cancel();
+
+    await _becomingNoisySubscription?.cancel();
 
     await _playerStateController.close();
+
     await _positionController.close();
+
     await _durationController.close();
+
     await _bufferedController.close();
+
     await _playingController.close();
 
     _prebufferStarted = false;
+
     _prebufferedSong = null;
+
     await _mediaKitAdapter.dispose();
 
     AudioUrlIsolate.cancelAllRequests().catchError((_) {});
