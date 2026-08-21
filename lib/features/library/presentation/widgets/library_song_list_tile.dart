@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:metadata_god/metadata_god.dart';
-import '../../../../shared/components/marquee_text.dart';
 import '../../../../core/services/local_songs_service.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -88,8 +87,8 @@ class LibrarySongListTile extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          memCacheWidth: (AppDimens.thumbnailDefault * 2 * uiScale).toInt(),
-          memCacheHeight: (AppDimens.thumbnailDefault * 2 * uiScale).toInt(),
+          memCacheWidth: size.toInt(),
+          memCacheHeight: size.toInt(),
           placeholder: (context, url) => Image.asset(
             'assets/default_artwork.png',
             height: size,
@@ -115,8 +114,6 @@ class LibrarySongListTile extends StatelessWidget {
     final double uiScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.85, 1.0).toDouble()
         : 1.0;
-    final double marqueeSpeed = 120.0;
-
     final videoId = song['id'] ?? song['videoId'];
     final downloadProgress = context
         .select<dp.DownloadProvider, dp.DownloadProgress?>(
@@ -135,20 +132,19 @@ class LibrarySongListTile extends StatelessWidget {
         ? 1.0
         : mq.textScaleFactor;
 
-    return MediaQuery(
-      data: mq.copyWith(textScaler: TextScaler.linear(enforcedTextScale)),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-        clipBehavior: Clip.antiAlias,
-        child: ListTile(
-          contentPadding: tilePadding,
-          leading: Stack(
-            alignment: Alignment.center,
-            children: [
-              Hero(
-                tag: 'song-thumbnail-${song['id'] ?? song['videoId']}',
-                child: Container(
+    return RepaintBoundary(
+      child: MediaQuery(
+        data: mq.copyWith(textScaler: TextScaler.linear(enforcedTextScale)),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            contentPadding: tilePadding,
+            leading: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(
                       AppDimens.radiusSm * uiScale,
@@ -163,206 +159,212 @@ class LibrarySongListTile extends StatelessWidget {
                   ),
                   child: buildArtwork(uiScale),
                 ),
-              ),
-              if (isPlaying)
-                Container(
-                  width: AppDimens.thumbnailDefault * uiScale,
-                  height: AppDimens.thumbnailDefault * uiScale,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(
-                      AppDimens.radiusSm * uiScale,
+                if (isPlaying)
+                  Container(
+                    width: AppDimens.thumbnailDefault * uiScale,
+                    height: AppDimens.thumbnailDefault * uiScale,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(
+                        AppDimens.radiusSm * uiScale,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.equalizer,
+                      color: accentColor,
+                      size: AppDimens.iconLg * uiScale,
                     ),
                   ),
-                  child: Icon(
-                    Icons.equalizer,
-                    color: accentColor,
-                    size: AppDimens.iconLg * uiScale,
-                  ),
-                ),
-            ],
-          ),
-          title: MarqueeText(
-            text: song['title'] ?? song['name'] ?? 'Unknown Title',
-            style: AppTextStyles.bodyLg(
-              isDarkMode: isDarkMode,
-              color: isPlaying ? accentColor : textColor,
-            ).copyWith(height: AppTextStyles.lineHeightDefault),
-            speedPxPerSecond: marqueeSpeed,
-            pauseDuration: const Duration(milliseconds: 300),
-          ),
-          subtitle: Row(
-            children: [
-              Flexible(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.6,
-                  ),
-                  child: MarqueeText(
-                    text: _getArtistDisplayName(),
-                    style: AppTextStyles.body2(
-                      isDarkMode: isDarkMode,
-                      color: isPlaying
-                          ? accentColor.withValues(alpha: 0.7)
-                          : textColor.withValues(alpha: 0.7),
-                    ).copyWith(height: AppTextStyles.lineHeightDefault),
-                    speedPxPerSecond: marqueeSpeed,
-                    pauseDuration: const Duration(milliseconds: 300),
-                  ),
-                ),
-              ),
-              SizedBox(width: AppDimens.spacingSm),
-              Text(
-                _formatDuration(song['duration']),
-                style: AppTextStyles.caption(isDarkMode: isDarkMode).copyWith(
-                  color: isPlaying
-                      ? accentColor.withValues(alpha: 0.7)
-                      : textColor.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (song['isLocal'] == true)
-                const SizedBox.shrink()
-              else if (isDownloaded)
-                SizedBox(
-                  width: AppDimens.iconMd * uiScale,
-                  height: AppDimens.iconMd * uiScale,
-                  child: Icon(
-                    Icons.check_circle,
-                    color: accentColor,
-                    size: AppDimens.iconMd * uiScale,
-                  ),
-                )
-              else if (isPreparing)
-                SizedBox(
-                  width: AppDimens.iconMd * uiScale,
-                  height: AppDimens.iconMd * uiScale,
-                  child: CircularProgressIndicator(
-                    strokeWidth: AppDimens.progressStroke * uiScale,
-                    valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                  ),
-                )
-              else if (downloadProgress != null &&
-                  downloadProgress.progress < 1.0)
-                SizedBox(
-                  width: AppDimens.iconXxl * uiScale,
-                  height: AppDimens.iconXxl * uiScale,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: downloadProgress.progress,
-                        strokeWidth: AppDimens.progressStroke * uiScale,
-                        valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                        backgroundColor: textColor.withValues(alpha: 0.3),
-                      ),
-                      Text(
-                        '${(downloadProgress.progress * 100).toInt()}%',
-                        style: AppTextStyles.badge(
-                          isDarkMode: isDarkMode,
-                        ).copyWith(color: textColor, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                SizedBox(
-                  width: AppDimens.iconMd * uiScale,
-                  height: AppDimens.iconMd * uiScale,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints.tightFor(
-                      width: AppDimens.iconMd * uiScale,
-                      height: AppDimens.iconMd * uiScale,
+              ],
+            ),
+            title: Text(
+              song['title'] ?? song['name'] ?? 'Unknown Title',
+              style: AppTextStyles.bodyLg(
+                isDarkMode: isDarkMode,
+                color: isPlaying ? accentColor : textColor,
+              ).copyWith(height: AppTextStyles.lineHeightDefault),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Row(
+              children: [
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.6,
                     ),
+                    child: Text(
+                      _getArtistDisplayName(),
+                      style: AppTextStyles.body2(
+                        isDarkMode: isDarkMode,
+                        color: isPlaying
+                            ? accentColor.withValues(alpha: 0.7)
+                            : textColor.withValues(alpha: 0.7),
+                      ).copyWith(height: AppTextStyles.lineHeightDefault),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                SizedBox(width: AppDimens.spacingSm),
+                Text(
+                  _formatDuration(song['duration']),
+                  style: AppTextStyles.caption(isDarkMode: isDarkMode).copyWith(
+                    color: isPlaying
+                        ? accentColor.withValues(alpha: 0.7)
+                        : textColor.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (song['isLocal'] == true)
+                  const SizedBox.shrink()
+                else if (isDownloaded)
+                  SizedBox(
+                    width: AppDimens.iconMd * uiScale,
+                    height: AppDimens.iconMd * uiScale,
+                    child: Icon(
+                      Icons.check_circle,
+                      color: accentColor,
+                      size: AppDimens.iconMd * uiScale,
+                    ),
+                  )
+                else if (isPreparing)
+                  SizedBox(
+                    width: AppDimens.iconMd * uiScale,
+                    height: AppDimens.iconMd * uiScale,
+                    child: CircularProgressIndicator(
+                      strokeWidth: AppDimens.progressStroke * uiScale,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                    ),
+                  )
+                else if (downloadProgress != null &&
+                    downloadProgress.progress < 1.0)
+                  SizedBox(
+                    width: AppDimens.iconXxl * uiScale,
+                    height: AppDimens.iconXxl * uiScale,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          value: downloadProgress.progress,
+                          strokeWidth: AppDimens.progressStroke * uiScale,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
+                          backgroundColor: textColor.withValues(alpha: 0.3),
+                        ),
+                        Text(
+                          '${(downloadProgress.progress * 100).toInt()}%',
+                          style: AppTextStyles.badge(isDarkMode: isDarkMode)
+                              .copyWith(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: AppDimens.iconMd * uiScale,
+                    height: AppDimens.iconMd * uiScale,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints.tightFor(
+                        width: AppDimens.iconMd * uiScale,
+                        height: AppDimens.iconMd * uiScale,
+                      ),
+                      icon: Icon(
+                        Icons.download,
+                        color: textColor,
+                        size: AppDimens.iconMd * uiScale,
+                      ),
+                      onPressed: () async {
+                        final songInfo = SongInfo(
+                          videoId: song['id'],
+                          name: song['title'],
+                          artists:
+                              song['artists'] != null && song['artists'] is List
+                              ? (song['artists'] as List)
+                                    .map(
+                                      (a) => Artist(
+                                        name: a['name'] ?? '',
+                                        id: a['id'] ?? '',
+                                      ),
+                                    )
+                                    .toList()
+                              : [Artist(name: song['artist'] ?? '', id: '')],
+                          thumbnails: [
+                            Thumbnail(
+                              url: song['thumbnail'] ?? '',
+                              width: 0,
+                              height: 0,
+                            ),
+                          ],
+                          duration: Duration(
+                            milliseconds: song['duration'] ?? 0,
+                          ),
+                        );
+                        await context.read<dp.DownloadProvider>().downloadSong(
+                          songInfo,
+                        );
+                      },
+                    ),
+                  ),
+                if (song['isLocal'] == true)
+                  IconButton(
                     icon: Icon(
-                      Icons.download,
+                      Icons.more_vert,
                       color: textColor,
                       size: AppDimens.iconMd * uiScale,
                     ),
-                    onPressed: () async {
-                      final songInfo = SongInfo(
-                        videoId: song['id'],
-                        name: song['title'],
-                        artists:
-                            song['artists'] != null && song['artists'] is List
-                            ? (song['artists'] as List)
-                                  .map(
-                                    (a) => Artist(
-                                      name: a['name'] ?? '',
-                                      id: a['id'] ?? '',
-                                    ),
-                                  )
-                                  .toList()
-                            : [Artist(name: song['artist'] ?? '', id: '')],
-                        thumbnails: [
-                          Thumbnail(
-                            url: song['thumbnail'] ?? '',
-                            width: 0,
-                            height: 0,
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => SafeArea(
+                          top: false,
+                          child: LocalSongOptionsBottomSheet(
+                            song: song,
+                            isDarkMode: isDarkMode,
+                            onPlay: onPlay,
                           ),
-                        ],
-                        duration: Duration(milliseconds: song['duration'] ?? 0),
+                        ),
                       );
-                      await context.read<dp.DownloadProvider>().downloadSong(
-                        songInfo,
+                    },
+                  )
+                else
+                  IconButton(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: textColor,
+                      size: AppDimens.iconMd * uiScale,
+                    ),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => SafeArea(
+                          top: false,
+                          child: SongOptionsBottomSheetlibrary(
+                            song: song,
+                            isPlaying: isPlaying,
+                            isDarkMode: isDarkMode,
+                          ),
+                        ),
                       );
                     },
                   ),
-                ),
-              if (song['isLocal'] == true)
-                IconButton(
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: textColor,
-                    size: AppDimens.iconMd * uiScale,
-                  ),
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => SafeArea(
-                        top: false,
-                        child: LocalSongOptionsBottomSheet(
-                          song: song,
-                          isDarkMode: isDarkMode,
-                          onPlay: onPlay,
-                        ),
-                      ),
-                    );
-                  },
-                )
-              else
-                IconButton(
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: textColor,
-                    size: AppDimens.iconMd * uiScale,
-                  ),
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => SafeArea(
-                        top: false,
-                        child: SongOptionsBottomSheetlibrary(
-                          song: song,
-                          isPlaying: isPlaying,
-                          isDarkMode: isDarkMode,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-            ],
+              ],
+            ),
+            onTap: onTap ?? onPlay,
           ),
-          onTap: onTap ?? onPlay,
         ),
       ),
     );

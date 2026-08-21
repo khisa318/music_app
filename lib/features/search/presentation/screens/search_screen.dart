@@ -12,6 +12,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
+import '../../../../core/models/song_model.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../data/search_screen_services.dart';
 import '../../data/voice_search_service.dart';
@@ -210,10 +211,74 @@ class _SearchScreenState extends State<SearchScreen>
     final queueProvider = Provider.of<QueueProvider>(context, listen: false);
 
     try {
+      final resultKey = _searchMode == SearchMode.youtubeMusic
+          ? 'Songs'
+          : 'Videos';
+      final searchResults = _categorizedResultsNotifier.value[resultKey] ?? [];
+      final searchSongs = searchResults
+          .map(_songInfoFromSearchResult)
+          .whereType<SongInfo>()
+          .toList();
+      final songId = _searchSongId(song);
+      if (searchSongs.isNotEmpty && songId != null) {
+        final currentIndex = searchSongs.indexWhere(
+          (result) => result.videoId == songId,
+        );
+
+        if (currentIndex >= 0) {
+          const playlistId = 'search_results';
+          queueProvider.setQueue(
+            searchSongs,
+            currentIndex: currentIndex,
+            playlistId: playlistId,
+            playlistName: 'Search Results',
+          );
+          await playerProvider.playerService.playSong(song);
+          await queueProvider.saveQueue();
+          return;
+        }
+      }
+
       await _services.playSong(song, playerProvider, queueProvider);
     } catch (e) {
       debugPrint('Failed to play song. Please try again.');
       debugPrint('Error playing song: $e');
+    }
+  }
+
+  String? _searchSongId(dynamic song) {
+    try {
+      return song.videoId?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  SongInfo? _songInfoFromSearchResult(dynamic result) {
+    try {
+      final thumbnails = (result.thumbnails as List)
+          .map(
+            (thumbnail) => Thumbnail(
+              url: thumbnail.url.toString(),
+              width: thumbnail.width as int? ?? 0,
+              height: thumbnail.height as int? ?? 0,
+            ),
+          )
+          .toList();
+      return SongInfo(
+        videoId: result.videoId.toString(),
+        name: result.name.toString(),
+        artists: [
+          Artist(
+            name: result.artist.name.toString(),
+            id: result.artist.artistId?.toString() ?? '',
+          ),
+        ],
+        thumbnails: thumbnails,
+        duration: Duration(seconds: (result.duration ?? 0) as int),
+      );
+    } catch (_) {
+      return null;
     }
   }
 

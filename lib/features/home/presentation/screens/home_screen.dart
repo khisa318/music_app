@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 
 import '../widgets/favorite_artists_section.dart';
 import '../widgets/home_sections.dart';
-import '../widgets/liked_songs_section.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
@@ -412,29 +411,15 @@ class _HomeScreenState extends State<HomeScreen> {
               listen: false,
             );
 
-            if (_trendingSubIndex == 0) {
-              if (trendingProvider.selectedCountry != null) {
-                final pid = trendingProvider.selectedCountry!.playlistId;
-                if (trendingProvider.getTrendingSongs(pid).isEmpty) {
-                  trendingProvider.loadTrendingSongs(pid);
-                }
-              } else {
-                if (trendingProvider
-                    .getTrendingSongs(TrendingProvider.top100GlobalPlaylistId)
-                    .isEmpty) {
-                  trendingProvider.loadTrendingSongs(
-                    TrendingProvider.top100GlobalPlaylistId,
-                  );
-                }
-              }
-            } else {
-              if (trendingProvider
-                  .getTrendingSongs(TrendingProvider.top100GlobalPlaylistId)
-                  .isEmpty) {
-                trendingProvider.loadTrendingSongs(
-                  TrendingProvider.top100GlobalPlaylistId,
-                );
-              }
+            final kenya = trendingProvider.countries.first;
+            if (trendingProvider.selectedCountry?.playlistId !=
+                kenya.playlistId) {
+              await trendingProvider.setSelectedCountry(kenya);
+            }
+            final country = kenya;
+            if (country != null &&
+                trendingProvider.getTrendingSongs(country.playlistId).isEmpty) {
+              trendingProvider.loadTrendingSongs(country.playlistId);
             }
           }
 
@@ -833,99 +818,37 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final trendingProvider = Provider.of<TrendingProvider>(context);
-
-    Widget subTab(String title, int index, {VoidCallback? onLongPress}) {
-      final selected = _trendingSubIndex == index;
-      return GestureDetector(
-        onTap: () {
-          setState(() => _trendingSubIndex = index);
-
-          if (index == 0) {
-            if (trendingProvider.selectedCountry == null ||
-                (selected && index == 0)) {
-              _showCountrySelectionDialog(context);
-            } else {
-              if (trendingProvider
-                  .getTrendingSongs(
-                    trendingProvider.selectedCountry!.playlistId,
-                  )
-                  .isEmpty) {
-                trendingProvider.loadTrendingSongs(
-                  trendingProvider.selectedCountry!.playlistId,
-                );
-              }
-            }
-          } else if (index == 1) {
-            if (trendingProvider
-                .getTrendingSongs(TrendingProvider.top100GlobalPlaylistId)
-                .isEmpty) {
-              trendingProvider.loadTrendingSongs(
-                TrendingProvider.top100GlobalPlaylistId,
-              );
-            }
-          }
-        },
-        onLongPress: onLongPress,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.paddingMd,
-            vertical: AppDimens.paddingXs,
-          ),
-          margin: const EdgeInsets.only(right: AppDimens.spacingSm),
-          decoration: BoxDecoration(
-            color: selected
-                ? accentColor.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-            border: Border.all(
-              color: selected
-                  ? accentColor.withValues(alpha: 0.25)
-                  : (isDarkMode ? Colors.white10 : Colors.black12),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style:
-                    AppTextStyles.bodyMd(
-                      isDarkMode: isDarkMode,
-                      color: selected ? accentColor : null,
-                    ).copyWith(
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-              ),
-              if (index == 0) ...[
-                const SizedBox(width: AppDimens.spacingXs),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: selected
-                      ? accentColor
-                      : (isDarkMode ? Colors.white70 : Colors.black54),
-                  size: 16,
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    String countryTitle = 'Country';
-    if (trendingProvider.selectedCountry != null) {
-      countryTitle =
-          '${trendingProvider.selectedCountry!.flag} ${trendingProvider.selectedCountry!.name}';
-    }
+    final countryName = trendingProvider.selectedCountry?.name ?? 'Kenya';
 
     return [
       SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.paddingLg,
-            vertical: AppDimens.paddingSm,
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.paddingMd,
+            AppDimens.paddingLg,
+            AppDimens.paddingSm,
           ),
-          child: Row(children: [subTab(countryTitle, 0), subTab('Global', 1)]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Trending in $countryName',
+                style: AppTextStyles.titleSm(
+                  isDarkMode: isDarkMode,
+                  color: accentColor,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppDimens.spacingXs),
+              Text(
+                'The songs people are listening to right now',
+                style: AppTextStyles.body2(
+                  isDarkMode: isDarkMode,
+                  color: isDarkMode ? Colors.white60 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       _buildTrendingSliverList(context),
@@ -935,29 +858,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildTrendingSliverList(BuildContext context) {
     final trendingProvider = Provider.of<TrendingProvider>(context);
 
-    String playlistId;
-    if (_trendingSubIndex == 0) {
-      if (trendingProvider.selectedCountry == null) {
-        return SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppDimens.paddingLg),
-            child: Center(
-              child: Column(
-                children: [
-                  Text('No country selected.'),
-                  TextButton(
-                    onPressed: () => _showCountrySelectionDialog(context),
-                    child: Text('Select Country'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
-      playlistId = trendingProvider.selectedCountry!.playlistId;
-    } else {
-      playlistId = TrendingProvider.top100GlobalPlaylistId;
+    final playlistId = trendingProvider.selectedCountry?.playlistId;
+    if (playlistId == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
     final songs = trendingProvider.getTrendingSongs(playlistId);
@@ -1010,11 +913,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: SongListTile(
                 song: song,
                 onPlay: () {
-                  final playlistName = _trendingSubIndex == 0
-                      ? (trendingProvider.selectedCountry != null
-                            ? '${trendingProvider.selectedCountry!.name} Trending'
-                            : 'Country Trending')
-                      : 'Global Trending';
+                  final playlistName =
+                      '${trendingProvider.selectedCountry?.name ?? 'Kenya'} Trending';
 
                   trendingProvider.playSong(
                     song,
@@ -1139,7 +1039,6 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_selectedIndex == 0) ...[
             SliverToBoxAdapter(child: _buildPopularTracks(context)),
             SliverToBoxAdapter(child: _buildForYouCarousel(context)),
-            SliverToBoxAdapter(child: LikedSongsSection()),
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
             SliverToBoxAdapter(child: HomeSections()),
           ] else if (_selectedIndex == 1) ...[

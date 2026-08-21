@@ -416,12 +416,12 @@ class DownloadProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final queue = prefs.getStringList('download_queue') ?? [];
 
-    final isAlreadyInQueue = queue.any((item) {
+    final existingIndex = queue.indexWhere((item) {
       final songData = json.decode(item) as Map<String, dynamic>;
       return songData['id'] == videoId;
     });
 
-    if (!isAlreadyInQueue) {
+    if (existingIndex == -1) {
       debugPrint('Song not in queue. Adding to queue for videoId: $videoId');
       final newSong = {
         'id': videoId,
@@ -438,7 +438,40 @@ class DownloadProvider with ChangeNotifier {
       await loadDownloadQueue();
       debugPrint('Song added to queue for videoId: $videoId');
     } else {
-      debugPrint('Song already in queue for videoId: $videoId');
+      final existingSong =
+          json.decode(queue[existingIndex]) as Map<String, dynamic>;
+      final status = existingSong['status'];
+      final existingPath =
+          existingSong['localPath'] ?? existingSong['filePath'];
+      final isCompleted =
+          status == 'completed' &&
+          existingPath is String &&
+          await File(existingPath).exists();
+
+      if (status == 'queued' ||
+          status == 'downloading' ||
+          status == 'paused' ||
+          isCompleted) {
+        debugPrint('Song already in queue for videoId: $videoId');
+      } else {
+        existingSong
+          ..['title'] = song.name
+          ..['artist'] = song.artists.isNotEmpty
+              ? song.artists[0].name
+              : 'Unknown Artist'
+          ..['thumbnail'] = song.thumbnails.isNotEmpty
+              ? song.thumbnails[0].url
+              : ''
+          ..['duration'] = song.duration.inMilliseconds
+          ..['status'] = 'queued'
+          ..remove('localPath')
+          ..remove('filePath')
+          ..remove('error');
+        queue[existingIndex] = json.encode(existingSong);
+        await prefs.setStringList('download_queue', queue);
+        await loadDownloadQueue();
+        debugPrint('Retrying download for videoId: $videoId');
+      }
     }
 
     if (_isPaused) {

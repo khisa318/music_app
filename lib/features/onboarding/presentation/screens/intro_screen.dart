@@ -34,7 +34,7 @@ class _IntroScreenState extends State<IntroScreen>
 
   final List<IntroPage> _pages = [
     const IntroPage(
-      title: 'Welcome to Noize',
+      title: 'Welcome to Musix',
       subtitle: 'AI-Powered Music Companion',
       svgAsset: 'assets/images/intro_ai_music.svg',
       iconColor: Color(0xFF6366F1),
@@ -90,7 +90,12 @@ class _IntroScreenState extends State<IntroScreen>
     super.dispose();
   }
 
-  Widget _buildMobileContent(IntroPage page, BoxConstraints constraints) {
+  Widget _buildMobileContent(
+    BuildContext context,
+    IntroPage page,
+    BoxConstraints constraints,
+  ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final h = constraints.maxHeight;
     final w = constraints.maxWidth;
     final imageSize = (h * 0.38).clamp(100.0, w * 0.65);
@@ -109,8 +114,8 @@ class _IntroScreenState extends State<IntroScreen>
         Text(
           page.title,
           style: AppTextStyles.display(
-            isDarkMode: false,
-            color: const Color(0xFF1F2937),
+            isDarkMode: isDarkMode,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           textAlign: TextAlign.center,
         ),
@@ -120,7 +125,7 @@ class _IntroScreenState extends State<IntroScreen>
           child: Text(
             page.subtitle,
             style: AppTextStyles.subtitle(
-              isDarkMode: false,
+              isDarkMode: isDarkMode,
               color: page.iconColor,
             ),
             textAlign: TextAlign.center,
@@ -130,8 +135,9 @@ class _IntroScreenState extends State<IntroScreen>
     );
   }
 
-  Widget _buildDesktopLayout(Size size) {
+  Widget _buildDesktopLayout(BuildContext context, Size size) {
     final page = _pages[_currentPage];
+    final theme = Theme.of(context);
     return Row(
       children: [
         Expanded(
@@ -177,7 +183,7 @@ class _IntroScreenState extends State<IntroScreen>
         Expanded(
           flex: 4,
           child: Container(
-            color: Colors.white,
+            color: theme.scaffoldBackgroundColor,
             padding: const EdgeInsets.symmetric(
               horizontal: 48.0,
               vertical: 32.0,
@@ -192,8 +198,10 @@ class _IntroScreenState extends State<IntroScreen>
                     child: Text(
                       'Skip',
                       style: AppTextStyles.subtitle(
-                        isDarkMode: false,
-                        color: const Color(0xFF6B7280),
+                        isDarkMode: theme.brightness == Brightness.dark,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.65,
+                        ),
                       ),
                     ),
                   ),
@@ -224,8 +232,8 @@ class _IntroScreenState extends State<IntroScreen>
                 Text(
                   page.title,
                   style: AppTextStyles.hero(
-                    isDarkMode: false,
-                    color: const Color(0xFF1F2937),
+                    isDarkMode: theme.brightness == Brightness.dark,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
 
@@ -441,14 +449,14 @@ class _IntroScreenState extends State<IntroScreen>
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop = constraints.maxWidth > 720;
 
             if (isDesktop) {
-              return _buildDesktopLayout(size);
+              return _buildDesktopLayout(context, size);
             }
 
             final page = _pages[_currentPage];
@@ -502,6 +510,7 @@ class _IntroScreenState extends State<IntroScreen>
                                 horizontal: AppDimens.paddingXl,
                               ),
                               child: _buildMobileContent(
+                                context,
                                 _pages[index],
                                 innerConstraints,
                               ),

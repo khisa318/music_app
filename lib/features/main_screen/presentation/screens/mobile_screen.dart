@@ -4,11 +4,11 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
-import '../widgets/audio_output_bottomsheet.dart';
 
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:provider/provider.dart';
 import '../../../home/presentation/screens/home_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/models/ota_model.dart';
 import '../../../ota/data/providers/ota_provider.dart';
@@ -16,6 +16,8 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../library/presentation/screens/library_screen.dart';
+import '../../../library/data/providers/library_provider.dart';
+import '../../../library/presentation/widgets/library_song_search_delegate.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
@@ -363,33 +365,27 @@ class _TabWrapper extends StatelessWidget {
     this.showAppBar = true,
   }) : onSearchTap = null;
 
-  Future<void> _showAudioOutputSheet(BuildContext context) async {
-    final settingsProvider = Provider.of<SettingsProvider>(
-      context,
-      listen: false,
-    );
-    final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
-    final accentColor = settingsProvider.accentColor;
-    await showAudioOutputBottomSheet(
-      context,
-      isDarkMode: isDarkMode,
-      accentColor: accentColor,
-    );
-  }
-
   void _openSearch(BuildContext context) {
+    if (titleKey == 'library') {
+      final libraryProvider = Provider.of<LibraryProvider>(
+        context,
+        listen: false,
+      );
+      showSearch(
+        context: context,
+        delegate: LibrarySongSearchDelegate(
+          libraryProvider.likedSongs,
+          libraryProvider.downloadedSongs,
+          libraryProvider.lastPlayed,
+          libraryProvider.localSongs,
+          Provider.of<SettingsProvider>(context, listen: false).accentColor,
+        ),
+      );
+      return;
+    }
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const SearchScreen()));
-  }
-
-  void _showNoNotifications(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('no_notifications'.tr()),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -410,64 +406,75 @@ class _TabWrapper extends StatelessWidget {
               titleSpacing: 0,
               title: Row(
                 children: [
+                  if (isHome) ...[
+                    SizedBox(width: AppDimens.spacingSm * appBarIconScale),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ProfileScreen(),
+                          ),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 17 * appBarIconScale,
+                        backgroundColor: accentColor.withValues(alpha: 0.22),
+                        child: Text(
+                          'A',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).textTheme.titleLarge?.color,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18 * appBarIconScale,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: AppDimens.spacingSm),
+                  ],
                   Expanded(
                     child: Container(
                       margin: EdgeInsets.only(
-                        left: AppDimens.spacingSm * appBarIconScale,
+                        left: isHome
+                            ? 0
+                            : AppDimens.spacingSm * appBarIconScale,
                       ),
                       child: Text(
-                        isHome ? 'Musix' : titleKey.tr(),
-                        style: AppTextStyles.titleLg(
-                          isDarkMode:
-                              Theme.of(context).brightness == Brightness.dark,
-                          color: Theme.of(context).textTheme.titleLarge?.color,
-                        ).copyWith(fontWeight: FontWeight.w600),
+                        isHome
+                            ? 'Musix'
+                            : titleKey == 'library'
+                            ? 'Your library'
+                            : titleKey.tr(),
+                        style:
+                            AppTextStyles.titleLg(
+                              isDarkMode:
+                                  Theme.of(context).brightness ==
+                                  Brightness.dark,
+                              color: Theme.of(
+                                context,
+                              ).textTheme.titleLarge?.color,
+                            ).copyWith(
+                              fontSize: isHome
+                                  ? AppTextStyles.fontSizeTitleLg + 2
+                                  : titleKey == 'library'
+                                  ? AppTextStyles.fontSizeTitleLg + 2
+                                  : null,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ),
                   ),
                   if (isHome) ...[
-                    CircleAvatar(
-                      radius: 17 * appBarIconScale,
-                      backgroundColor: accentColor.withValues(alpha: 0.22),
-                      child: Text(
-                        'A',
-                        style: TextStyle(
-                          color: Theme.of(context).textTheme.titleLarge?.color,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    IconButton(
+                      icon: Icon(
+                        settingsProvider.themeMode == ThemeMode.dark
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        size: AppDimens.iconLg * appBarIconScale,
                       ),
-                    ),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.notifications_none_rounded,
-                            size: AppDimens.iconLg * appBarIconScale,
-                          ),
-                          onPressed: () => _showNoNotifications(context),
-                          tooltip: 'Notifications',
-                        ),
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text(
-                              '2',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      onPressed: settingsProvider.toggleTheme,
+                      tooltip: 'Toggle Theme',
                     ),
                     IconButton(
                       icon: Icon(
@@ -478,15 +485,26 @@ class _TabWrapper extends StatelessWidget {
                       tooltip: 'Search',
                     ),
                   ],
-                  if (Platform.isAndroid)
+                  if (titleKey == 'library') ...[
                     IconButton(
                       icon: Icon(
-                        Icons.speaker_rounded,
+                        Icons.search_rounded,
                         size: AppDimens.iconLg * appBarIconScale,
                       ),
-                      onPressed: () => _showAudioOutputSheet(context),
-                      tooltip: 'Audio Output',
+                      onPressed: () => _openSearch(context),
+                      tooltip: 'Search',
                     ),
+                    IconButton(
+                      icon: Icon(
+                        settingsProvider.themeMode == ThemeMode.dark
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        size: AppDimens.iconLg * appBarIconScale,
+                      ),
+                      onPressed: settingsProvider.toggleTheme,
+                      tooltip: 'Toggle Theme',
+                    ),
+                  ],
                 ],
               ),
             )

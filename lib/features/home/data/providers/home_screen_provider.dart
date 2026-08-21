@@ -15,6 +15,8 @@ class HomeScreenProvider with ChangeNotifier {
   bool isHomeSectionsLoading = true;
   String _error = '';
   bool _isOfflineMode = false;
+  bool _isLoadingHomeSections = false;
+  bool _hasInitialized = false;
 
   List<dynamic> _homeSections = [];
 
@@ -42,17 +44,25 @@ class HomeScreenProvider with ChangeNotifier {
   }
 
   Future<void> loadHomeSections({bool forceRefresh = false}) async {
+    if (_isLoadingHomeSections || (!forceRefresh && _hasInitialized)) {
+      return;
+    }
+    _isLoadingHomeSections = true;
     isHomeSectionsLoading = true;
     notifyListeners();
 
-    if (forceRefresh) {
-      await _fetchHomeSectionsFromAPI(notify: false);
-    } else {
-      await _loadHomeSectionsFromCache(notify: false);
+    try {
+      if (forceRefresh) {
+        await _fetchHomeSectionsFromAPI(notify: false);
+      } else {
+        await _loadHomeSectionsFromCache(notify: false);
+      }
+      _hasInitialized = true;
+    } finally {
+      _isLoadingHomeSections = false;
+      isHomeSectionsLoading = false;
+      notifyListeners();
     }
-
-    isHomeSectionsLoading = false;
-    notifyListeners();
   }
 
   Future<void> refreshData() async {
@@ -177,7 +187,6 @@ class HomeScreenProvider with ChangeNotifier {
       }
     }
   }
-
 }
 
 class ContentItem {

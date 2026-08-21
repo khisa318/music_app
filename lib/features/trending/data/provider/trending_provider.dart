@@ -19,9 +19,9 @@ class TrendingProvider with ChangeNotifier {
 
   final List<Country> countries = [
     Country(
-      name: 'India',
-      flag: '🇮🇳',
-      playlistId: 'PL4fGSI1pDJn40WjZ6utkIuj2rNg-7iGsq',
+      name: 'Kenya',
+      flag: '🇰🇪',
+      playlistId: 'PL4fGSI1pDJn5OYRHJhIu_bu7NRnkZ56ds',
     ),
     Country(
       name: 'USA',
@@ -205,12 +205,6 @@ class TrendingProvider with ChangeNotifier {
       playlistId: 'PL4fGSI1pDJn5dHScZlGIe6TEoGzFv_qZE',
     ),
     Country(
-      name: 'Kenya',
-      flag: '🇰🇪',
-      playlistId: 'PL4fGSI1pDJn5OYRHJhIu_bu7NRnkZ56ds',
-    ),
-
-    Country(
       name: 'Colombia',
       flag: '🇨🇴',
       playlistId: 'PL4fGSI1pDJn4ObZYxzctc1AM45GSWm2DC',
@@ -245,21 +239,7 @@ class TrendingProvider with ChangeNotifier {
 
   TrendingProvider() {
     if (countries.isNotEmpty) {
-      try {
-        final settings = GetIt.I<SettingsProvider>();
-        final savedPlaylistId = settings.selectedCountryPlaylistId;
-        if (savedPlaylistId != null) {
-          final matched = countries.firstWhere(
-            (c) => c.playlistId == savedPlaylistId,
-            orElse: () => countries.first,
-          );
-          _selectedCountry = matched;
-        } else {
-          _selectedCountry = countries.first;
-        }
-      } catch (_) {
-        _selectedCountry = countries.first;
-      }
+      _selectedCountry = countries.first;
     }
   }
 
@@ -453,7 +433,6 @@ class TrendingProvider with ChangeNotifier {
       AppSnackBar.showError(context, 'Error playing song');
     }
   }
-
 }
 
 @HiveType(typeId: 0)
