@@ -104,19 +104,22 @@ class LibrarySongSearchDelegate extends SearchDelegate<String> {
   }
 
   List<Map<String, dynamic>> _searchSongs(String query) {
-    final allSongs = [
+    final songsById = <String, Map<String, dynamic>>{};
+    for (final song in [
       ..._likedSongs,
       ..._downloadedSongs,
       ..._lastPlayed,
       ..._localSongs,
-    ];
-    return allSongs
-        .where(
-          (song) => (song['title']?.toString() ?? '').toLowerCase().contains(
-            query.toLowerCase(),
-          ),
-        )
-        .toList();
+    ]) {
+      songsById.putIfAbsent(song['id'].toString(), () => song);
+    }
+
+    final searchQuery = query.trim().toLowerCase();
+    return songsById.values.where((song) {
+      final title = song['title']?.toString().toLowerCase() ?? '';
+      final artist = song['artist']?.toString().toLowerCase() ?? '';
+      return title.contains(searchQuery) || artist.contains(searchQuery);
+    }).toList();
   }
 
   List<yt.Artist> _getArtistsFromSongData(Map<String, dynamic> song) {
@@ -145,37 +148,65 @@ class LibrarySongSearchDelegate extends SearchDelegate<String> {
     return Column(
       children: [
         Expanded(
-          child: ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
+          child: songs.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimens.paddingXl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: AppDimens.iconHero,
+                          color: isDarkMode ? Colors.white54 : Colors.black45,
+                        ),
+                        const SizedBox(height: AppDimens.spacingMd),
+                        Text(
+                          'No songs found in your library',
+                          style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppDimens.spacingXs),
+                        Text(
+                          'Try another song title or artist.',
+                          style: AppTextStyles.body2(isDarkMode: isDarkMode),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: songs.length,
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
 
-              bool isPlaying = false;
-              if (playerProvider.currentSong != null &&
-                  playerProvider.currentSong!.videoId ==
-                      song['id'].toString()) {
-                isPlaying = true;
-              } else if (playerProvider.currentLocalSong != null &&
-                  playerProvider.currentLocalSong!['id'].toString() ==
-                      song['id'].toString()) {
-                isPlaying = true;
-              }
+                    bool isPlaying = false;
+                    if (playerProvider.currentSong != null &&
+                        playerProvider.currentSong!.videoId ==
+                            song['id'].toString()) {
+                      isPlaying = true;
+                    } else if (playerProvider.currentLocalSong != null &&
+                        playerProvider.currentLocalSong!['id'].toString() ==
+                            song['id'].toString()) {
+                      isPlaying = true;
+                    }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.paddingLg,
-                  vertical: AppDimens.spacingXs,
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimens.paddingLg,
+                        vertical: AppDimens.spacingXs,
+                      ),
+                      child: LibrarySongListTile(
+                        song: song,
+                        onPlay: () => _playSong(song, context, songs),
+                        isPlaying: isPlaying,
+                        isDarkMode: isDarkMode,
+                        accentColor: accentColor,
+                      ),
+                    );
+                  },
                 ),
-                child: LibrarySongListTile(
-                  song: song,
-                  onPlay: () => _playSong(song, context, songs),
-                  isPlaying: isPlaying,
-                  isDarkMode: isDarkMode,
-                  accentColor: accentColor,
-                ),
-              );
-            },
-          ),
         ),
       ],
     );

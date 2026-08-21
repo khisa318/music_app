@@ -1,1 +1,13 @@
-{}
+{
+	"home": "Home",
+	"search": "Search",
+	"playlists": "Playlists",
+	"library": "Library",
+	"all": "All",
+	"trending": "Trending",
+	"favorites": "Favourites",
+	"recently_played": "Recently Played",
+	"downloads": "Downloads",
+	"local_music": "Local Music",
+	"liked_songs": "Liked Songs"
+}

@@ -344,23 +344,24 @@ class ContentShimmer {
                         const SizedBox(width: 12),
                         ...List.generate(
                           3,
-                          (index) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Shimmer.fromColors(
-                              baseColor: isDarkMode
-                                  ? Colors.grey[800]!
-                                  : Colors.grey[300]!,
-                              highlightColor: isDarkMode
-                                  ? Colors.grey[600]!
-                                  : Colors.grey[100]!,
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isDarkMode
-                                      ? Colors.grey[700]
-                                      : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(12),
+                          (index) => Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Shimmer.fromColors(
+                                baseColor: isDarkMode
+                                    ? Colors.grey[800]!
+                                    : Colors.grey[300]!,
+                                highlightColor: isDarkMode
+                                    ? Colors.grey[600]!
+                                    : Colors.grey[100]!,
+                                child: Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
+                                        ? Colors.grey[700]
+                                        : Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ),

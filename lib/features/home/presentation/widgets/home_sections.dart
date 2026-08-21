@@ -28,9 +28,14 @@ class HomeSections extends StatelessWidget {
       return ShimmerLoading.buildShimmerList();
     }
 
+    final visibleSections = provider.homeSections.where((section) {
+      final title = section.title.toString().toLowerCase();
+      return !title.contains('india') && !title.contains('all hits');
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: provider.homeSections.map((section) {
+      children: visibleSections.map((section) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -23,7 +23,6 @@ import '../../../../core/providers/download_provider.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../../../core/providers/favorite_artist_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
-import '../widgets/library_song_search_delegate.dart';
 import '../../../local_folder/presentation/screens/local_folder_management_screen.dart';
 import '../../../../core/utils/content_router.dart';
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
@@ -42,14 +41,18 @@ class _LibraryScreenState extends State<LibraryScreen>
   String _selectedFilter = 'All';
   bool _isSelectionMode = false;
   final Set<String> _selectedSongs = {};
-  String _currentTab = 'favorites';
+  String _currentTab = 'all';
   String _favoritesFilter = 'Songs';
+  static const int _allSongsPageSize = 30;
+  int _allSongsPage = 1;
+  String _sortBy = 'title';
+  bool _sortAscending = true;
   final ContentDetailsService _contentService = ContentDetailsService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {
@@ -57,7 +60,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           _selectedSongs.clear();
           switch (_tabController.index) {
             case 0:
-              _currentTab = 'favorites';
+              _currentTab = 'all';
               break;
             case 1:
               _currentTab = 'downloads';
@@ -66,7 +69,14 @@ class _LibraryScreenState extends State<LibraryScreen>
               _currentTab = 'recently_played';
               break;
             case 3:
+              _currentTab = 'favorites';
+              break;
+            case 4:
               _currentTab = 'local_music';
+              Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              ).ensureLocalSongsLoaded();
               break;
           }
         });
@@ -93,65 +103,67 @@ class _LibraryScreenState extends State<LibraryScreen>
         ),
       ),
       child: Scaffold(
-        floatingActionButton: FloatingActionButton(
-          heroTag: 'library_search_button',
-
-          backgroundColor: accentColor,
-          child: Icon(Icons.search, color: Colors.black),
-          onPressed: () {
-            showSearch(
-              context: context,
-              delegate: LibrarySongSearchDelegate(
-                libraryProvider.likedSongs,
-                libraryProvider.downloadedSongs,
-                libraryProvider.lastPlayed,
-                libraryProvider.localSongs,
-                accentColor,
-              ),
-            );
-          },
-        ),
         body: Column(
           children: [
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppDimens.paddingLg,
-                vertical: AppDimens.paddingSm,
+                vertical: AppDimens.paddingMd, // Increased vertical padding
               ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  children: [
-                    _buildGlassTab(
-                      'favorites'.tr(),
-                      0,
-                      accentColor,
-                      isDarkMode,
+              decoration: BoxDecoration(
+                // Customize your background color here
+                color: isDarkMode
+                    ? Colors.black.withOpacity(0.5)
+                    : Colors.grey[100],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildGlassTab(
+                            'all'.tr(),
+                            0,
+                            accentColor,
+                            isDarkMode,
+                          ),
+                          const SizedBox(width: AppDimens.spacingSm),
+                          _buildGlassTab(
+                            'downloads'.tr(),
+                            1,
+                            accentColor,
+                            isDarkMode,
+                          ),
+                          const SizedBox(width: AppDimens.spacingSm),
+                          _buildGlassTab(
+                            'recently_played'.tr(),
+                            2,
+                            accentColor,
+                            isDarkMode,
+                          ),
+                          const SizedBox(width: AppDimens.spacingSm),
+                          _buildGlassTab(
+                            'favorites'.tr(),
+                            3,
+                            accentColor,
+                            isDarkMode,
+                          ),
+                          const SizedBox(width: AppDimens.spacingSm),
+                          _buildGlassTab(
+                            'local_music'.tr(),
+                            4,
+                            accentColor,
+                            isDarkMode,
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: AppDimens.spacingSm),
-                    _buildGlassTab(
-                      'downloads'.tr(),
-                      1,
-                      accentColor,
-                      isDarkMode,
-                    ),
-                    const SizedBox(width: AppDimens.spacingSm),
-                    _buildGlassTab(
-                      'recently_played'.tr(),
-                      2,
-                      accentColor,
-                      isDarkMode,
-                    ),
-                    const SizedBox(width: AppDimens.spacingSm),
-                    _buildGlassTab(
-                      'local_music'.tr(),
-                      3,
-                      accentColor,
-                      isDarkMode,
-                    ),
-                  ],
-                ),
+                  ),
+                  _buildSortButton(accentColor),
+                ],
               ),
             ),
             if (_isSelectionMode) _buildSelectionMenu(accentColor, isDarkMode),
@@ -164,10 +176,13 @@ class _LibraryScreenState extends State<LibraryScreen>
                           ? const NeverScrollableScrollPhysics()
                           : null,
                       children: [
-                        _buildFavoritesTab(
-                          libraryProvider,
+                        _buildSongList(
+                          _getAllSongs(libraryProvider),
                           isDarkMode,
+                          'all',
+                          libraryProvider,
                           accentColor,
+                          paginate: true,
                         ),
                         _buildSongList(
                           libraryProvider.downloadedSongs,
@@ -181,6 +196,11 @@ class _LibraryScreenState extends State<LibraryScreen>
                           isDarkMode,
                           'recently_played',
                           libraryProvider,
+                          accentColor,
+                        ),
+                        _buildFavoritesTab(
+                          libraryProvider,
+                          isDarkMode,
                           accentColor,
                         ),
                         _buildLocalMusicTab(
@@ -212,7 +232,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           _selectedSongs.clear();
           switch (index) {
             case 0:
-              _currentTab = 'favorites';
+              _currentTab = 'all';
               break;
             case 1:
               _currentTab = 'downloads';
@@ -221,7 +241,14 @@ class _LibraryScreenState extends State<LibraryScreen>
               _currentTab = 'recently_played';
               break;
             case 3:
+              _currentTab = 'favorites';
+              break;
+            case 4:
               _currentTab = 'local_music';
+              Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              ).ensureLocalSongsLoaded();
               break;
           }
         });
@@ -248,11 +275,78 @@ class _LibraryScreenState extends State<LibraryScreen>
           style: TextStyle(
             color: Colors.white,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            fontSize: 13,
+            fontSize: 15,
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildSortButton(Color accentColor) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.sort, color: accentColor),
+      tooltip: 'Sort library',
+      onSelected: (value) {
+        setState(() {
+          if (value == 'direction') {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortBy = value;
+          }
+        });
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'title',
+          child: Text(_sortBy == 'title' ? 'Title (selected)' : 'Title'),
+        ),
+        PopupMenuItem(
+          value: 'artist',
+          child: Text(_sortBy == 'artist' ? 'Artist (selected)' : 'Artist'),
+        ),
+        PopupMenuItem(
+          value: 'duration',
+          child: Text(
+            _sortBy == 'duration' ? 'Duration (selected)' : 'Duration',
+          ),
+        ),
+        PopupMenuItem(
+          value: 'direction',
+          child: Text(_sortAscending ? 'Descending' : 'Ascending'),
+        ),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _sortSongs(List<Map<String, dynamic>> songs) {
+    final sortedSongs = List<Map<String, dynamic>>.from(songs);
+    sortedSongs.sort((first, second) {
+      int result;
+      if (_sortBy == 'duration') {
+        result = (first['duration'] as num? ?? 0).compareTo(
+          second['duration'] as num? ?? 0,
+        );
+      } else {
+        final firstValue = (first[_sortBy] ?? '').toString().toLowerCase();
+        final secondValue = (second[_sortBy] ?? '').toString().toLowerCase();
+        result = firstValue.compareTo(secondValue);
+      }
+      return _sortAscending ? result : -result;
+    });
+    return sortedSongs;
+  }
+
+  List<Map<String, dynamic>> _getAllSongs(LibraryProvider libraryProvider) {
+    final songsById = <String, Map<String, dynamic>>{};
+    for (final song in [
+      ...libraryProvider.localSongs,
+      ...libraryProvider.likedSongs,
+      ...libraryProvider.downloadedSongs,
+      ...libraryProvider.lastPlayed,
+    ]) {
+      songsById.putIfAbsent(song['id'].toString(), () => song);
+    }
+    return songsById.values.toList();
   }
 
   Widget _buildFavoritesTab(
@@ -351,9 +445,12 @@ class _LibraryScreenState extends State<LibraryScreen>
     bool isDarkMode,
     String tabName,
     LibraryProvider libraryProvider,
-    Color accentColor,
-  ) {
-    if (songs.isEmpty) {
+    Color accentColor, {
+    bool paginate = false,
+  }) {
+    final sortedSongs = _sortSongs(songs);
+
+    if (sortedSongs.isEmpty) {
       return RefreshIndicator(
         onRefresh: libraryProvider.refreshLibraryData,
         color: accentColor,
@@ -396,103 +493,124 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
+    final displayedSongs = paginate
+        ? sortedSongs.take(_allSongsPage * _allSongsPageSize).toList()
+        : sortedSongs;
+
     return RefreshIndicator(
       onRefresh: libraryProvider.refreshLibraryData,
       color: accentColor,
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: AppDimens.miniPlayerHeight),
-        itemCount: songs.length,
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          return Builder(
-            builder: (innerContext) {
-              final isPlaying = innerContext.select<PlayerProvider, bool>((p) {
-                final idStr = song['id'].toString();
-                if (p.currentSong != null && p.currentSong!.videoId == idStr) {
-                  return true;
-                }
-                if (p.currentLocalSong != null &&
-                    p.currentLocalSong!['id'].toString() == idStr) {
-                  return true;
-                }
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (paginate &&
+              notification is ScrollUpdateNotification &&
+              notification.metrics.extentAfter < 400 &&
+              displayedSongs.length < sortedSongs.length) {
+            setState(() {
+              _allSongsPage++;
+            });
+          }
+          return false;
+        },
+        child: ListView.builder(
+          cacheExtent: 0,
+          padding: const EdgeInsets.only(bottom: AppDimens.miniPlayerHeight),
+          itemCount: displayedSongs.length,
+          itemBuilder: (context, index) {
+            final song = displayedSongs[index];
+            return Builder(
+              builder: (innerContext) {
+                final isPlaying = innerContext.select<PlayerProvider, bool>((
+                  p,
+                ) {
+                  final idStr = song['id'].toString();
+                  if (p.currentSong != null &&
+                      p.currentSong!.videoId == idStr) {
+                    return true;
+                  }
+                  if (p.currentLocalSong != null &&
+                      p.currentLocalSong!['id'].toString() == idStr) {
+                    return true;
+                  }
 
-                return false;
-              });
+                  return false;
+                });
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.paddingLg,
-                  vertical: AppDimens.spacingXs,
-                ),
-                child: GestureDetector(
-                  onLongPress: () {
-                    if (tabName != 'local_music') {
-                      setState(() {
-                        _isSelectionMode = true;
-                        _selectedSongs.add(song['id'].toString());
-                      });
-                    }
-                  },
-                  onTap: () {
-                    if (_isSelectionMode) {
-                      setState(() {
-                        if (_selectedSongs.contains(song['id'].toString())) {
-                          _selectedSongs.remove(song['id'].toString());
-                        } else {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimens.paddingLg,
+                    vertical: AppDimens.spacingXs,
+                  ),
+                  child: GestureDetector(
+                    onLongPress: () {
+                      if (tabName != 'local_music' && tabName != 'all') {
+                        setState(() {
+                          _isSelectionMode = true;
                           _selectedSongs.add(song['id'].toString());
-                        }
-                        if (_selectedSongs.isEmpty) {
-                          _isSelectionMode = false;
-                        }
-                      });
-                    } else {
-                      _playSong(song, context, tabName, songs);
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: _selectedSongs.contains(song['id'].toString())
-                          ? accentColor.withValues(alpha: 0.2)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                      border: _selectedSongs.contains(song['id'].toString())
-                          ? Border.all(
-                              color: accentColor.withValues(alpha: 0.4),
-                              width: 1,
-                            )
-                          : null,
-                    ),
-                    child: LibrarySongListTile(
-                      song: song,
-                      onPlay: () {
-                        if (_isSelectionMode) {
-                          setState(() {
-                            if (_selectedSongs.contains(
-                              song['id'].toString(),
-                            )) {
-                              _selectedSongs.remove(song['id'].toString());
-                            } else {
-                              _selectedSongs.add(song['id'].toString());
-                            }
-                            if (_selectedSongs.isEmpty) {
-                              _isSelectionMode = false;
-                            }
-                          });
-                        } else {
-                          _playSong(song, context, tabName, songs);
-                        }
-                      },
-                      isPlaying: isPlaying,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
+                        });
+                      }
+                    },
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        setState(() {
+                          if (_selectedSongs.contains(song['id'].toString())) {
+                            _selectedSongs.remove(song['id'].toString());
+                          } else {
+                            _selectedSongs.add(song['id'].toString());
+                          }
+                          if (_selectedSongs.isEmpty) {
+                            _isSelectionMode = false;
+                          }
+                        });
+                      } else {
+                        _playSong(song, context, tabName, sortedSongs);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        color: _selectedSongs.contains(song['id'].toString())
+                            ? accentColor.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                        border: _selectedSongs.contains(song['id'].toString())
+                            ? Border.all(
+                                color: accentColor.withValues(alpha: 0.4),
+                                width: 1,
+                              )
+                            : null,
+                      ),
+                      child: LibrarySongListTile(
+                        song: song,
+                        onPlay: () {
+                          if (_isSelectionMode) {
+                            setState(() {
+                              if (_selectedSongs.contains(
+                                song['id'].toString(),
+                              )) {
+                                _selectedSongs.remove(song['id'].toString());
+                              } else {
+                                _selectedSongs.add(song['id'].toString());
+                              }
+                              if (_selectedSongs.isEmpty) {
+                                _isSelectionMode = false;
+                              }
+                            });
+                          } else {
+                            _playSong(song, context, tabName, sortedSongs);
+                          }
+                        },
+                        isPlaying: isPlaying,
+                        isDarkMode: isDarkMode,
+                        accentColor: accentColor,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -930,9 +1048,12 @@ class _LibraryScreenState extends State<LibraryScreen>
     final queueProvider = Provider.of<QueueProvider>(context, listen: false);
 
     try {
+      final isLocalSong = song['isLocal'] == true || song['localPath'] != null;
+
       if (tabName == 'favorites' ||
           tabName == 'recently_played' ||
-          tabName == 'downloads') {
+          tabName == 'downloads' ||
+          (tabName == 'all' && !isLocalSong)) {
         final songList = songs
             .map(
               (s) => SongInfo(
@@ -963,23 +1084,20 @@ class _LibraryScreenState extends State<LibraryScreen>
           playlistName: tabName,
         );
         await queueProvider.saveQueue();
-      } else if (tabName == 'local_music' ||
-          song['isLocal'] == true ||
-          song['localPath'] != null ||
-          int.tryParse(song['id'].toString()) != null) {
+      } else if (tabName == 'local_music' || isLocalSong) {
         final localPath = song['localPath'];
         if (localPath != null) {
-          final songsWithArt = List<Map<String, dynamic>>.from(songs);
-          final songIndex = songs.indexWhere((s) => s['id'] == song['id']);
-
-          for (var i = 0; i < songsWithArt.length; i++) {
-            final artUri = await _getArtworkUri(songsWithArt[i]);
-            if (artUri.scheme == 'file') {
-              songsWithArt[i]['thumbnail'] = artUri.toFilePath();
-            } else {
-              songsWithArt[i]['thumbnail'] = artUri.toString();
-            }
-          }
+          final localSongs = songs
+              .where(
+                (queueSong) =>
+                    queueSong['isLocal'] == true ||
+                    queueSong['localPath'] != null,
+              )
+              .toList();
+          final songsWithArt = List<Map<String, dynamic>>.from(localSongs);
+          final songIndex = localSongs.indexWhere(
+            (queueSong) => queueSong['id'] == song['id'],
+          );
 
           await playerProvider.playerService.playLocalAudioWithQueue(
             localPath,
@@ -1003,8 +1121,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       AppSnackBar.showError(context, 'failed_to_play_song_error'.tr());
       if (tabName == 'local_music' ||
           song['isLocal'] == true ||
-          song['localPath'] != null ||
-          int.tryParse(song['id'].toString()) != null) {
+          song['localPath'] != null) {
         playerProvider.playerService.playNext();
       }
     }

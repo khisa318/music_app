@@ -21,6 +21,7 @@ class LibraryProvider with ChangeNotifier {
   List<Map<String, dynamic>> _localSongs = [];
   bool _isLoading = true;
   bool _isLoadingLocalSongs = false;
+  bool _hasLoadedLocalSongs = false;
   LocalPermissionStatus _localPermissionStatus = LocalPermissionStatus.unknown;
   final _collectionEquality = const DeepCollectionEquality();
 
@@ -131,6 +132,17 @@ class LibraryProvider with ChangeNotifier {
         }
       }
     }
+  }
+
+  Future<void> ensureLocalSongsLoaded() async {
+    if (_isLoadingLocalSongs ||
+        _localPermissionStatus == LocalPermissionStatus.denied ||
+        _localPermissionStatus == LocalPermissionStatus.permanentlyDenied ||
+        (_localPermissionStatus == LocalPermissionStatus.granted &&
+            _hasLoadedLocalSongs)) {
+      return;
+    }
+    await _requestPermission();
   }
 
   Future<int> _getAndroidVersion() async {
@@ -305,6 +317,7 @@ class LibraryProvider with ChangeNotifier {
       }
 
       _localSongs = songs;
+      _hasLoadedLocalSongs = true;
       debugPrint('Loaded ${_localSongs.length} local songs');
       _isLoadingLocalSongs = false;
       notifyListeners();
@@ -354,8 +367,6 @@ class LibraryProvider with ChangeNotifier {
     ]);
     _isLoading = false;
     notifyListeners();
-
-    _requestPermission();
   }
 
   Future<void> _loadLastPlayed() async {
