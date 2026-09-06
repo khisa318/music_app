@@ -1,26 +1,27 @@
-import 'dart:io';
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_dimens.dart';
-import '../../../../core/constants/app_text_styles.dart';
-
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:provider/provider.dart';
-import '../../../home/presentation/screens/home_screen.dart';
-import '../../../profile/presentation/screens/profile_screen.dart';
-import '../../../../core/theme/app_theme.dart';
+
+import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/models/ota_model.dart';
-import '../../../ota/data/providers/ota_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/theme/app_theme.dart';
+
+import '../../../home/presentation/screens/home_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
+import '../../../ota/data/providers/ota_provider.dart';
+import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../library/data/providers/library_provider.dart';
 import '../../../library/presentation/widgets/library_song_search_delegate.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
+import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart';
 import '../../../search/presentation/screens/search_screen.dart';
-import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
+
 import 'full_player_screen.dart';
 
 class MobileMainScreen extends StatefulWidget {
@@ -38,16 +39,37 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settingsProvider = Provider.of<SettingsProvider>(
         context,
         listen: false,
       );
+
       if (settingsProvider.updateCheckEnabled) {
         Provider.of<OTAProvider>(context, listen: false).checkForUpdates();
       }
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // CREATE PLAYLIST
+  // ---------------------------------------------------------------------------
+
+  Future<void> _createPlaylist() async {
+    await showModalBottomSheet<bool?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return const CreatePlaylistBottomSheet();
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // BUILD
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +81,9 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
             !otaProvider.isOTAScreenActive) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
+
             otaProvider.setUpdateUIShown(true);
+
             _showOTABottomSheet(context, otaProvider.updateInfo!);
           });
         }
@@ -67,17 +91,21 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
         return Consumer<SettingsProvider>(
           builder: (context, settingsProvider, child) {
             final accentColor = settingsProvider.accentColor;
+
             final theme = settingsProvider.themeMode == ThemeMode.dark
                 ? AppTheme.darkTheme
                 : AppTheme.lightTheme;
 
             final mq = MediaQuery.of(context);
-            final double navIconScale = mq.textScaleFactor > 1.0
-                ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+
+            final textScale = mq.textScaler.scale(1.0);
+
+            final double navIconScale = textScale > 1.0
+                ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
                 : 1.0;
-            final double navTextCap = mq.textScaleFactor > 1.0
-                ? 1.0
-                : mq.textScaleFactor;
+
+            final double navTextCap = textScale > 1.0 ? 1.0 : textScale;
+
             final double navIconSize = AppDimens.iconXl * navIconScale;
 
             return Theme(
@@ -86,8 +114,13 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                 top: false,
                 child: PersistentTabView(
                   backgroundColor: theme.scaffoldBackgroundColor,
+
                   controller: _controller,
+
                   tabs: [
+                    // ----------------------------------------------------------------
+                    // HOME
+                    // ----------------------------------------------------------------
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('home_tab'),
@@ -106,6 +139,10 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                             Colors.grey,
                       ),
                     ),
+
+                    // ----------------------------------------------------------------
+                    // SEARCH
+                    // ----------------------------------------------------------------
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('search_tab'),
@@ -125,12 +162,17 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                             Colors.grey,
                       ),
                     ),
+
+                    // ----------------------------------------------------------------
+                    // PLAYLISTS
+                    // ----------------------------------------------------------------
                     PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('playlists_tab'),
+                      screen: _TabWrapper(
+                        key: const ValueKey('playlists_tab'),
                         titleKey: 'playlists',
                         isHome: false,
-                        child: PlaylistScreen(),
+                        child: const PlaylistScreen(),
+                        onCreatePlaylist: _createPlaylist,
                       ),
                       item: ItemConfig(
                         icon: Icon(
@@ -146,6 +188,10 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                             Colors.grey,
                       ),
                     ),
+
+                    // ----------------------------------------------------------------
+                    // LIBRARY
+                    // ----------------------------------------------------------------
                     PersistentTabConfig(
                       screen: const _TabWrapper(
                         key: ValueKey('library_tab'),
@@ -168,12 +214,17 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                       ),
                     ),
                   ],
+
+                  // ----------------------------------------------------------------
+                  // NAVIGATION BAR + MINI PLAYER
+                  // ----------------------------------------------------------------
                   navBarBuilder: (navBarConfig) => Consumer<PlayerProvider>(
                     builder: (context, playerProvider, child) {
                       final hasPlayer =
                           playerProvider.currentSong != null ||
                           playerProvider.lastPlayedSong != null ||
                           playerProvider.currentLocalSong != null;
+
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -197,6 +248,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                                 ),
                               ),
                             ),
+
                           MediaQuery(
                             data: mq.copyWith(
                               textScaler: TextScaler.linear(navTextCap),
@@ -242,14 +294,24 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // OTA
+  // ---------------------------------------------------------------------------
+
   void _showOTABottomSheet(BuildContext context, OTAUpdateInfo updateInfo) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => OTABottomSheet(updateInfo: updateInfo),
+      builder: (context) {
+        return OTABottomSheet(updateInfo: updateInfo);
+      },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // FULL PLAYER
+  // ---------------------------------------------------------------------------
 
   void _showFullPlayerBottomSheet(BuildContext context) {
     showModalBottomSheet(
@@ -261,13 +323,17 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
         return _MobileFullPlayerResponsiveWrapper(
           child: const FullPlayerScreen(),
           onSwitchToDesktop: () {
-            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (MediaQuery.of(context).size.width >= 600) {
                 Navigator.of(context, rootNavigator: true).push(
                   PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const FullPlayerScreen(),
+                    pageBuilder: (context, animation, secondaryAnimation) {
+                      return const FullPlayerScreen();
+                    },
                     transitionsBuilder:
                         (context, animation, secondaryAnimation, child) {
                           return SlideTransition(
@@ -299,56 +365,163 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   }
 }
 
-class _MobileFullPlayerResponsiveWrapper extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onSwitchToDesktop;
+// =============================================================================
+// PLAYLIST APP BAR
+// =============================================================================
 
-  const _MobileFullPlayerResponsiveWrapper({
-    required this.child,
-    required this.onSwitchToDesktop,
-  });
+class PlaylistMainAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  final VoidCallback onCreatePlaylist;
 
-  @override
-  State<_MobileFullPlayerResponsiveWrapper> createState() =>
-      _MobileFullPlayerResponsiveWrapperState();
-}
-
-class _MobileFullPlayerResponsiveWrapperState
-    extends State<_MobileFullPlayerResponsiveWrapper>
-    with WidgetsBindingObserver {
-  bool _hasSwitched = false;
+  const PlaylistMainAppBar({super.key, required this.onCreatePlaylist});
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
-  }
-
-  @override
-  void didChangeMetrics() {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
-  }
-
-  void _check() {
-    final width = MediaQuery.of(context).size.width;
-    if (!_hasSwitched && width >= 600) {
-      _hasSwitched = true;
-      widget.onSwitchToDesktop();
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, child) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final accentColor = settingsProvider.accentColor;
+
+        final isDarkMode = theme.brightness == Brightness.dark;
+
+        final textScale = MediaQuery.of(context).textScaler.scale(1.0);
+
+        final double iconScale = textScale > 1.0
+            ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
+            : 1.0;
+
+        return AppBar(
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          backgroundColor: colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
+
+          title: Padding(
+            padding: const EdgeInsets.only(
+              left: AppDimens.paddingLg,
+              right: AppDimens.paddingSm,
+            ),
+            child: Row(
+              children: [
+                // --------------------------------------------------------------
+                // PLAYLIST ICON
+                // --------------------------------------------------------------
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.playlist_play_rounded,
+                    color: accentColor,
+                    size: 23 * iconScale,
+                  ),
+                ),
+
+                const SizedBox(width: AppDimens.spacingMd),
+
+                // --------------------------------------------------------------
+                // TITLE
+                // --------------------------------------------------------------
+                Expanded(
+                  child: Text(
+                    'Playlists',
+                    style:
+                        AppTextStyles.titleLg(
+                          isDarkMode: isDarkMode,
+                          color: colorScheme.onSurface,
+                        ).copyWith(
+                          // Match the other page headers.
+                          fontSize: AppTextStyles.fontSizeTitleLg,
+                          fontWeight: FontWeight.w600,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+
+                // --------------------------------------------------------------
+                // GRID / LIST TOGGLE
+                // --------------------------------------------------------------
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurface.withValues(
+                      alpha: isDarkMode ? 0.08 : 0.06,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: colorScheme.onSurface.withValues(
+                        alpha: isDarkMode ? 0.12 : 0.10,
+                      ),
+                    ),
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      settingsProvider.isGridView =
+                          !settingsProvider.isGridView;
+                    },
+                    icon: Icon(
+                      settingsProvider.isGridView
+                          ? Icons.view_list_rounded
+                          : Icons.grid_view_rounded,
+                      color: colorScheme.onSurface,
+                      size: 21 * iconScale,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: AppDimens.spacingSm),
+
+                // --------------------------------------------------------------
+                // ADD PLAYLIST
+                // --------------------------------------------------------------
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: onCreatePlaylist,
+                    icon: Icon(
+                      Icons.add_rounded,
+                      color: Colors.black,
+                      size: 24 * iconScale,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
+
+// =============================================================================
+// TAB WRAPPER
+// =============================================================================
 
 class _TabWrapper extends StatelessWidget {
   final Widget child;
@@ -356,6 +529,7 @@ class _TabWrapper extends StatelessWidget {
   final bool isHome;
   final bool showAppBar;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onCreatePlaylist;
 
   const _TabWrapper({
     super.key,
@@ -363,7 +537,12 @@ class _TabWrapper extends StatelessWidget {
     required this.titleKey,
     required this.isHome,
     this.showAppBar = true,
+    this.onCreatePlaylist,
   }) : onSearchTap = null;
+
+  // ---------------------------------------------------------------------------
+  // SEARCH
+  // ---------------------------------------------------------------------------
 
   void _openSearch(BuildContext context) {
     if (titleKey == 'library') {
@@ -371,6 +550,7 @@ class _TabWrapper extends StatelessWidget {
         context,
         listen: false,
       );
+
       showSearch(
         context: context,
         delegate: LibrarySongSearchDelegate(
@@ -381,33 +561,64 @@ class _TabWrapper extends StatelessWidget {
           Provider.of<SettingsProvider>(context, listen: false).accentColor,
         ),
       );
+
       return;
     }
+
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const SearchScreen()));
   }
 
+  // ---------------------------------------------------------------------------
+  // BUILD
+  // ---------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
+
     final accentColor = settingsProvider.accentColor;
+
     final mq = MediaQuery.of(context);
-    final double appBarIconScale = mq.textScaleFactor > 1.0
-        ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+
+    final textScale = mq.textScaler.scale(1.0);
+
+    final double appBarIconScale = textScale > 1.0
+        ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
         : 1.0;
-    final double appBarTextCap = mq.textScaleFactor > 1.0
-        ? 1.0
-        : mq.textScaleFactor;
+
+    final bool isPlaylist = titleKey == 'playlists';
+
+    // -------------------------------------------------------------------------
+    // PLAYLIST
+    // -------------------------------------------------------------------------
+
+    if (isPlaylist) {
+      return Scaffold(
+        appBar: PlaylistMainAppBar(onCreatePlaylist: onCreatePlaylist ?? () {}),
+        body: child,
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // NORMAL TABS
+    // -------------------------------------------------------------------------
+
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
               elevation: 0,
               titleSpacing: 0,
+
               title: Row(
                 children: [
+                  // ------------------------------------------------------------
+                  // HOME PROFILE ICON
+                  // ------------------------------------------------------------
                   if (isHome) ...[
                     SizedBox(width: AppDimens.spacingSm * appBarIconScale),
+
                     GestureDetector(
                       onTap: () {
                         Navigator.of(context).push(
@@ -431,8 +642,13 @@ class _TabWrapper extends StatelessWidget {
                         ),
                       ),
                     ),
+
                     SizedBox(width: AppDimens.spacingSm),
                   ],
+
+                  // ------------------------------------------------------------
+                  // TITLE
+                  // ------------------------------------------------------------
                   Expanded(
                     child: Container(
                       margin: EdgeInsets.only(
@@ -465,6 +681,10 @@ class _TabWrapper extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // ------------------------------------------------------------
+                  // HOME ACTIONS
+                  // ------------------------------------------------------------
                   if (isHome) ...[
                     IconButton(
                       icon: Icon(
@@ -476,6 +696,7 @@ class _TabWrapper extends StatelessWidget {
                       onPressed: settingsProvider.toggleTheme,
                       tooltip: 'Toggle Theme',
                     ),
+
                     IconButton(
                       icon: Icon(
                         Icons.search_rounded,
@@ -485,6 +706,10 @@ class _TabWrapper extends StatelessWidget {
                       tooltip: 'Search',
                     ),
                   ],
+
+                  // ------------------------------------------------------------
+                  // LIBRARY ACTIONS
+                  // ------------------------------------------------------------
                   if (titleKey == 'library') ...[
                     IconButton(
                       icon: Icon(
@@ -494,6 +719,7 @@ class _TabWrapper extends StatelessWidget {
                       onPressed: () => _openSearch(context),
                       tooltip: 'Search',
                     ),
+
                     IconButton(
                       icon: Icon(
                         settingsProvider.themeMode == ThemeMode.dark
@@ -509,7 +735,70 @@ class _TabWrapper extends StatelessWidget {
               ),
             )
           : null,
+
       body: child,
     );
+  }
+}
+
+// =============================================================================
+// FULL PLAYER RESPONSIVE WRAPPER
+// =============================================================================
+
+class _MobileFullPlayerResponsiveWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onSwitchToDesktop;
+
+  const _MobileFullPlayerResponsiveWrapper({
+    required this.child,
+    required this.onSwitchToDesktop,
+  });
+
+  @override
+  State<_MobileFullPlayerResponsiveWrapper> createState() =>
+      _MobileFullPlayerResponsiveWrapperState();
+}
+
+class _MobileFullPlayerResponsiveWrapperState
+    extends State<_MobileFullPlayerResponsiveWrapper>
+    with WidgetsBindingObserver {
+  bool _hasSwitched = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  @override
+  void didChangeMetrics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  void _check() {
+    if (!mounted) return;
+
+    final width = MediaQuery.of(context).size.width;
+
+    if (!_hasSwitched && width >= 600) {
+      _hasSwitched = true;
+
+      widget.onSwitchToDesktop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

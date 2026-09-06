@@ -127,31 +127,21 @@ class PlayerService {
 
   ProcessingState _processingState = ProcessingState.idle;
 
-  // ---------------------------------------------------------------------------
-  // AUDIO INTERRUPTION STATE
-  // ---------------------------------------------------------------------------
-
-  /// Whether the player was playing immediately before an audio interruption.
-  ///
-  /// This is deliberately separate from [_isPlaying].
-  ///
-  /// When Instagram, YouTube, Spotify, calls, etc. take audio focus, the
-  /// player may report itself as paused. We still need to remember that the
-  /// user did NOT manually pause it.
   bool _wasPlayingBeforeInterruption = false;
 
-  /// True while an Android/iOS audio interruption is active.
   bool _audioInterruptionActive = false;
 
-  /// Prevents interruption callbacks from racing with one another.
   bool _handlingInterruption = false;
 
-  /// Prevents a resume operation from being triggered multiple times.
   bool _resumeAfterInterruptionScheduled = false;
 
   bool _isHandlingCompletion = false;
 
   static const int _prebufferThresholdSeconds = 15;
+
+  // IMPORTANT:
+  // A song gets exactly 2 playback attempts before we skip it.
+  static const int _maxSongPlaybackAttempts = 2;
 
   bool _prebufferStarted = false;
 
@@ -169,7 +159,7 @@ class PlayerService {
 
   StreamSubscription<Duration>? _positionSubscription;
 
-  StreamSubscription<Duration>? _durationSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
 
   StreamSubscription<Duration>? _bufferSubscription;
 
@@ -306,11 +296,8 @@ class PlayerService {
 
     _progressSyncTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
       final currentPos = _mediaKitAdapter.currentPosition;
-
       final currentDur = _mediaKitAdapter.currentDuration;
-
       final currentBuf = _mediaKitAdapter.currentBuffered;
-
       final currentPlay = _mediaKitAdapter.currentPlaying;
 
       if (currentPos != _position) {
@@ -355,7 +342,6 @@ class PlayerService {
     }
 
     final wasPlaying = _isPlaying;
-
     final currentPos = _position;
 
     debugPrint(
@@ -450,8 +436,6 @@ class PlayerService {
   Future<void> play() async {
     debugPrint('[PlayerService] play() requested');
 
-    // If we are recovering from an interruption, make sure we request
-    // audio focus again before starting playback.
     await _setAudioSessionActive(true);
 
     await _mediaKitAdapter.play();
@@ -468,12 +452,6 @@ class PlayerService {
 
     await _mediaKitAdapter.pause();
 
-    // IMPORTANT:
-    //
-    // A normal user pause should release audio focus.
-    //
-    // During an interruption we DON'T call this method. Instead we use
-    // _pauseForInterruption(), which keeps the interruption state alive.
     if (!_audioInterruptionActive) {
       await _setAudioSessionActive(false);
     }
@@ -518,7 +496,6 @@ class PlayerService {
       );
     } catch (e, stack) {
       debugPrint('Error loading song: $e');
-
       debugPrint('$stack');
     }
   }
@@ -612,10 +589,13 @@ class PlayerService {
   // PLAY SONG
   // ===========================================================================
 
-  Future<bool> playSong(SongInfo song, {int maxRetries = 1}) async {
+  Future<bool> playSong(
+    SongInfo song, {
+    int maxRetries = _maxSongPlaybackAttempts,
+    bool skipToNextOnFailure = true,
+  }) async {
     isExplicitlySettingSong = true;
 
-    // A manually selected song cancels any previous interruption recovery.
     _audioInterruptionActive = false;
 
     _wasPlayingBeforeInterruption = false;
@@ -634,8 +614,15 @@ class PlayerService {
 
     unawaited(_recordCurrentPlaybackEnd());
 
-    for (int attempt = 0; attempt < maxRetries; attempt++) {
+    final attempts = maxRetries < 1 ? 1 : maxRetries;
+
+    for (int attempt = 1; attempt <= attempts; attempt++) {
       try {
+        debugPrint(
+          '▶ Playing ${song.name} '
+          '(attempt $attempt/$attempts)',
+        );
+
         await _openSong(song, playWhenReady: true);
 
         _currentStatsSongId = song.videoId;
@@ -656,20 +643,87 @@ class PlayerService {
 
         isExplicitlySettingSong = false;
 
+        debugPrint('✓ Successfully started ${song.name}');
+
         return true;
       } catch (e) {
-        debugPrint('playSong attempt ${attempt + 1} failed: $e');
+        debugPrint(
+          '⚠ playSong attempt '
+          '$attempt/$attempts failed for '
+          '${song.name}: $e',
+        );
 
-        if (attempt == maxRetries - 1) {
-          isExplicitlySettingSong = false;
-          return false;
+        if (attempt < attempts) {
+          await Future.delayed(const Duration(milliseconds: 300));
         }
       }
     }
 
+    // -------------------------------------------------------------------------
+    // BOTH ATTEMPTS FAILED
+    // -------------------------------------------------------------------------
+
+    debugPrint(
+      '⚠ Song unavailable after $attempts attempts: '
+      '${song.name}',
+    );
+
     isExplicitlySettingSong = false;
 
+    await _handleUnavailableSong(song, skipToNext: skipToNextOnFailure);
+
     return false;
+  }
+
+  // ===========================================================================
+  // UNAVAILABLE SONG
+  // ===========================================================================
+
+  Future<void> _handleUnavailableSong(
+    SongInfo song, {
+    bool skipToNext = true,
+  }) async {
+    debugPrint('⚠ Current song is not available: ${song.name}');
+
+    _processingState = ProcessingState.idle;
+
+    _isPlaying = false;
+
+    _emitState();
+
+    // -------------------------------------------------------------------------
+    // IMPORTANT:
+    //
+    // Do NOT recursively call playSong() on the same song.
+    // Remove/advance the queue position first, then play the next item.
+    // -------------------------------------------------------------------------
+
+    if (!skipToNext) {
+      return;
+    }
+
+    final nextSong = queueProvider.getNextSong();
+
+    if (nextSong == null) {
+      debugPrint('⚠ No next song available after unavailable song.');
+
+      return;
+    }
+
+    debugPrint(
+      '▶ Skipping unavailable song and moving to: '
+      '${nextSong.name}',
+    );
+
+    final success = await playSong(
+      nextSong,
+      maxRetries: _maxSongPlaybackAttempts,
+      skipToNextOnFailure: true,
+    );
+
+    if (!success) {
+      debugPrint('⚠ Next song also failed: ${nextSong.name}');
+    }
   }
 
   // ===========================================================================
@@ -717,15 +771,13 @@ class PlayerService {
   // NEXT
   // ===========================================================================
 
-  void playNext({int retryCount = 0}) async {
+  Future<void> playNext({int retryCount = 0}) async {
     if (playerProvider.currentLocalSong != null) {
       final nextSong = queueProvider.getNextSong();
 
       if (nextSong == null) {
         await seek(Duration.zero);
-
         await pause();
-
         return;
       }
 
@@ -758,7 +810,15 @@ class PlayerService {
     final nextSong = queueProvider.getNextSong();
 
     if (nextSong != null) {
-      await playSong(nextSong);
+      final success = await playSong(
+        nextSong,
+        maxRetries: _maxSongPlaybackAttempts,
+        skipToNextOnFailure: true,
+      );
+
+      if (!success) {
+        debugPrint('⚠ playNext: song could not be played.');
+      }
     }
   }
 
@@ -766,15 +826,13 @@ class PlayerService {
   // PREVIOUS
   // ===========================================================================
 
-  void playPrevious({int retryCount = 0}) async {
+  Future<void> playPrevious({int retryCount = 0}) async {
     if (playerProvider.currentLocalSong != null) {
       final previousSong = queueProvider.getPreviousSong();
 
       if (previousSong == null) {
         await seek(Duration.zero);
-
         await pause();
-
         return;
       }
 
@@ -807,7 +865,11 @@ class PlayerService {
     final previousSong = queueProvider.getPreviousSong();
 
     if (previousSong != null) {
-      await playSong(previousSong);
+      await playSong(
+        previousSong,
+        maxRetries: _maxSongPlaybackAttempts,
+        skipToNextOnFailure: false,
+      );
     }
   }
 
@@ -928,7 +990,6 @@ class PlayerService {
       }
     }
   }
-
   // ===========================================================================
   // FADE
   // ===========================================================================
@@ -1012,27 +1073,16 @@ class PlayerService {
 
       debugPrint('[AudioSession] configured');
 
-      // -----------------------------------------------------------------------
-      // AUDIO INTERRUPTION
-      // -----------------------------------------------------------------------
-
       _interruptionSubscription = _audioSession!.interruptionEventStream.listen(
         (event) async {
           await _handleAudioInterruption(event);
         },
       );
 
-      // -----------------------------------------------------------------------
-      // BECOMING NOISY
-      // -----------------------------------------------------------------------
-
       _becomingNoisySubscription = _audioSession!.becomingNoisyEventStream
           .listen((_) async {
             debugPrint('[AudioSession] becoming noisy -> pause');
 
-            // Headphones disconnected / audio route changed.
-            //
-            // This is NOT treated as a temporary interruption.
             _wasPlayingBeforeInterruption = false;
 
             _audioInterruptionActive = false;
@@ -1065,19 +1115,8 @@ class PlayerService {
       );
 
       if (event.begin) {
-        // ---------------------------------------------------------------
-        // INTERRUPTION STARTED
-        // ---------------------------------------------------------------
-
         _audioInterruptionActive = true;
 
-        // VERY IMPORTANT:
-        //
-        // Capture the playing state BEFORE pausing.
-        //
-        // If the user was actually listening, remember it.
-        //
-        // If the user had already paused manually, don't resume later.
         _wasPlayingBeforeInterruption = _isPlaying;
 
         debugPrint(
@@ -1087,8 +1126,6 @@ class PlayerService {
 
         switch (event.type) {
           case AudioInterruptionType.duck:
-            // We want Instagram/other apps to get the audio focus,
-            // so pause our player rather than continuing underneath.
             await _pauseForInterruption();
             break;
 
@@ -1101,10 +1138,6 @@ class PlayerService {
             break;
         }
       } else {
-        // ---------------------------------------------------------------
-        // INTERRUPTION ENDED
-        // ---------------------------------------------------------------
-
         debugPrint(
           '[AudioSession] interruption ended; '
           'wasPlaying=$_wasPlayingBeforeInterruption',
@@ -1131,12 +1164,6 @@ class PlayerService {
     debugPrint('[AudioSession] _pauseForInterruption()');
 
     try {
-      // DO NOT call pause() here.
-      //
-      // pause() releases the audio session and records a normal playback
-      // pause. During an interruption we need to keep our own state that
-      // tells us playback should resume afterward.
-
       await _mediaKitAdapter.pause();
 
       _isPlaying = false;
@@ -1162,8 +1189,6 @@ class PlayerService {
 
     _resumeAfterInterruptionScheduled = true;
 
-    // Small delay allows Android to finish giving the audio focus back to
-    // our application before we request it again.
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 250), () async {
         try {
@@ -1173,7 +1198,6 @@ class PlayerService {
 
           debugPrint('[AudioSession] attempting automatic resume');
 
-          // Request audio focus again.
           final activated = await _setAudioSessionActive(true);
 
           debugPrint(
@@ -1181,8 +1205,6 @@ class PlayerService {
             '$activated',
           );
 
-          // The user may have manually pressed pause while the
-          // interruption was active.
           if (!_wasPlayingBeforeInterruption) {
             return;
           }
@@ -1201,7 +1223,6 @@ class PlayerService {
         } finally {
           _resumeAfterInterruptionScheduled = false;
 
-          // We have consumed the interruption state.
           _wasPlayingBeforeInterruption = false;
         }
       }),
@@ -1387,7 +1408,14 @@ class PlayerService {
 
         _prebufferedSong = null;
 
-        playNext();
+        // IMPORTANT:
+        //
+        // playNext() now uses the 2-attempt
+        // failure handling.
+        //
+        // If the next song is unavailable,
+        // it automatically advances again.
+        await playNext();
       } else {
         await seek(Duration.zero);
 

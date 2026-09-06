@@ -1,37 +1,46 @@
 import 'dart:io';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class DownloadNotificationService {
   static final DownloadNotificationService _instance =
       DownloadNotificationService._internal();
+
   factory DownloadNotificationService() => _instance;
 
   DownloadNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+  final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
-  static const String _downloadChannelId = 'download_channel';
-  static const String _downloadChannelName = 'Download Progress';
-  static const String _downloadChannelDescription =
-      'Shows download progress for songs';
+  // Progress notification channel
+  static const String _progressChannelId = 'musix_download_progress';
+  static const String _progressChannelName = 'Download Progress';
+  static const String _progressChannelDescription =
+      'Shows active music download progress';
+
+  // Completion notification channel
+  static const String _completeChannelId = 'musix_download_complete';
+  static const String _completeChannelName = 'Download Notifications';
+  static const String _completeChannelDescription =
+      'Shows completed and failed downloads';
 
   Future<void> initialize() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
+    const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const DarwinInitializationSettings initializationSettingsIOS =
+    const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
           requestAlertPermission: true,
           requestBadgePermission: true,
           requestSoundPermission: true,
         );
 
-    const LinuxInitializationSettings initializationSettingsLinux =
+    const LinuxInitializationSettings linuxSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
 
-    const WindowsInitializationSettings initializationSettingsWindows =
+    const WindowsInitializationSettings windowsSettings =
         WindowsInitializationSettings(
           appName: 'MusiX',
           iconPath: 'assets/default_artwork.png',
@@ -39,52 +48,71 @@ class DownloadNotificationService {
           guid: '27D44D0C-A542-5B90-BCDB-AC3126048BA2',
         );
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-          android: initializationSettingsAndroid,
-          iOS: initializationSettingsIOS,
-          linux: initializationSettingsLinux,
-          windows: initializationSettingsWindows,
-        );
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+      linux: linuxSettings,
+      windows: windowsSettings,
+    );
 
-    await _flutterLocalNotificationsPlugin.initialize(
-      settings: initializationSettings,
-      onDidReceiveNotificationResponse: _onDidReceiveNotificationResponse,
+    await _notifications.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
     if (Platform.isAndroid) {
-      await _createNotificationChannel();
+      await _createNotificationChannels();
       await _requestNotificationPermission();
     }
   }
 
-  Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      _downloadChannelId,
-      _downloadChannelName,
-      description: _downloadChannelDescription,
-      importance: Importance.low,
-      showBadge: false,
-      enableVibration: false,
-      playSound: false,
-    );
+  Future<void> _createNotificationChannels() async {
+    const AndroidNotificationChannel progressChannel =
+        AndroidNotificationChannel(
+          _progressChannelId,
+          _progressChannelName,
+          description: _progressChannelDescription,
+          importance: Importance.low,
+          showBadge: false,
+          enableVibration: false,
+          playSound: false,
+        );
 
-    await _flutterLocalNotificationsPlugin
+    const AndroidNotificationChannel completeChannel =
+        AndroidNotificationChannel(
+          _completeChannelId,
+          _completeChannelName,
+          description: _completeChannelDescription,
+          importance: Importance.defaultImportance,
+          showBadge: false,
+          enableVibration: true,
+          playSound: true,
+        );
+
+    final AndroidFlutterLocalNotificationsPlugin? android = _notifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+        >();
+
+    await android?.createNotificationChannel(progressChannel);
+    await android?.createNotificationChannel(completeChannel);
   }
 
   Future<void> _requestNotificationPermission() async {
-    if (Platform.isAndroid && await Permission.notification.isDenied) {
+    if (!Platform.isAndroid) {
+      return;
+    }
+
+    final PermissionStatus status = await Permission.notification.status;
+
+    if (status.isDenied) {
       await Permission.notification.request();
     }
   }
 
-  void _onDidReceiveNotificationResponse(
-    NotificationResponse notificationResponse,
-  ) {}
+  void _onNotificationTapped(NotificationResponse response) {
+    // Handle notification tap here.
+  }
 
   Future<void> showDownloadProgress({
     required int notificationId,
@@ -93,56 +121,63 @@ class DownloadNotificationService {
     required double progress,
     required bool isPaused,
   }) async {
-    final int progressPercent = (progress * 100).round();
+    final int progressPercent = (progress * 100).round().clamp(0, 100);
 
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
+    final String notificationTitle = isPaused
+        ? 'Download paused'
+        : 'Downloading';
+
+    final String statusText = isPaused ? 'Paused' : '$progressPercent%';
+
+    final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          _downloadChannelId,
-          _downloadChannelName,
-          channelDescription: _downloadChannelDescription,
+          _progressChannelId,
+          _progressChannelName,
+          channelDescription: _progressChannelDescription,
           importance: Importance.low,
           priority: Priority.low,
+
           showProgress: true,
           maxProgress: 100,
           progress: progressPercent,
+          indeterminate: false,
+
           ongoing: true,
           autoCancel: false,
           onlyAlertOnce: true,
+
           showWhen: false,
           channelShowBadge: false,
+
           enableVibration: false,
           playSound: false,
+
+          icon: '@mipmap/ic_launcher',
         );
 
-    const DarwinNotificationDetails iosPlatformChannelSpecifics =
-        DarwinNotificationDetails(
-          presentAlert: false,
-          presentBadge: false,
-          presentSound: false,
-        );
-
-    const LinuxNotificationDetails linuxPlatformChannelSpecifics =
-        LinuxNotificationDetails();
-
-    const WindowsNotificationDetails windowsPlatformChannelSpecifics =
-        WindowsNotificationDetails();
-
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iosPlatformChannelSpecifics,
-      linux: linuxPlatformChannelSpecifics,
-      windows: windowsPlatformChannelSpecifics,
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: false,
+      presentBadge: false,
+      presentSound: false,
     );
 
-    final String statusText = isPaused ? 'Paused' : 'Downloading...';
-    final String notificationTitle = 'Downloading: $title';
-    final String notificationBody = '$artist • $progressPercent% • $statusText';
+    const LinuxNotificationDetails linuxDetails = LinuxNotificationDetails();
 
-    await _flutterLocalNotificationsPlugin.show(
+    const WindowsNotificationDetails windowsDetails =
+        WindowsNotificationDetails();
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      linux: linuxDetails,
+      windows: windowsDetails,
+    );
+
+    await _notifications.show(
       id: notificationId,
       title: notificationTitle,
-      body: notificationBody,
-      notificationDetails: platformChannelSpecifics,
+      body: '$title\n$artist • $statusText',
+      notificationDetails: details,
     );
   }
 
@@ -151,45 +186,53 @@ class DownloadNotificationService {
     required String title,
     required String artist,
   }) async {
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
+    // First remove the ongoing progress notification.
+    await _notifications.cancel(id: notificationId);
+
+    final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          _downloadChannelId,
-          _downloadChannelName,
-          channelDescription: _downloadChannelDescription,
+          _completeChannelId,
+          _completeChannelName,
+          channelDescription: _completeChannelDescription,
+
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
+
           ongoing: false,
           autoCancel: true,
+
+          showWhen: true,
           channelShowBadge: false,
+
           enableVibration: true,
           playSound: true,
+
+          icon: '@mipmap/ic_launcher',
         );
 
-    const DarwinNotificationDetails iosPlatformChannelSpecifics =
-        DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: false,
-          presentSound: true,
-        );
-
-    const LinuxNotificationDetails linuxPlatformChannelSpecifics =
-        LinuxNotificationDetails();
-
-    const WindowsNotificationDetails windowsPlatformChannelSpecifics =
-        WindowsNotificationDetails();
-
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iosPlatformChannelSpecifics,
-      linux: linuxPlatformChannelSpecifics,
-      windows: windowsPlatformChannelSpecifics,
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: false,
+      presentSound: true,
     );
 
-    await _flutterLocalNotificationsPlugin.show(
+    const LinuxNotificationDetails linuxDetails = LinuxNotificationDetails();
+
+    const WindowsNotificationDetails windowsDetails =
+        WindowsNotificationDetails();
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      linux: linuxDetails,
+      windows: windowsDetails,
+    );
+
+    await _notifications.show(
       id: notificationId,
-      title: 'Download Complete',
-      body: '$title by $artist',
-      notificationDetails: platformChannelSpecifics,
+      title: 'Download complete',
+      body: '$title\n$artist',
+      notificationDetails: details,
     );
   }
 
@@ -198,53 +241,60 @@ class DownloadNotificationService {
     required String title,
     required String artist,
   }) async {
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
+    await _notifications.cancel(id: notificationId);
+
+    final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          _downloadChannelId,
-          _downloadChannelName,
-          channelDescription: _downloadChannelDescription,
+          _completeChannelId,
+          _completeChannelName,
+          channelDescription: _completeChannelDescription,
+
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
+
           ongoing: false,
           autoCancel: true,
+
+          showWhen: true,
           channelShowBadge: false,
+
           enableVibration: true,
           playSound: true,
+
+          icon: '@mipmap/ic_launcher',
         );
 
-    const DarwinNotificationDetails iosPlatformChannelSpecifics =
-        DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: false,
-          presentSound: true,
-        );
-
-    const LinuxNotificationDetails linuxPlatformChannelSpecifics =
-        LinuxNotificationDetails();
-
-    const WindowsNotificationDetails windowsPlatformChannelSpecifics =
-        WindowsNotificationDetails();
-
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iosPlatformChannelSpecifics,
-      linux: linuxPlatformChannelSpecifics,
-      windows: windowsPlatformChannelSpecifics,
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: false,
+      presentSound: true,
     );
 
-    await _flutterLocalNotificationsPlugin.show(
+    const LinuxNotificationDetails linuxDetails = LinuxNotificationDetails();
+
+    const WindowsNotificationDetails windowsDetails =
+        WindowsNotificationDetails();
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      linux: linuxDetails,
+      windows: windowsDetails,
+    );
+
+    await _notifications.show(
       id: notificationId,
-      title: 'Download Failed',
-      body: '$title by $artist',
-      notificationDetails: platformChannelSpecifics,
+      title: 'Download failed',
+      body: '$title\n$artist',
+      notificationDetails: details,
     );
   }
 
   Future<void> cancelNotification(int notificationId) async {
-    await _flutterLocalNotificationsPlugin.cancel(id: notificationId);
+    await _notifications.cancel(id: notificationId);
   }
 
   Future<void> cancelAllNotifications() async {
-    await _flutterLocalNotificationsPlugin.cancelAll();
+    await _notifications.cancelAll();
   }
 }

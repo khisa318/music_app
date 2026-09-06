@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<FavoriteSongProvider>(
         context,
@@ -45,25 +46,35 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       listen: false,
     );
+
     await homeScreenProvider.refreshData();
   }
 
   int _selectedIndex = 0;
   int _trendingSubIndex = 0;
 
+  // ---------------------------------------------------------------------------
+  // COUNTRY SELECTION
+  // ---------------------------------------------------------------------------
+
   void _showCountrySelectionDialog(BuildContext context) {
     final trendingProvider = Provider.of<TrendingProvider>(
       context,
       listen: false,
     );
+
     final settingsProvider = Provider.of<SettingsProvider>(
       context,
       listen: false,
     );
+
     final accentColor = settingsProvider.accentColor;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
 
     int selectedIndex = -1;
+
     if (trendingProvider.selectedCountry != null) {
       selectedIndex = trendingProvider.countries.indexWhere(
         (country) => country.name == trendingProvider.selectedCountry!.name,
@@ -80,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (scrollController.hasClients) {
               const double itemHeight = AppDimens.shimmerListTile;
+
               final double targetPosition = selectedIndex * itemHeight;
               final double maxScrollExtent =
                   scrollController.position.maxScrollExtent;
@@ -104,10 +116,12 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, constraints) {
             final screenWidth = MediaQuery.of(context).size.width;
             final screenHeight = MediaQuery.of(context).size.height;
+
             final maxDialogWidth = min(
               AppDimens.breakpointWideScreen,
               screenWidth * 0.85,
             );
+
             final maxDialogHeight = screenHeight * 0.7;
 
             return Dialog(
@@ -120,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.grey[900] : Colors.white,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
                     boxShadow: [
                       BoxShadow(
@@ -166,18 +180,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                   AppDimens.paddingXs,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isDarkMode
-                                      ? Colors.white.withValues(alpha: 0.1)
-                                      : Colors.black.withValues(alpha: 0.05),
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: isDarkMode ? 0.10 : 0.06,
+                                  ),
                                   borderRadius: BorderRadius.circular(
                                     AppDimens.radiusSm,
                                   ),
                                 ),
                                 child: Icon(
                                   Icons.close,
-                                  color: isDarkMode
-                                      ? Colors.white70
-                                      : Colors.black54,
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.65,
+                                  ),
                                   size: AppDimens.iconMd,
                                 ),
                               ),
@@ -185,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
+
                       Flexible(
                         child: SizedBox(
                           height: maxDialogHeight - 80,
@@ -196,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             itemCount: trendingProvider.countries.length,
                             itemBuilder: (BuildContext context, int index) {
                               final country = trendingProvider.countries[index];
+
                               final isSelected =
                                   trendingProvider.selectedCountry?.name ==
                                   country.name;
@@ -222,9 +238,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     width: AppDimens.thumbnailMini,
                                     height: AppDimens.thumbnailMini,
                                     decoration: BoxDecoration(
-                                      color: isDarkMode
-                                          ? Colors.grey[800]
-                                          : Colors.grey[100],
+                                      color:
+                                          colorScheme.surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(
                                         AppDimens.radiusMd,
                                       ),
@@ -245,9 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           isDarkMode: isDarkMode,
                                           color: isSelected
                                               ? accentColor
-                                              : isDarkMode
-                                              ? Colors.white
-                                              : Colors.black,
+                                              : colorScheme.onSurface,
                                         ).copyWith(
                                           fontWeight: isSelected
                                               ? FontWeight.bold
@@ -265,6 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     trendingProvider.setSelectedCountry(
                                       country,
                                     );
+
                                     Navigator.of(context).pop();
                                   },
                                 ),
@@ -273,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
+
                       const SizedBox(height: AppDimens.spacingSm),
                     ],
                   ),
@@ -285,8 +300,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // TOP HEADER
+  // ---------------------------------------------------------------------------
+
   Widget _buildTopHeader(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
 
     return Padding(
@@ -301,15 +323,17 @@ class _HomeScreenState extends State<HomeScreen> {
           CircleAvatar(
             radius: 22,
             backgroundColor: accentColor.withValues(alpha: 0.22),
-            child: const Text(
+            child: Text(
               'A',
               style: TextStyle(
-                color: Colors.white,
+                color: colorScheme.onPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
+
           const SizedBox(width: AppDimens.spacingLg),
+
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -326,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
+
               Positioned(
                 right: -2,
                 top: -4,
@@ -347,17 +372,23 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+
           const Spacer(),
+
           Icon(Icons.play_circle_fill_rounded, color: accentColor, size: 36),
+
           const SizedBox(width: AppDimens.spacingXs),
+
           Text(
             'Music',
             style: AppTextStyles.titleLg(
               isDarkMode: isDarkMode,
-              color: Colors.white,
+              color: colorScheme.onSurface,
             ).copyWith(fontWeight: FontWeight.w800, fontSize: 28),
           ),
+
           const SizedBox(width: AppDimens.spacingSm),
+
           _buildCircleIconBtn(
             Icons.search_rounded,
             accentColor,
@@ -374,33 +405,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // CIRCLE ICON BUTTON
+  // ---------------------------------------------------------------------------
+
   Widget _buildCircleIconBtn(
     IconData icon,
     Color accentColor,
     bool isDarkMode, {
     VoidCallback? onPressed,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: colorScheme.onSurface.withValues(
+          alpha: isDarkMode ? 0.08 : 0.06,
+        ),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(
+            alpha: isDarkMode ? 0.12 : 0.10,
+          ),
+        ),
       ),
       child: IconButton(
         padding: EdgeInsets.zero,
-        icon: Icon(icon, color: Colors.white, size: 20),
+        icon: Icon(icon, color: colorScheme.onSurface, size: 20),
         onPressed: onPressed,
       ),
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // TABS
+  // ---------------------------------------------------------------------------
+
   Widget _buildTabs(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
 
     Widget tab(String title, int index) {
       final selected = _selectedIndex == index;
+
       return GestureDetector(
         onTap: () async {
           setState(() => _selectedIndex = index);
@@ -412,14 +464,14 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             final kenya = trendingProvider.countries.first;
+
             if (trendingProvider.selectedCountry?.playlistId !=
                 kenya.playlistId) {
               await trendingProvider.setSelectedCountry(kenya);
             }
-            final country = kenya;
-            if (country != null &&
-                trendingProvider.getTrendingSongs(country.playlistId).isEmpty) {
-              trendingProvider.loadTrendingSongs(country.playlistId);
+
+            if (trendingProvider.getTrendingSongs(kenya.playlistId).isEmpty) {
+              trendingProvider.loadTrendingSongs(kenya.playlistId);
             }
           }
 
@@ -428,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               listen: false,
             );
+
             if (favoriteProvider.likedSongs.isEmpty) {
               favoriteProvider.loadLikedSongs();
             }
@@ -443,18 +496,22 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: selected
                 ? accentColor
-                : Colors.white.withValues(alpha: 0.08),
+                : colorScheme.onSurface.withValues(
+                    alpha: isDarkMode ? 0.08 : 0.06,
+                  ),
             borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
             border: Border.all(
               color: selected
                   ? accentColor
-                  : Colors.white.withValues(alpha: 0.12),
+                  : colorScheme.onSurface.withValues(
+                      alpha: isDarkMode ? 0.12 : 0.10,
+                    ),
             ),
           ),
           child: Text(
             title,
             style: TextStyle(
-              color: Colors.white,
+              color: selected ? Colors.white : colorScheme.onSurface,
               fontWeight: selected ? FontWeight.bold : FontWeight.w500,
               fontSize: 13,
             ),
@@ -485,14 +542,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- FOR YOU CAROUSEL (uses real data from TrendingProvider) ---
+  // ---------------------------------------------------------------------------
+  // COVERS AND REMIXES
+  // ---------------------------------------------------------------------------
+
   Widget _buildForYouCarousel(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final trendingProvider = context.watch<TrendingProvider>();
+
     final songs = trendingProvider.getTrendingSongs(
       TrendingProvider.top100GlobalPlaylistId,
     );
 
-    // If no trending data loaded yet, trigger loading
     if (songs.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (trendingProvider
@@ -503,6 +567,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
       });
+
       return const SizedBox.shrink();
     }
 
@@ -524,14 +589,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   'Covers and remixes',
                   style: AppTextStyles.titleSm(
-                    isDarkMode: true,
-                    color: Colors.white,
+                    isDarkMode: isDarkMode,
+                    color: colorScheme.onSurface,
                   ).copyWith(fontWeight: FontWeight.bold, fontSize: 24),
                 ),
               ),
+
               OutlinedButton(
                 onPressed: () {
                   if (displaySongs.isEmpty) return;
+
                   context.read<TrendingProvider>().playSong(
                     displaySongs.first,
                     context,
@@ -540,8 +607,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+                  foregroundColor: colorScheme.onSurface,
+                  side: BorderSide(
+                    color: colorScheme.onSurface.withValues(alpha: 0.35),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
                   ),
@@ -551,6 +620,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
           child: Column(
@@ -558,9 +628,11 @@ class _HomeScreenState extends State<HomeScreen> {
               final artistName = song.artists.isNotEmpty
                   ? song.artists.map((artist) => artist.name).join(', ')
                   : 'Unknown Artist';
+
               final thumbnail = song.thumbnails.isNotEmpty
                   ? song.thumbnails.last.url
                   : '';
+
               return InkWell(
                 borderRadius: BorderRadius.circular(AppDimens.radiusMd),
                 onTap: () {
@@ -579,7 +651,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                         child: _buildPopularThumbnail(thumbnail, size: 64),
                       ),
+
                       const SizedBox(width: AppDimens.spacingMd),
+
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,20 +661,24 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               song.name,
                               textAlign: TextAlign.left,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: colorScheme.onSurface,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 16,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+
                             const SizedBox(height: 3),
+
                             Text(
                               '$artistName • music',
                               textAlign: TextAlign.left,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.58),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.58,
+                                ),
                                 fontSize: 15,
                               ),
                               maxLines: 1,
@@ -609,10 +687,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
+
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.more_vert_rounded,
-                          color: Colors.white70,
+                          color: colorScheme.onSurface.withValues(alpha: 0.70),
                         ),
                         onPressed: () {},
                       ),
@@ -627,9 +706,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- POPULAR TRACKS (uses real data from PlayerProvider / FavoriteSongProvider) ---
+  // ---------------------------------------------------------------------------
+  // SPEED DIAL
+  // ---------------------------------------------------------------------------
+
   Widget _buildPopularTracks(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final playerProvider = context.watch<PlayerProvider>();
+
     final songs = playerProvider.lastPlayedSongs;
 
     if (songs.isEmpty) {
@@ -655,15 +742,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     'ARMSTRONG KHISA',
-                    style: AppTextStyles.caption(
-                      isDarkMode: true,
-                    ).copyWith(color: Colors.white.withValues(alpha: 0.58)),
+                    style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                        .copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.58),
+                        ),
                   ),
+
                   Text(
                     'Speed dial',
                     style: AppTextStyles.titleLg(
-                      isDarkMode: true,
-                      color: Colors.white,
+                      isDarkMode: isDarkMode,
+                      color: colorScheme.onSurface,
                     ).copyWith(fontWeight: FontWeight.w900, fontSize: 28),
                   ),
                 ],
@@ -671,6 +760,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
           child: GridView.builder(
@@ -685,7 +775,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             itemBuilder: (context, index) {
               final songMap = displaySongs[index];
+
               final title = songMap['title'] ?? 'Unknown';
+
               final artist =
                   (songMap['artists'] != null &&
                       (songMap['artists'] as List).isNotEmpty)
@@ -693,6 +785,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? (songMap['artists'] as List).first['name'] ?? ''
                         : (songMap['artists'] as List).first.toString())
                   : (songMap['artist'] ?? 'Unknown Artist');
+
               final thumbnail = songMap['thumbnail'] ?? '';
 
               return InkWell(
@@ -701,12 +794,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   try {
                     await HomeScreenQueueService(
                       context,
-                    ).playAll('recently_played', currentIndex: index);
+                    ).playAndQueueSongs(songMap);
                   } catch (e) {
-                    AppSnackBar.showError(
-                      context,
-                      'failed_to_play_song_error'.tr(),
-                    );
+                    debugPrint('Speed Dial radio error: $e');
                   }
                 },
                 child: Column(
@@ -720,21 +810,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 6),
+
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+
                     Text(
                       artist,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.58),
+                        color: colorScheme.onSurface.withValues(alpha: 0.58),
                         fontSize: 11,
                       ),
                       maxLines: 1,
@@ -750,74 +843,95 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // THUMBNAILS
+  // ---------------------------------------------------------------------------
+
   Widget _buildPopularThumbnail(String url, {double size = 48}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final placeholderColor = colorScheme.surfaceContainerHighest;
+
+    final iconColor = colorScheme.onSurface.withValues(alpha: 0.55);
+
     if (url.isEmpty) {
       return Container(
         width: size,
         height: size,
-        color: Colors.grey[800],
-        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+        color: placeholderColor,
+        child: Icon(Icons.music_note, color: iconColor, size: 24),
       );
     }
+
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return CachedNetworkImage(
         imageUrl: url,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          width: size,
-          height: size,
-          color: Colors.grey[800],
-          child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
-        ),
-        errorWidget: (context, url, error) => Container(
-          width: size,
-          height: size,
-          color: Colors.grey[800],
-          child: const Icon(
-            Icons.broken_image,
-            color: Colors.white54,
-            size: 24,
-          ),
-        ),
+        placeholder: (context, url) {
+          return Container(
+            width: size,
+            height: size,
+            color: placeholderColor,
+            child: Icon(Icons.music_note, color: iconColor, size: 24),
+          );
+        },
+        errorWidget: (context, url, error) {
+          return Container(
+            width: size,
+            height: size,
+            color: placeholderColor,
+            child: Icon(Icons.broken_image, color: iconColor, size: 24),
+          );
+        },
       );
     }
+
     try {
       final file = url.startsWith('file://')
           ? File.fromUri(Uri.parse(url))
           : File(url);
+
       if (file.existsSync()) {
         return Image.file(
           file,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Container(
-            width: size,
-            height: size,
-            color: Colors.grey[800],
-            child: const Icon(
-              Icons.music_note,
-              color: Colors.white54,
-              size: 24,
-            ),
-          ),
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: size,
+              height: size,
+              color: placeholderColor,
+              child: Icon(Icons.music_note, color: iconColor, size: 24),
+            );
+          },
         );
       }
     } catch (_) {}
+
     return Container(
       width: size,
       height: size,
-      color: Colors.grey[800],
-      child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+      color: placeholderColor,
+      child: Icon(Icons.music_note, color: iconColor, size: 24),
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // TRENDING
+  // ---------------------------------------------------------------------------
+
   List<Widget> _buildTrendingSlivers(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
+
     final trendingProvider = Provider.of<TrendingProvider>(context);
+
     final countryName = trendingProvider.selectedCountry?.name ?? 'Kenya';
 
     return [
@@ -839,18 +953,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: accentColor,
                 ).copyWith(fontWeight: FontWeight.w700),
               ),
+
               const SizedBox(height: AppDimens.spacingXs),
+
               Text(
                 'The songs people are listening to right now',
                 style: AppTextStyles.body2(
                   isDarkMode: isDarkMode,
-                  color: isDarkMode ? Colors.white60 : Colors.black54,
+                  color: colorScheme.onSurface.withValues(alpha: 0.60),
                 ),
               ),
             ],
           ),
         ),
       ),
+
       _buildTrendingSliverList(context),
     ];
   }
@@ -859,15 +976,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final trendingProvider = Provider.of<TrendingProvider>(context);
 
     final playlistId = trendingProvider.selectedCountry?.playlistId;
+
     if (playlistId == null) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
     final songs = trendingProvider.getTrendingSongs(playlistId);
+
     final isLoading = trendingProvider.isLoading(playlistId);
 
     if (isLoading && songs.isEmpty) {
       final accentColor = context.select((SettingsProvider p) => p.accentColor);
+
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppDimens.paddingLg),
@@ -880,7 +1000,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppDimens.paddingLg),
-          child: Center(child: Text('No trending songs found.')),
+          child: Center(
+            child: Text(
+              'No trending songs found.',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            ),
+          ),
         ),
       );
     }
@@ -894,7 +1019,9 @@ class _HomeScreenState extends State<HomeScreen> {
             final isPlaying = itemContext.select<PlayerProvider, bool>(
               (p) => p.currentSong?.videoId == song.videoId,
             );
+
             final isDark = Theme.of(context).brightness == Brightness.dark;
+
             final accentColor = itemContext.select(
               (SettingsProvider p) => p.accentColor,
             );
@@ -933,16 +1060,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // MAP SONG LIST
+  // ---------------------------------------------------------------------------
+
   Widget _buildMapSliverList(
     BuildContext context,
     List<Map<String, dynamic>> list,
     String playlistType,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (list.isEmpty) {
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppDimens.paddingLg),
-          child: Center(child: Text('no_songs_found'.tr())),
+          child: Center(
+            child: Text(
+              'no_songs_found'.tr(),
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
+          ),
         ),
       );
     }
@@ -982,7 +1120,9 @@ class _HomeScreenState extends State<HomeScreen> {
             final isPlaying = itemContext.select<PlayerProvider, bool>(
               (p) => p.currentSong?.videoId == songInfo.videoId,
             );
+
             final isDark = Theme.of(context).brightness == Brightness.dark;
+
             final accentColor = itemContext.select(
               (SettingsProvider p) => p.accentColor,
             );
@@ -1006,7 +1146,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       context,
                     ).playAll(playlistType, currentIndex: index);
                   } catch (e) {
-                    print('Error playing song: $e');
+                    debugPrint('Error playing song: $e');
+
                     AppSnackBar.showError(
                       context,
                       'failed_to_play_song_error'.tr(),
@@ -1023,6 +1164,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // MAIN BUILD
+  // ---------------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
@@ -1036,10 +1181,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         slivers: [
           SliverToBoxAdapter(child: _buildTabs(context)),
+
           if (_selectedIndex == 0) ...[
             SliverToBoxAdapter(child: _buildPopularTracks(context)),
+
             SliverToBoxAdapter(child: _buildForYouCarousel(context)),
+
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
+
             SliverToBoxAdapter(child: HomeSections()),
           ] else if (_selectedIndex == 1) ...[
             ..._buildTrendingSlivers(context),
@@ -1056,14 +1205,20 @@ class _HomeScreenState extends State<HomeScreen> {
               'recently_played',
             ),
           ],
-          SliverToBoxAdapter(child: SizedBox(height: AppDimens.paddingXl)),
+
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppDimens.paddingXl),
+          ),
         ],
       ),
     );
   }
 }
 
-// --- FOR YOU CARD (standalone widget for carousel) ---
+// -----------------------------------------------------------------------------
+// FOR YOU CARD
+// -----------------------------------------------------------------------------
+
 class _ForYouCard extends StatelessWidget {
   final SongInfo song;
 
@@ -1071,19 +1226,24 @@ class _ForYouCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final thumbnail = song.thumbnails.isNotEmpty
         ? song.thumbnails.last.url
         : '';
+
     final artistName = song.artists.isNotEmpty
         ? song.artists.map((a) => a.name).join(', ')
         : 'Unknown Artist';
+
+    final placeholderColor = colorScheme.surfaceContainerHighest;
 
     return Container(
       width: 140,
       margin: const EdgeInsets.only(right: 16),
       child: GestureDetector(
         onTap: () {
-          // Play this song
           context.read<TrendingProvider>().playSong(
             song,
             context,
@@ -1102,49 +1262,61 @@ class _ForYouCard extends StatelessWidget {
                       width: 140,
                       height: 130,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        width: 140,
-                        height: 130,
-                        color: Colors.grey[850],
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        width: 140,
-                        height: 130,
-                        color: Colors.grey[850],
-                        child: const Icon(
-                          Icons.music_note,
-                          color: Colors.white54,
-                        ),
-                      ),
+                      placeholder: (context, url) {
+                        return Container(
+                          width: 140,
+                          height: 130,
+                          color: placeholderColor,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        );
+                      },
+                      errorWidget: (context, url, error) {
+                        return Container(
+                          width: 140,
+                          height: 130,
+                          color: placeholderColor,
+                          child: Icon(
+                            Icons.music_note,
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.55,
+                            ),
+                          ),
+                        );
+                      },
                     )
                   : Container(
                       width: 140,
                       height: 130,
-                      color: Colors.grey[850],
-                      child: const Icon(
+                      color: placeholderColor,
+                      child: Icon(
                         Icons.music_note,
-                        color: Colors.white54,
+                        color: colorScheme.onSurface.withValues(alpha: 0.55),
                       ),
                     ),
             ),
+
             const SizedBox(height: 8),
+
             Text(
               song.name,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+
             Text(
               artistName,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
                 fontSize: 12,
               ),
               maxLines: 1,
