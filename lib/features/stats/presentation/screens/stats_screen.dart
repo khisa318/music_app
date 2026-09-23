@@ -15,15 +15,12 @@ import '../widgets/summary_card.dart';
 
 class _StatsColors {
   static const Color dailyBar = Color(0xFF26C6DA);
-  static const Color dailyBarDark = Color(0xFF00ACC1);
   static const Color dailyGradientTop = Color(0xFF26C6DA);
   static const Color dailyGradientBottom = Color(0xFF00838F);
   static const Color weeklyBar = Color(0xFFFFB74D);
-  static const Color weeklyBarDark = Color(0xFFFFA726);
   static const Color weeklyGradientTop = Color(0xFFFFB74D);
   static const Color weeklyGradientBottom = Color(0xFFE65100);
   static const Color monthlyBar = Color(0xFFAB47BC);
-  static const Color monthlyBarDark = Color(0xFF9C27B0);
   static const Color monthlyGradientTop = Color(0xFFCE93D8);
   static const Color monthlyGradientBottom = Color(0xFF6A1B9A);
 }
@@ -173,8 +170,8 @@ class _StatsScreenState extends State<StatsScreen>
                 playerProvider.currentLocalSong != null;
 
             final mq = MediaQuery.of(context);
-            final double navIconScale = mq.textScaleFactor > 1.0
-                ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+            final double navIconScale = mq.textScaler.scale(1.0) > 1.0
+                ? (1.0 / mq.textScaler.scale(1.0)).clamp(0.75, 1.0).toDouble()
                 : 1.0;
 
             return Stack(

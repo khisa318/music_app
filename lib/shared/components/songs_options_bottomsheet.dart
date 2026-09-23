@@ -87,10 +87,9 @@ class _SongOptionsBottomSheetState extends State<SongOptionsBottomSheet> {
 
       await _downloadProvider.downloadSong(widget.song);
     } catch (e) {
-      if (context.mounted) {
-        AppSnackBar.showError(context, 'Download failed');
-        Navigator.pop(context);
-      }
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'Download failed');
+      Navigator.pop(context);
     }
   }
 

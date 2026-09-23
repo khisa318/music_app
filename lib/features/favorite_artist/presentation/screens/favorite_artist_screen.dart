@@ -20,7 +20,7 @@ class FavoriteArtistsScreen extends StatefulWidget {
   const FavoriteArtistsScreen({super.key});
 
   @override
-  _FavoriteArtistsScreenState createState() => _FavoriteArtistsScreenState();
+  State<FavoriteArtistsScreen> createState() => _FavoriteArtistsScreenState();
 }
 
 class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
@@ -91,6 +91,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
       context,
       listen: false,
     ).toggleFavorite(artist);
+    if (!mounted) return;
     await Provider.of<FavoriteArtistProvider>(
       context,
       listen: false,
@@ -299,6 +300,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
     );
 
     if (result != null && result.isNotEmpty && result != currentName) {
+      if (!mounted) return;
       await Provider.of<FavoriteArtistProvider>(
         context,
         listen: false,
@@ -512,6 +514,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
                 onDismissed: (_) async {
                   final removed = Map<String, dynamic>.from(artist);
                   await _removeFavoriteById(artist);
+                  if (!context.mounted) return;
                   AppSnackBar.showInfo(
                     context,
                     'Removed ${removed['name']}',
@@ -525,6 +528,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
                         if (key != null && key.isNotEmpty) {
                           await favoritesBox.put(key, jsonEncode(removed));
                         }
+                        if (!context.mounted) return;
                         await Provider.of<FavoriteArtistProvider>(
                           context,
                           listen: false,

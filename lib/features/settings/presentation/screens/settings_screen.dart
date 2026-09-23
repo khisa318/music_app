@@ -91,8 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     playerProvider.currentLocalSong != null;
 
                 final mq = MediaQuery.of(context);
-                final double navIconScale = mq.textScaleFactor > 1.0
-                    ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+                final double navIconScale =
+                    mq.textScaler.scale(1.0) > 1.0
+                    ? (1.0 / mq.textScaler.scale(1.0)).clamp(
+                        0.75,
+                        1.0,
+                      ).toDouble()
                     : 1.0;
 
                 return Column(

@@ -76,7 +76,9 @@ class AudioOutputService {
     if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod('openSoundSettings');
-    } on PlatformException {}
+    } on PlatformException {
+      // Intentionally ignored: opening sound settings is best-effort.
+    }
   }
 
   static Future<bool> openMediaOutputSwitcher() async {

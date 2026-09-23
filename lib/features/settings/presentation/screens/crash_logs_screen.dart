@@ -194,7 +194,7 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                   if (confirmed == true) {
                     await logService.clearLogs();
                     await _reload();
-                    if (mounted) {
+                    if (context.mounted) {
                       AppSnackBar.showSuccess(
                         context,
                         'crash_logs_cleared_success'.tr(),
@@ -289,7 +289,7 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                                 color: Colors.transparent,
                                 child: SwitchListTile.adaptive(
                                   value: settings.loggingOnStartup,
-                                  activeColor: themeData.accentColor,
+                                  activeThumbColor: themeData.accentColor,
                                   onChanged: (v) {
                                     settings.loggingOnStartup = v;
                                     if (v) {

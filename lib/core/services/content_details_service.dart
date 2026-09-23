@@ -8,7 +8,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart'
     hide Thumbnail, Playlist;
 
 import '../providers/video_info_provider.dart';
-import 'yt-music-api.dart';
+import 'yt_music_api.dart';
 
 class ContentDetailsService {
   final YTMusic _ytMusic = GetIt.I<YTMusic>();

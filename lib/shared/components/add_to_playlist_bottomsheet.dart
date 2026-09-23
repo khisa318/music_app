@@ -14,7 +14,7 @@ class AddToPlaylistBottomSheet extends StatefulWidget {
   const AddToPlaylistBottomSheet({super.key, required this.song});
 
   @override
-  _AddToPlaylistBottomSheetState createState() =>
+  State<AddToPlaylistBottomSheet> createState() =>
       _AddToPlaylistBottomSheetState();
 }
 
@@ -98,6 +98,7 @@ class _AddToPlaylistBottomSheetState extends State<AddToPlaylistBottomSheet> {
         _songInPlaylist[playlistName] = false;
       });
 
+      if (!mounted) return;
       AppSnackBar.showInfo(
         context,
         'removed_from_playlist'.tr(args: [playlistName]),
@@ -109,6 +110,7 @@ class _AddToPlaylistBottomSheetState extends State<AddToPlaylistBottomSheet> {
         _songInPlaylist[playlistName] = true;
       });
 
+      if (!mounted) return;
       AppSnackBar.showSuccess(
         context,
         'added_to_playlist'.tr(args: [playlistName]),
@@ -129,6 +131,7 @@ class _AddToPlaylistBottomSheetState extends State<AddToPlaylistBottomSheet> {
     try {
       await provider.saveCreatedPlaylist(name);
     } catch (e) {
+      if (!mounted) return;
       AppSnackBar.showError(
         context,
         'playlist_already_exists'.tr(args: [name]),

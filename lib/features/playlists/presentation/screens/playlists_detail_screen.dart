@@ -6,7 +6,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Thumbnail;
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/song_model.dart';
@@ -31,7 +30,6 @@ class PlaylistDetailsScreen extends StatefulWidget {
 
 class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
   late List<Map<String, dynamic>> _songs;
-  final YoutubeExplode _yt = YoutubeExplode();
 
   @override
   void initState() {
@@ -125,7 +123,7 @@ class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
 
       if (!mounted) return;
     } catch (e) {
-      print('Error playing song: $e');
+      debugPrint('Error playing song: $e');
       if (!mounted) return;
       AppSnackBar.showError(context, 'Error playing song');
     }
@@ -149,9 +147,6 @@ class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
         ),
         body: Consumer<PlayerProvider>(
           builder: (context, playerProvider, _) {
-            final hasPlayer =
-                playerProvider.currentSong != null ||
-                playerProvider.lastPlayedSong != null;
             final settingsProvider = Provider.of<SettingsProvider>(context);
             final accentColor = settingsProvider.accentColor;
 

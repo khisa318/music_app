@@ -18,7 +18,6 @@ class LastPlayedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final playerProvider = context.watch<PlayerProvider>();
     final homeScreenQueueService = HomeScreenQueueService(context);
@@ -97,6 +96,7 @@ class LastPlayedSection extends StatelessWidget {
                             currentIndex: globalIndex,
                           );
                         } catch (e) {
+                          if (!context.mounted) return;
                           showErrorSnackbar(
                             context,
                             'Failed to play song: ${e.toString()}',

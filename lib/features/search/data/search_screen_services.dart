@@ -8,7 +8,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Thumbnail;
 import '../../../core/models/song_model.dart';
 import '../../../core/services/related_song_service.dart';
 import '../../../core/services/settings_storage_service.dart';
-import '../../../core/services/yt-music-api.dart' as ytApi;
+import '../../../core/services/yt_music_api.dart' as yt_api;
 
 enum SearchMode { youtubeMusic, youtube }
 
@@ -18,8 +18,8 @@ class SearchScreenServices {
 
   final RelatedSongService _relatedSongService = RelatedSongService();
 
-  static const String SEARCH_HISTORY_KEY = 'search_history';
-  static const String SEARCH_HISTORY_ENABLED_KEY = 'searchHistoryEnabled';
+  static const String searchHistoryKey = 'search_history';
+  static const String searchHistoryEnabledKey = 'searchHistoryEnabled';
 
   static const int _maxSearchQueueSize = 250;
   static const int _initialRadioBatchLimit = 50;
@@ -32,13 +32,13 @@ class SearchScreenServices {
   Future<List<String>> loadSearchHistory() async {
     final box = await SettingsStorageService.getBox();
 
-    final isEnabled = (box.get(SEARCH_HISTORY_ENABLED_KEY) as bool?) ?? true;
+    final isEnabled = (box.get(searchHistoryEnabledKey) as bool?) ?? true;
 
     if (!isEnabled) {
       return [];
     }
 
-    return (box.get(SEARCH_HISTORY_KEY) as List?)
+    return (box.get(searchHistoryKey) as List?)
             ?.map((e) => e.toString())
             .toList() ??
         [];
@@ -47,13 +47,13 @@ class SearchScreenServices {
   Future<void> saveSearchHistory(List<String> history) async {
     final box = await SettingsStorageService.getBox();
 
-    final isEnabled = (box.get(SEARCH_HISTORY_ENABLED_KEY) as bool?) ?? true;
+    final isEnabled = (box.get(searchHistoryEnabledKey) as bool?) ?? true;
 
     if (!isEnabled) {
       return;
     }
 
-    await box.put(SEARCH_HISTORY_KEY, history);
+    await box.put(searchHistoryKey, history);
   }
 
   Future<List<String>> addToSearchHistory(
@@ -510,7 +510,7 @@ class SearchScreenServices {
     // -------------------------------------------------------------------------
 
     try {
-      final initialRadioData = await ytApi.getRadioSongs(
+      final initialRadioData = await yt_api.getRadioSongs(
         seedVideoId,
         limit: _initialRadioBatchLimit,
       );
@@ -566,7 +566,7 @@ class SearchScreenServices {
       final randomSeedSong = songs[random.nextInt(songs.length)];
 
       try {
-        final extraRadioData = await ytApi.getRadioSongs(
+        final extraRadioData = await yt_api.getRadioSongs(
           randomSeedSong.videoId,
           limit: _initialRadioBatchLimit,
         );

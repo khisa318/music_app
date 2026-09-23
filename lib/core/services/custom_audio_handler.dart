@@ -15,10 +15,6 @@ class CustomAudioHandler extends BaseAudioHandler
   final PlayerProvider _playerProvider;
   final FavoriteSongProvider _favoriteSongProvider;
 
-  StreamSubscription<PlayerState>? _playerStateSubscription;
-  StreamSubscription<Duration>? _positionSubscription;
-  StreamSubscription<Duration?>? _durationSubscription;
-  StreamSubscription<Duration>? _bufferedSubscription;
   // ignore: unused_field
   Timer? _throttleTimer;
   bool _stateDirty = false;
@@ -37,16 +33,16 @@ class CustomAudioHandler extends BaseAudioHandler
   }
 
   void _init() {
-    _playerStateSubscription = _playerService.playerStateStream.listen((_) {
+    _playerService.playerStateStream.listen((_) {
       _markStateDirty();
     });
 
-    _positionSubscription = _playerService.positionStream.listen((position) {
+    _playerService.positionStream.listen((position) {
       _position = position;
       _markStateDirty();
     });
 
-    _durationSubscription = _playerService.durationStream.listen((duration) {
+    _playerService.durationStream.listen((duration) {
       _duration = duration ?? Duration.zero;
       if (mediaItem.value != null) {
         mediaItem.add(mediaItem.value!.copyWith(duration: _duration));
@@ -54,7 +50,7 @@ class CustomAudioHandler extends BaseAudioHandler
       _markStateDirty();
     });
 
-    _bufferedSubscription = _playerService.bufferedPositionStream.listen((b) {
+    _playerService.bufferedPositionStream.listen((b) {
       _buffered = b;
       _markStateDirty();
     });

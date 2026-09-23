@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'yt-stream.dart' as stream_provider;
+import 'yt_stream.dart' as stream_provider;
 import 'jiosaavn_isolate.dart';
 
 Future<Map<String, dynamic>> _fetchYoutubeUrl(

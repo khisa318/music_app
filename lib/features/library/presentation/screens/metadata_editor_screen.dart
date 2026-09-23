@@ -152,6 +152,8 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
 
       final status = await permission.status;
       if (!status.isGranted) {
+        if (!mounted) return;
+
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final settingsProvider = Provider.of<SettingsProvider>(
           context,

@@ -125,6 +125,7 @@ class CrashLogService {
   }) async {
     final f = _files[channel];
     if (f == null || !await f.exists() || await f.length() == 0) {
+      if (!context.mounted) return;
       AppSnackBar.showWarning(
         context,
         '${'no_logs_available_for'.tr()} $channel',
@@ -137,9 +138,10 @@ class CrashLogService {
     final logsContent = await f.readAsString();
     await tempFile.writeAsString('$_logHeader\n$logsContent');
 
-    await Share.shareXFiles([
-      XFile(tempFile.path),
-    ], text: 'Noize — $channel logs');
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(tempFile.path)],
+      text: 'Noize — $channel logs',
+    ));
   }
 
   Future<void> clearLogs({String? channel}) async {

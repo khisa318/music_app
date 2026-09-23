@@ -1,10 +1,8 @@
 import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:metadata_god/metadata_god.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
 
 import '../../../favorite_artist/presentation/screens/favorite_artist_screen.dart';
@@ -14,7 +12,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/services/content_details_service.dart';
-import '../../../../core/services/local_songs_service.dart';
 import '../../../../core/models/song_model.dart';
 import '../../data/providers/library_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
@@ -32,7 +29,7 @@ class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  _LibraryScreenState createState() => _LibraryScreenState();
+  State<LibraryScreen> createState() => _LibraryScreenState();
 }
 
 class _LibraryScreenState extends State<LibraryScreen>
@@ -113,7 +110,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               decoration: BoxDecoration(
                 // Customize your background color here
                 color: isDarkMode
-                    ? Colors.black.withOpacity(0.5)
+                    ? Colors.black.withValues(alpha: 0.5)
                     : Colors.grey[100],
               ),
               child: Row(
@@ -513,7 +510,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           return false;
         },
         child: ListView.builder(
-          cacheExtent: 0,
+          scrollCacheExtent: ScrollCacheExtent.pixels(0),
           padding: const EdgeInsets.only(bottom: AppDimens.miniPlayerHeight),
           itemCount: displayedSongs.length,
           itemBuilder: (context, index) {
@@ -1071,7 +1068,6 @@ class _LibraryScreenState extends State<LibraryScreen>
         final currentSongInfo = songList.firstWhere(
           (s) => s.videoId == song['id'],
         );
-        final songIndex = songList.indexWhere((s) => s.videoId == song['id']);
 
         final playlistId = tabName;
 
@@ -1118,63 +1114,13 @@ class _LibraryScreenState extends State<LibraryScreen>
         await playerProvider.playerService.playSong(songInfo);
       }
     } catch (e) {
+      if (!context.mounted) return;
       AppSnackBar.showError(context, 'failed_to_play_song_error'.tr());
       if (tabName == 'local_music' ||
           song['isLocal'] == true ||
           song['localPath'] != null) {
         playerProvider.playerService.playNext();
       }
-    }
-  }
-
-  Future<Uri> _getArtworkUri(Map<String, dynamic> song) async {
-    if (Platform.isWindows || Platform.isLinux) {
-      try {
-        final metadata = await MetadataGod.readMetadata(
-          file: song['localPath'],
-        );
-        if (metadata.picture != null) {
-          final picture = metadata.picture!;
-          final tempDir = await getTemporaryDirectory();
-          final tempFile = File('${tempDir.path}/artwork_${song['id']}.jpg');
-          await tempFile.writeAsBytes(picture.data);
-          return Uri.file(tempFile.path);
-        }
-      } catch (e) {
-        debugPrint('Error getting artwork from metadata: $e');
-      }
-    } else {
-      final service = LocalSongsService();
-
-      try {
-        final artworkFile = await service.queryArtwork(
-          int.parse(song['id'].toString()),
-          size: 500,
-        );
-
-        if (artworkFile != null) {
-          final tempDir = await getTemporaryDirectory();
-          final tempFile = File('${tempDir.path}/artwork_${song['id']}.jpg');
-
-          await tempFile.writeAsBytes(artworkFile);
-          return Uri.file(tempFile.path);
-        }
-      } catch (e) {
-        debugPrint('Error getting artwork: $e');
-      }
-    }
-
-    try {
-      final byteData = await rootBundle.load('assets/default_artwork.png');
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/default_artwork.png');
-
-      await tempFile.writeAsBytes(byteData.buffer.asUint8List());
-      return Uri.file(tempFile.path);
-    } catch (e) {
-      return Uri.parse(
-        'https://dummyimage.com/600x400/ff0000/ffffff&text=Artwork',
-      );
     }
   }
 
@@ -1281,6 +1227,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                       break;
                   }
                 }
+
+                if (!context.mounted) return;
 
                 setState(() {
                   _isSelectionMode = false;

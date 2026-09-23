@@ -6,9 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../main_screen/router/display_route.dart';
 import 'theme_setup_screen.dart';
 import 'package:provider/provider.dart';
-import 'artist_setup_screen.dart';
-import '../../../settings/presentation/screens/language_selection_screen.dart';
-// import '../../../main_screen/router/display_route.dart';
 import '../../../../core/providers/connectivity_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
@@ -25,9 +22,7 @@ class IntroScreen extends StatefulWidget {
 class _IntroScreenState extends State<IntroScreen>
     with TickerProviderStateMixin {
   late PageController _pageController;
-  late AnimationController _fadeController;
   late AnimationController _slideController;
-  late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
   int _currentPage = 0;
@@ -61,16 +56,6 @@ class _IntroScreenState extends State<IntroScreen>
   }
 
   void _initializeAnimations() {
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: AppDimens.animSmooth,
-    );
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
-    _fadeController.forward();
-
     _slideController = AnimationController(
       vsync: this,
       duration: AppDimens.animSmooth,
@@ -85,7 +70,6 @@ class _IntroScreenState extends State<IntroScreen>
   @override
   void dispose() {
     _pageController.dispose();
-    _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
   }
@@ -380,36 +364,8 @@ class _IntroScreenState extends State<IntroScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
           opacity: animation,
-          child: LanguageSelectionScreen(
-            isOnboardingFlow: true,
-            onSelected: () {
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      FadeTransition(
-                        opacity: animation,
-                        child: ThemeSetupScreen(
-                          onNext: () {
-                            Navigator.pushReplacement(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder:
-                                    (context, animation, secondaryAnimation) =>
-                                        FadeTransition(
-                                          opacity: animation,
-                                          child: ArtistSetupScreen(
-                                            onComplete: _completeSetup,
-                                          ),
-                                        ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                ),
-              );
-            },
+          child: ThemeSetupScreen(
+            onNext: _completeSetup,
           ),
         ),
       ),
@@ -421,13 +377,6 @@ class _IntroScreenState extends State<IntroScreen>
     await box.put('first_time', false);
 
     if (mounted) {
-      // Navigator.pushReplacement(
-      //   context,
-      //   PageRouteBuilder(
-      //     pageBuilder: (context, animation, secondaryAnimation) =>
-      //         FadeTransition(opacity: animation, child: const MainScreen()),
-      //   ),
-      // );
       if (Platform.isAndroid) {
         await TerminateRestart.instance.restartApp(
           options: const TerminateRestartOptions(terminate: true),

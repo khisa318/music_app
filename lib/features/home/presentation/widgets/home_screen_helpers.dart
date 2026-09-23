@@ -24,6 +24,8 @@ Future<void> playSong(BuildContext context, Map<String, dynamic> song) async {
     await queueService.playAndQueueSongs(song);
     await queueProvider.saveQueue();
   } catch (e) {
+    if (!context.mounted) return;
+
     String errorMessage = 'failed_to_play_song_please_try_again'.tr();
 
     if (e.toString().contains('Video ID not found')) {

@@ -137,7 +137,8 @@ class SettingsProvider with ChangeNotifier {
       case 'Dark':
         return ThemeMode.dark;
       case 'System Default':
-        final brightness = WidgetsBinding.instance.window.platformBrightness;
+        final brightness = WidgetsBinding.instance.platformDispatcher
+            .platformBrightness;
         return brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light;
       default:
         return ThemeMode.system;
@@ -326,7 +327,7 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> clearSearchHistory() async {
     final box = await SettingsStorageService.getBox();
-    await box.delete(SearchScreenServices.SEARCH_HISTORY_KEY);
+    await box.delete(SearchScreenServices.searchHistoryKey);
     notifyListeners();
   }
 

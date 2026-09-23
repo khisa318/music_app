@@ -14,7 +14,7 @@ class Animation2 extends StatefulWidget {
   });
 
   @override
-  _Animation2State createState() => _Animation2State();
+  State<Animation2> createState() => _Animation2State();
 }
 
 class _Animation2State extends State<Animation2>

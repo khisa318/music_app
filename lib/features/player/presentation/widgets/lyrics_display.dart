@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../screens/player_ui.dart';
 
-import '../../../../core/models/song_model.dart';
 import '../../../../core/providers/lyrics_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
@@ -310,40 +309,11 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     );
     final accentColor = settingsProvider.accentColor;
     final playerProvider = Provider.of<PlayerProvider>(context);
-    final currentSong =
-        playerProvider.currentSong ??
-        (playerProvider.currentLocalSong != null
-            ? SongInfo(
-                videoId: playerProvider.currentLocalSong!['id'] ?? '',
-                name:
-                    playerProvider.currentLocalSong!['title'] ?? 'Unknown Song',
-                artists: [
-                  Artist(
-                    name:
-                        playerProvider.currentLocalSong!['artist'] ??
-                        'Unknown Artist',
-                    id: '',
-                  ),
-                ],
-                thumbnails: [
-                  Thumbnail(
-                    url:
-                        playerProvider.currentLocalSong!['thumbnail'] ??
-                        'assets/default_artwork.png',
-                    width: 0,
-                    height: 0,
-                  ),
-                ],
-                duration: Duration(
-                  milliseconds:
-                      playerProvider.currentLocalSong!['duration'] ?? 0,
-                ),
-              )
-            : null);
 
     final mq = MediaQuery.of(context);
-    final double navIconScale = mq.textScaleFactor > 1.0
-        ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+    final double textScale = mq.textScaler.scale(1.0);
+    final double navIconScale = textScale > 1.0
+        ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
         : 1.0;
 
     final hasPlayer =
@@ -449,11 +419,8 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
                           highlightLeft =
                               (selectedIndex * itemWidth) + AppDimens.spacingXs;
 
-                          final double providerTextScale =
-                              mq.textScaleFactor > 1.0
-                              ? (1.0 / mq.textScaleFactor)
-                                    .clamp(0.70, 1.0)
-                                    .toDouble()
+                          final double providerTextScale = textScale > 1.0
+                              ? (1.0 / textScale).clamp(0.70, 1.0).toDouble()
                               : 1.0;
 
                           return Container(
@@ -535,8 +502,9 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
                                           child: Center(
                                             child: Text(
                                               provider,
-                                              textScaleFactor:
-                                                  providerTextScale,
+                                              textScaler: TextScaler.linear(
+                                                providerTextScale,
+                                              ),
                                               style: isSelected
                                                   ? AppTextStyles.caption(
                                                       isDarkMode: true,

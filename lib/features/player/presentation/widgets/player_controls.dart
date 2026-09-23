@@ -67,7 +67,6 @@ class PlayerControls {
                             ? accentColor
                             : MainScreenColors.darkTirtiaryColor,
                       ),
-                      year2023: false,
                     ),
                   ),
                 ),
@@ -215,7 +214,6 @@ class PlayerControls {
                             valueColor: AlwaysStoppedAnimation<Color>(
                               accentColor,
                             ),
-                            year2023: false,
                             minHeight: AppDimens.sliderTrackHeight * 1,
                           ),
                         ),
@@ -315,7 +313,6 @@ class PlayerControls {
                           ? accentColor
                           : MainScreenColors.darkTirtiaryColor,
                     ),
-                    year2023: false,
                   ),
                 ),
               );
@@ -385,8 +382,6 @@ class PlayerControls {
     required bool isLiked,
     required VoidCallback toggleLike,
   }) {
-    const double buttonSize = AppDimens.iconMdLg;
-
     return IconButton(
       icon: Icon(
         isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,

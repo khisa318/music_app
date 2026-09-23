@@ -172,8 +172,10 @@ class SongSearchDelegate extends SearchDelegate<SongInfo?> {
                           );
                           await queueProvider.saveQueue();
 
+                          if (!context.mounted) return;
                           close(context, songInfo);
                         } catch (e) {
+                          if (!context.mounted) return;
                           AppSnackBar.showError(
                             context,
                             'failed_to_play_song_error'.tr(),
@@ -289,8 +291,10 @@ class SongSearchDelegate extends SearchDelegate<SongInfo?> {
                           );
                           await queueProvider.saveQueue();
 
+                          if (!context.mounted) return;
                           close(context, songInfo);
                         } catch (e) {
+                          if (!context.mounted) return;
                           AppSnackBar.showError(
                             context,
                             'failed_to_play_song_error'.tr(),

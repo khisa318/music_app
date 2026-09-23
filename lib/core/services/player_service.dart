@@ -552,13 +552,14 @@ class PlayerService {
           await _mediaKitAdapter.openUri(audioUrl, play: playWhenReady);
 
           if (isTempCacheEnabled) {
-            unawaited(
-              _tempAudioCacheService
-                  .downloadAndCacheFile(audioUrl, song)
-                  .catchError((e) {
-                    debugPrint('Failed to cache song in background: $e');
-                  }),
-            );
+            unawaited(() async {
+              try {
+                await _tempAudioCacheService
+                    .downloadAndCacheFile(audioUrl, song);
+              } catch (e) {
+                debugPrint('Failed to cache song in background: $e');
+              }
+            }());
           }
         }
       }
@@ -1528,11 +1529,14 @@ class PlayerService {
           await _mediaKitAdapter.prebufferUri(audioUrl, volume: _volume);
 
           if (isTempCacheEnabled) {
-            unawaited(
-              _tempAudioCacheService
-                  .downloadAndCacheFile(audioUrl, song)
-                  .catchError((_) {}),
-            );
+            unawaited(() async {
+              try {
+                await _tempAudioCacheService
+                    .downloadAndCacheFile(audioUrl, song);
+              } catch (_) {
+                // Background caching is best-effort.
+              }
+            }());
           }
         }
       }

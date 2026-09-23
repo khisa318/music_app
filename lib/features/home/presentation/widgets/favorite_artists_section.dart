@@ -201,10 +201,11 @@ class _ArtistAvatarWithPlayButtonState
       showErrorSnackbar(context, 'Failed to play artist songs');
       debugPrint('Error playing artist songs: $e');
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

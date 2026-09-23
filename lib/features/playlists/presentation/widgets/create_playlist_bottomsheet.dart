@@ -11,7 +11,7 @@ class CreatePlaylistBottomSheet extends StatefulWidget {
   const CreatePlaylistBottomSheet({super.key});
 
   @override
-  _CreatePlaylistBottomSheetState createState() =>
+  State<CreatePlaylistBottomSheet> createState() =>
       _CreatePlaylistBottomSheetState();
 }
 
@@ -63,6 +63,7 @@ class _CreatePlaylistBottomSheetState extends State<CreatePlaylistBottomSheet>
     try {
       await provider.saveCreatedPlaylist(playlistName);
     } catch (e) {
+      if (!mounted) return;
       AppSnackBar.showError(
         context,
         'playlist_already_exists'.tr(args: [playlistName]),
@@ -72,12 +73,15 @@ class _CreatePlaylistBottomSheetState extends State<CreatePlaylistBottomSheet>
 
     await provider.loadCreatedPlaylists();
 
+    if (!mounted) return;
+
     AppSnackBar.showSuccess(
       context,
       'playlist_created'.tr(args: [playlistName]),
     );
 
     _playlistNameController.clear();
+    if (!mounted) return;
     Navigator.pop(context, true);
   }
 
@@ -101,10 +105,14 @@ class _CreatePlaylistBottomSheetState extends State<CreatePlaylistBottomSheet>
         playlistId,
       );
 
+      if (!mounted) return;
+
       if (playlistData == null) {
         AppSnackBar.showError(context, 'could_not_fetch_playlist_details'.tr());
         return;
       }
+
+      if (!mounted) return;
 
       final provider = Provider.of<PlaylistAlbumLibraryProvider>(
         context,
@@ -136,14 +144,17 @@ class _CreatePlaylistBottomSheetState extends State<CreatePlaylistBottomSheet>
 
       final importedType =
           (playlistData['contentType'] as String?) ?? 'Playlist';
+      if (!mounted) return;
       AppSnackBar.showSuccess(
         context,
         'playlist_imported'.tr(args: [importedType, playlistData['name']]),
       );
 
       _importLinkController.clear();
+      if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
+      if (!mounted) return;
       AppSnackBar.showError(context, 'Error importing playlist: $e');
     } finally {
       setState(() {

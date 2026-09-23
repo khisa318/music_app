@@ -21,7 +21,7 @@ class ExportImportSettingsScreen extends StatefulWidget {
   const ExportImportSettingsScreen({super.key});
 
   @override
-  _ExportImportSettingsScreenState createState() =>
+  State<ExportImportSettingsScreen> createState() =>
       _ExportImportSettingsScreenState();
 }
 
@@ -351,6 +351,7 @@ class _ExportImportSettingsScreenState
       final fileName = result.files.single.name;
 
       if (!ExportImportSettingsService().isValidImportFile(fileName)) {
+        if (!mounted) return;
         AppSnackBar.showWarning(context, 'invalid_file_selected_snackbar'.tr());
         return;
       }
@@ -359,9 +360,11 @@ class _ExportImportSettingsScreenState
         filePath,
       );
 
+      if (!mounted) return;
       _showDynamicImportBottomSheet(context, importData, accentColor);
     } catch (e) {
-      print('Error during import: $e');
+      debugPrint('Error during import: $e');
+      if (!mounted) return;
       AppSnackBar.showError(context, 'import_failed_snackbar'.tr());
     }
   }
@@ -593,6 +596,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
       );
 
       if (exportData.isEmpty) {
+        if (!context.mounted) return;
         AppSnackBar.showWarning(
           context,
           'no_data_selected_for_export_snackbar'.tr(),
@@ -604,13 +608,16 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
         exportData,
       );
 
+      if (!context.mounted) return;
       await SharePlus.instance.share(
         ShareParams(text: 'Noize export file', files: [XFile(filePath)]),
       );
 
+      if (!context.mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
-      print('Error during export: $e');
+      debugPrint('Error during export: $e');
+      if (!context.mounted) return;
       AppSnackBar.showError(context, 'export_failed_snackbar'.tr());
     }
   }
@@ -771,6 +778,8 @@ class _DynamicImportBottomSheetState extends State<_DynamicImportBottomSheet> {
         importRecentPlaylists: _selectedItems['recentPlaylists'] ?? false,
       );
 
+      if (!context.mounted) return;
+
       if (_selectedItems['favoriteSongs'] == true) {
         Provider.of<FavoriteSongProvider>(
           context,
@@ -807,7 +816,8 @@ class _DynamicImportBottomSheetState extends State<_DynamicImportBottomSheet> {
         'data_imported_successfully_snackbar'.tr(),
       );
     } catch (e) {
-      print('Error during import: $e');
+      debugPrint('Error during import: $e');
+      if (!context.mounted) return;
       AppSnackBar.showError(context, 'import_failed_snackbar'.tr());
     }
   }

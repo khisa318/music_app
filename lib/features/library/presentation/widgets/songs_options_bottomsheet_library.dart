@@ -128,7 +128,7 @@ class _SongOptionsBottomSheetlibraryState
 
       await _downloadProvider.downloadSong(_songInfo);
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         AppSnackBar.showError(context, 'Download failed: $e');
         Navigator.pop(context);
       }

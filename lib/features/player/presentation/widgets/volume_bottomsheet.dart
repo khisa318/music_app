@@ -117,7 +117,6 @@ class _VolumeBottomSheetState extends State<VolumeBottomSheet> {
                   label: '${(_volume * 100).toInt()}%',
                   activeColor: volumeColor,
                   inactiveColor: volumeColor.withValues(alpha: 0.3),
-                  year2023: false,
                 ),
               ),
               Icon(Icons.volume_up, color: volumeColor),
@@ -146,7 +145,6 @@ class _VolumeBottomSheetState extends State<VolumeBottomSheet> {
                   label: '${_playbackSpeed.toStringAsFixed(1)}x',
                   activeColor: accentColor,
                   inactiveColor: accentColor.withValues(alpha: 0.3),
-                  year2023: false,
                 ),
               ),
               Text(

@@ -67,7 +67,7 @@ Future<Map<String, dynamic>> _searchJioSaavnIsolate(
         final list = primaryArtists as List;
         artistsDisplay = list.join(', ');
       } else {
-        artistsDisplay = primaryArtists.toString() ?? 'Unknown';
+        artistsDisplay = primaryArtists.toString();
       }
       debugPrint(
         'JioSaavn match attempt - Song: ${song.name} by $artistsDisplay - TitleScore: ${titleScore.toStringAsFixed(2)}, ArtistScore: ${artistScore.toStringAsFixed(2)}, Total: ${score.toStringAsFixed(2)}',
@@ -208,7 +208,9 @@ class JioSaavnIsolate {
       } else {
         try {
           return await _activeRequests[requestKey]!.future;
-        } catch (e) {}
+        } catch (e) {
+          // The original speculative request failed; fall through to retry.
+        }
       }
     }
 

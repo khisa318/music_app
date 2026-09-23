@@ -120,10 +120,9 @@ class _SongOptionsBottomSheetArtistState
 
       await _downloadProvider.downloadSong(_songInfo);
     } catch (e) {
-      if (context.mounted) {
-        AppSnackBar.showError(context, 'download_failed'.tr());
-        Navigator.pop(context);
-      }
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'download_failed'.tr());
+      Navigator.pop(context);
     }
   }
 

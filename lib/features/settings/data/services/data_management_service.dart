@@ -173,7 +173,7 @@ class DataManagementService {
     try {
       final tempDir = await getTemporaryDirectory();
       final cacheDir = Directory('${tempDir.path}/$_tempAudioCacheDirName');
-      return _getDirectoryStats(cacheDir);
+      return await _getDirectoryStats(cacheDir);
     } catch (e) {
       return DataUsageStats.empty;
     }

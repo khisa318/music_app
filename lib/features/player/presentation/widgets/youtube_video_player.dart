@@ -28,7 +28,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late YoutubePlayerController _controller;
   bool _isFullScreen = false;
   bool _isReadyCalled = false;
-  late InAppWebViewController _webViewController;
 
   @override
   void initState() {
@@ -94,7 +93,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               url: WebUri('https://www.yout-ube.com/watch?v=${widget.videoId}'),
             ),
             onWebViewCreated: (controller) {
-              _webViewController = controller;
               widget.onReady();
             },
           ),
