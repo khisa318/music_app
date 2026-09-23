@@ -33,7 +33,6 @@ class PlayerComponents {
     return StreamBuilder<bool>(
       stream: playerService.playingStream,
       builder: (context, snapshot) {
-        final isPlaying = snapshot.data ?? false;
         final thumbnail = playerProvider.currentThumbnail;
         final videoId = playerProvider.currentSong?.videoId;
 
@@ -113,9 +112,9 @@ class PlayerComponents {
                 : containerWidth;
 
             final mq = MediaQuery.of(context);
-            final enforcedScale = mq.textScaleFactor > 1.0
+            final enforcedScale = mq.textScaler.scale(1.0) > 1.0
                 ? 1.0
-                : mq.textScaleFactor;
+                : mq.textScaler.scale(1.0);
 
             return Column(
               mainAxisSize: MainAxisSize.max,
@@ -316,7 +315,7 @@ class PlayerComponents {
         ),
       );
       final mq = MediaQuery.of(context);
-      final enforcedScale = mq.textScaleFactor > 1.0 ? 1.0 : mq.textScaleFactor;
+      final enforcedScale = mq.textScaler.scale(1.0) > 1.0 ? 1.0 : mq.textScaler.scale(1.0);
       final scaledContent = MediaQuery(
         data: mq.copyWith(textScaler: TextScaler.linear(enforcedScale)),
         child: content,
@@ -346,9 +345,9 @@ class PlayerComponents {
     final spacingBetween = AppDimens.spacingXxs * (isCompact ? 0.5 : 0.7);
 
     final mq0 = MediaQuery.of(context);
-    final enforcedScale0 = mq0.textScaleFactor > 1.0
+    final enforcedScale0 = mq0.textScaler.scale(1.0) > 1.0
         ? 1.0
-        : mq0.textScaleFactor;
+        : mq0.textScaler.scale(1.0);
 
     return MediaQuery(
       data: mq0.copyWith(textScaler: TextScaler.linear(enforcedScale0)),

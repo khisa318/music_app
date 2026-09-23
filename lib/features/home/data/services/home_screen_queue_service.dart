@@ -1,8 +1,6 @@
 import 'package:dart_ytmusic_api/types.dart';
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Thumbnail;
 
 import '../../../../core/models/song_model.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
@@ -15,13 +13,11 @@ import '../../../../core/services/related_song_service.dart';
 class HomeScreenQueueService {
   final BuildContext context;
 
-  final YoutubeExplode _yt;
-
   final ContentDetailsService _contentDetailsService = ContentDetailsService();
 
   final RelatedSongService _relatedSongService = RelatedSongService();
 
-  HomeScreenQueueService(this.context) : _yt = GetIt.I<YoutubeExplode>();
+  HomeScreenQueueService(this.context);
 
   // ============================================================
   // PLAY CLICKED SONG + BUILD SMART QUEUE

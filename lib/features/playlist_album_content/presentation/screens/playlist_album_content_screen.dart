@@ -58,6 +58,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
       _provider.totalDuration,
       libraryProvider,
     );
+    if (!mounted) return;
     setState(() {});
     AppSnackBar.showInfo(
       context,
@@ -76,6 +77,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
       _provider.contentDescription,
       libraryProvider,
     );
+    if (!mounted) return;
     setState(() {});
     AppSnackBar.showInfo(
       context,
@@ -96,7 +98,8 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
         widget.content.playlistId,
       );
     } catch (e) {
-      print('Error playing song: $e');
+      debugPrint('Error playing song: $e');
+      if (!mounted) return;
       AppSnackBar.showError(context, 'Error playing song');
     }
   }
@@ -112,12 +115,14 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     );
     try {
       await _provider.downloadPlaylist(downloadProvider);
+      if (!mounted) return;
       AppSnackBar.showSuccess(
         context,
         'All songs added to download queue',
         duration: const Duration(seconds: 2),
       );
     } catch (e) {
+      if (!mounted) return;
       AppSnackBar.showError(
         context,
         'Failed to add songs to download queue: $e',
@@ -130,10 +135,6 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   }
 
   static const double _desktopBreakpoint = AppDimens.breakpointDesktop;
-
-  bool _isDesktopLayout(BuildContext context) {
-    return MediaQuery.of(context).size.width >= _desktopBreakpoint;
-  }
 
   Widget _buildHeader({bool isDesktop = false}) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;

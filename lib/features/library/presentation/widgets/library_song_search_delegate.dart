@@ -305,6 +305,7 @@ class LibrarySongSearchDelegate extends SearchDelegate<String> {
               songIndex,
             );
           } catch (e) {
+            if (!context.mounted) return;
             AppSnackBar.showError(context, 'Failed to play song');
             playerProvider.playerService.playNext();
           }
@@ -327,7 +328,8 @@ class LibrarySongSearchDelegate extends SearchDelegate<String> {
         await playerProvider.playerService.playSong(songInfo);
       }
     } catch (e) {
-      print('Error playing song: $e');
+      if (!context.mounted) return;
+      debugPrint('Error playing song: $e');
       AppSnackBar.showError(context, 'failed_to_play_song_error'.tr());
     }
   }

@@ -171,8 +171,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                         key: const ValueKey('playlists_tab'),
                         titleKey: 'playlists',
                         isHome: false,
-                        child: const PlaylistScreen(),
                         onCreatePlaylist: _createPlaylist,
+                        child: const PlaylistScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(

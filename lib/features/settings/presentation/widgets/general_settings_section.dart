@@ -116,6 +116,7 @@ class GeneralSettingsSection extends StatelessWidget {
                                 settingsProvider.notificationsEnabled = true;
                               } else {
                                 settingsProvider.notificationsEnabled = false;
+                                if (!context.mounted) return;
                                 AppSnackBar.showWarning(
                                   context,
                                   'notification_permission_required_to_enable_notifications'

@@ -28,8 +28,7 @@ class _SleepTimerBottomSheetState extends State<SleepTimerBottomSheet> {
   Widget build(BuildContext context) {
     final playerProvider = Provider.of<PlayerProvider>(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
-    final accentColor =
-        settingsProvider.accentColor ?? Theme.of(context).colorScheme.secondary;
+    final accentColor = settingsProvider.accentColor;
     final isTimerActive = playerProvider.isSleepTimerActive;
     final isDarkMode =
         settingsProvider.theme == 'Dark' ||

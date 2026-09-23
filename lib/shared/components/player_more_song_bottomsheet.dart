@@ -62,7 +62,7 @@ class PlayerMoreSongBottomSheet extends StatefulWidget {
   const PlayerMoreSongBottomSheet({super.key});
 
   @override
-  _PlayerMoreSongBottomSheetState createState() =>
+  State<PlayerMoreSongBottomSheet> createState() =>
       _PlayerMoreSongBottomSheetState();
 }
 
@@ -239,7 +239,9 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
       if (localSong != null) {
         final path = localSong['localPath'] as String?;
         if (path != null && path.isNotEmpty && File(path).existsSync()) {
-          await Share.shareXFiles([XFile(path)], text: shareText);
+          await SharePlus.instance.share(
+            ShareParams(files: [XFile(path)], text: shareText),
+          );
           return;
         }
         SharePlus.instance.share(ShareParams(text: shareText));
@@ -257,9 +259,12 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
           final tempDir = await getTemporaryDirectory();
           final file = File('${tempDir.path}/noize_share.jpg');
           await file.writeAsBytes(res.bodyBytes);
-          await Share.shareXFiles([
-            XFile(file.path),
-          ], text: '$shareText\n\nDownload Noize: $appLink');
+          await SharePlus.instance.share(
+            ShareParams(
+              files: [XFile(file.path)],
+              text: '$shareText\n\nDownload Noize: $appLink',
+            ),
+          );
           return;
         }
       }

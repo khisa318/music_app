@@ -541,7 +541,6 @@ class _TrendingScreenState extends State<TrendingScreen>
       currentPlaylistId,
     );
     final isLoading = trendingProvider.isLoading(currentPlaylistId);
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final settingsProvider = Provider.of<SettingsProvider>(
       context,
       listen: true,

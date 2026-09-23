@@ -18,7 +18,6 @@ class LikedSongsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final favoriteSongProvider = context.watch<FavoriteSongProvider>();
     final homeScreenQueueService = HomeScreenQueueService(context);
@@ -111,6 +110,7 @@ class LikedSongsSection extends StatelessWidget {
                                   currentIndex: globalIndex,
                                 );
                               } catch (e) {
+                                if (!context.mounted) return;
                                 showErrorSnackbar(
                                   context,
                                   'Failed to play song: ${e.toString()}',

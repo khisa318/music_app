@@ -14,7 +14,7 @@ class Animation5 extends StatefulWidget {
   });
 
   @override
-  _Animation5State createState() => _Animation5State();
+  State<Animation5> createState() => _Animation5State();
 }
 
 class _Animation5State extends State<Animation5>

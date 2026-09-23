@@ -35,7 +35,7 @@ class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
   @override
-  _DownloadsScreenState createState() => _DownloadsScreenState();
+  State<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen>
@@ -414,16 +414,16 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     final isDesktopLayout = !AppDimens.isMobile(context);
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
         if (_isSelectionMode) {
           setState(() {
             _selectedSongs.clear();
             _isSelectionMode = false;
           });
-          return false;
         }
-        return true;
       },
       child: SafeArea(
         top: false,
@@ -460,9 +460,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     onPressed: () async {
                       if (isPaused) {
                         await downloadProvider.resumeAllDownloads();
+                        if (!context.mounted) return;
                         AppSnackBar.showInfo(context, 'resumed_downloads'.tr());
                       } else {
                         await downloadProvider.pauseAllDownloads();
+                        if (!context.mounted) return;
                         AppSnackBar.showInfo(context, 'paused_downloads'.tr());
                       }
                     },
@@ -525,6 +527,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     );
 
                     if (confirmed == true) {
+                      if (!context.mounted) return;
                       final downloadProvider = Provider.of<DownloadProvider>(
                         context,
                         listen: false,
@@ -533,7 +536,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                         await downloadProvider.deleteDownloadedSong(songId);
                       }
 
-                      if (mounted) {
+                      if (context.mounted) {
                         AppSnackBar.showInfo(
                           context,
                           'removed_from_downloads'.tr(),
@@ -641,8 +644,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   playerProvider.lastPlayedSong != null;
 
               final mq = MediaQuery.of(context);
-              final double navIconScale = mq.textScaleFactor > 1.0
-                  ? (1.0 / mq.textScaleFactor).clamp(0.75, 1.0).toDouble()
+              final double textScale = mq.textScaler.scale(1.0);
+              final double navIconScale = textScale > 1.0
+                  ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
                   : 1.0;
 
               return Stack(

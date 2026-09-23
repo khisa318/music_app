@@ -354,6 +354,7 @@ class _AiApiConfigScreenState extends State<AiApiConfigScreen> {
 
   Future<void> _launchURL(String url) async {
     if (!await launchUrl(Uri.parse(url))) {
+      if (!mounted) return;
       AppSnackBar.showError(context, 'Could not launch $url'.tr());
     }
   }

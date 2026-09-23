@@ -15,7 +15,7 @@ class LocalFolderManagementScreen extends StatefulWidget {
   const LocalFolderManagementScreen({super.key});
 
   @override
-  _LocalFolderManagementScreenState createState() =>
+  State<LocalFolderManagementScreen> createState() =>
       _LocalFolderManagementScreenState();
 }
 

@@ -37,9 +37,7 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
 
   bool _isExpanded = true;
 
-  late TextStyle _titleStyle;
   late TextStyle _selectedLabelStyle;
-  late TextStyle _unselectedLabelStyle;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -77,19 +75,10 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
 
-    _titleStyle = AppTextStyles.headingLg(isDarkMode: isDarkMode);
-
     _selectedLabelStyle = AppTextStyles.caption(isDarkMode: isDarkMode)
         .copyWith(
           fontWeight: FontWeight.w600,
           color: settingsProvider.accentColor,
-        );
-
-    _unselectedLabelStyle = AppTextStyles.finePrint(isDarkMode: isDarkMode)
-        .copyWith(
-          color: MainScreenColors.getTextColor(
-            isDarkMode,
-          ).withValues(alpha: 0.5),
         );
   }
 
@@ -172,14 +161,14 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
         playerProvider.currentSong != null ||
         playerProvider.lastPlayedSong != null;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: _innerNavKey.currentState?.canPop() != true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
         if (_innerNavKey.currentState != null &&
             _innerNavKey.currentState!.canPop()) {
           _innerNavKey.currentState!.pop();
-          return false;
         }
-        return true;
       },
       child: Scaffold(
         backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),

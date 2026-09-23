@@ -110,7 +110,7 @@ class LibrarySongListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
-    final double textScale = MediaQuery.of(context).textScaleFactor;
+    final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double uiScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.85, 1.0).toDouble()
         : 1.0;
@@ -128,9 +128,7 @@ class LibrarySongListTile extends StatelessWidget {
 
     final EdgeInsets tilePadding = contentPadding ?? EdgeInsets.zero;
     final mq = MediaQuery.of(context);
-    final enforcedTextScale = mq.textScaleFactor > 1.0
-        ? 1.0
-        : mq.textScaleFactor;
+    final enforcedTextScale = textScale > 1.0 ? 1.0 : textScale;
 
     return RepaintBoundary(
       child: MediaQuery(

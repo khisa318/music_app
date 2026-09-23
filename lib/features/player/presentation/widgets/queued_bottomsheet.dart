@@ -92,6 +92,7 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
     );
 
     if (result == true) {
+      if (!context.mounted) return;
       queueProvider.clearQueue();
       AppSnackBar.showInfo(context, 'Queue cleared successfully');
     }
@@ -429,8 +430,7 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
                           buildDefaultDragHandles: false,
                           physics: const ClampingScrollPhysics(),
                           scrollController: scrollController,
-                          onReorder: (oldIndex, newIndex) {
-                            if (newIndex > oldIndex) newIndex--;
+                          onReorderItem: (oldIndex, newIndex) {
                             queueProvider.reorderQueue(oldIndex, newIndex);
                           },
                           itemCount: queueProvider.queue.length,
@@ -694,6 +694,7 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
                                                       index,
                                                     );
                                               } catch (e) {
+                                                if (!context.mounted) return;
                                                 AppSnackBar.showError(
                                                   context,
                                                   'Failed to play song',

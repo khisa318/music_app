@@ -257,7 +257,7 @@ class PlayerUIState extends State<PlayerUI>
   Widget _buildFullPlayer(
     bool isDarkMode,
     Color accentColor,
-    Color BackgroundColor,
+    Color backgroundColor,
   ) {
     final settingsProvider = Provider.of<SettingsProvider>(
       context,
@@ -266,7 +266,7 @@ class PlayerUIState extends State<PlayerUI>
     final isDefaultAnimation = settingsProvider.animationType == 'Default';
 
     Widget buildAnimatedBackground(bool isAnimating) {
-      final effectiveBackgroundColor = BackgroundColor.withValues(alpha: 0.6);
+      final effectiveBackgroundColor = backgroundColor.withValues(alpha: 0.6);
       switch (settingsProvider.animationType) {
         case 'Animation 1':
           return Animation1(
@@ -303,8 +303,8 @@ class PlayerUIState extends State<PlayerUI>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  BackgroundColor.withValues(alpha: 0.35),
-                  BackgroundColor.withValues(alpha: 0.18),
+                  backgroundColor.withValues(alpha: 0.35),
+                  backgroundColor.withValues(alpha: 0.18),
                   Colors.black.withValues(alpha: AppDimens.opacityHigh),
                 ],
                 begin: Alignment.topCenter,
@@ -767,6 +767,7 @@ class PlayerUIState extends State<PlayerUI>
           }).toList(),
         ).then((selectedArtist) {
           if (selectedArtist != null) {
+            if (!mounted) return;
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -1018,6 +1019,7 @@ class PlayerUIState extends State<PlayerUI>
         }
       }
     } catch (e) {
+      if (!mounted) return;
       AppSnackBar.showError(context, 'Error during playback');
     }
   }

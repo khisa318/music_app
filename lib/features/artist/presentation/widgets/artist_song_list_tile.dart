@@ -65,7 +65,7 @@ class ArtistSongListTile extends StatelessWidget {
     final accentColor = Provider.of<SettingsProvider>(context).accentColor;
     final downloadProvider = Provider.of<DownloadProvider>(context);
 
-    final double textScale = MediaQuery.of(context).textScaleFactor;
+    final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double uiScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.85, 1.0).toDouble()
         : 1.0;
@@ -80,9 +80,8 @@ class ArtistSongListTile extends StatelessWidget {
 
     final EdgeInsets tilePadding = contentPadding ?? EdgeInsets.zero;
     final mq = MediaQuery.of(context);
-    final enforcedTextScale = mq.textScaleFactor > 1.0
-        ? 1.0
-        : mq.textScaleFactor;
+    final double textScaleBasis = mq.textScaler.scale(1.0);
+    final enforcedTextScale = textScaleBasis > 1.0 ? 1.0 : textScaleBasis;
 
     return MediaQuery(
       data: mq.copyWith(textScaler: TextScaler.linear(enforcedTextScale)),

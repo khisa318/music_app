@@ -17,6 +17,8 @@ Future<void> showAudioOutputBottomSheet(
   final devices = await AudioOutputService.getAudioDevices();
   final currentOutput = await AudioOutputService.getCurrentOutput();
 
+  if (!context.mounted) return;
+
   await showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,

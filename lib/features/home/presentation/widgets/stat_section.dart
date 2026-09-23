@@ -40,18 +40,6 @@ class StatsSection extends StatelessWidget {
       (StatsProvider p) => p.getDailyStats(days: 1).first,
     );
     final todaySongs = todayDailyEntry.playCount;
-    final thisWeekTime = context.select(
-      (StatsProvider p) => p.thisWeekPlaybackTime,
-    );
-    final thisMonthTime = context.select(
-      (StatsProvider p) => p.thisMonthPlaybackTime,
-    );
-    final mostPlayedArtists = context.select(
-      (StatsProvider p) => p.mostPlayedArtists,
-    );
-    final topArtist = mostPlayedArtists.isNotEmpty
-        ? mostPlayedArtists.keys.first
-        : "N/A";
 
     return LayoutBuilder(
       builder: (context, constraints) {

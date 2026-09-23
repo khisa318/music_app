@@ -490,6 +490,7 @@ class _ManageDataScreenState extends State<ManageDataScreen> {
                         onConfirm: () async {
                           await _runClearAction(() async {
                             await _dataManagementService.clearPlaybackStats();
+                            if (!context.mounted) return;
                             final statsProvider = Provider.of<StatsProvider>(
                               context,
                               listen: false,

@@ -23,7 +23,7 @@ class EqualizerScreen extends StatefulWidget {
   const EqualizerScreen({super.key, this.openedFromPlayer = false});
 
   @override
-  _EqualizerScreenState createState() => _EqualizerScreenState();
+  State<EqualizerScreen> createState() => _EqualizerScreenState();
 }
 
 class _EqualizerScreenState extends State<EqualizerScreen>
@@ -63,6 +63,7 @@ class _EqualizerScreenState extends State<EqualizerScreen>
     final bandGains = params.bands.map((b) => b.gain).toList();
 
     final controller = TextEditingController();
+    if (!mounted) return;
     final name = await showDialog<String>(
       context: context,
       builder: (context) {
@@ -167,6 +168,7 @@ class _EqualizerScreenState extends State<EqualizerScreen>
         setState(() => _currentPreset = newName);
         _ensureCurrentPresetVisible();
       } else {
+        if (!mounted) return;
         AppSnackBar.showError(context, 'name_already_exists'.tr());
       }
     }
@@ -260,6 +262,7 @@ class _EqualizerScreenState extends State<EqualizerScreen>
       _ensureCurrentPresetVisible();
     } catch (e) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
       AppSnackBar.showError(context, 'error_applying_preset'.tr());
     }
   }
@@ -298,7 +301,9 @@ class _EqualizerScreenState extends State<EqualizerScreen>
             alignment: 0.5,
             curve: Curves.easeInOut,
           );
-        } catch (e) {}
+        } catch (e) {
+          // Intentionally left empty.
+        }
       } else {
         final keysList = _presets.keys.toList();
         final idx = keysList.indexOf(_currentPreset);

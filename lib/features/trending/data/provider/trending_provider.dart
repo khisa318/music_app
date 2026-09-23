@@ -7,7 +7,7 @@ import '../../../../core/models/song_model.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
-import '../../../../core/services/yt-music-api.dart';
+import '../../../../core/services/yt_music_api.dart';
 import '../../../../core/utils/duration_utils.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
@@ -281,9 +281,15 @@ class TrendingProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _fetchTrendingSongsFromAPI(String playlistId) async {
+  Future<void> _fetchTrendingSongsFromAPI(
+    String playlistId, {
+    bool forceRefresh = false,
+  }) async {
     try {
-      final result = await getPlaylistAlbumSongs(playlistId: playlistId);
+      final result = await getPlaylistAlbumSongs(
+        playlistId: playlistId,
+        forceRefresh: forceRefresh,
+      );
       final songs = result['songs'] as List<dynamic>;
 
       _trendingSongs[playlistId] = songs.map((song) {
@@ -340,7 +346,7 @@ class TrendingProvider with ChangeNotifier {
 
   Future<void> _loadTrendingSongsFromCache(String playlistId) async {
     try {
-      final box = await Hive.openBox<dynamic>('trending_songs_cache');
+      final box = await Hive.openBox<dynamic>('trending_songs_cache_v2');
       dynamic cachedData;
       try {
         cachedData = box.get(playlistId);
@@ -374,7 +380,10 @@ class TrendingProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      await _fetchTrendingSongsFromAPI(playlistId);
+      await _fetchTrendingSongsFromAPI(
+        playlistId,
+        forceRefresh: true,
+      );
     } catch (e) {
       debugPrint('Error refreshing trending songs for $playlistId: $e');
     } finally {
@@ -430,6 +439,7 @@ class TrendingProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error playing song ${song.name}: $e');
+      if (!context.mounted) return;
       AppSnackBar.showError(context, 'Error playing song');
     }
   }

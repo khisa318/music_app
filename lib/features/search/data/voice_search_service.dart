@@ -104,15 +104,17 @@ class VoiceSearchService extends ChangeNotifier {
 
     await _speech.listen(
       onResult: (result) => _onResult(result, onResult, onPartialResult),
-      listenFor: listenFor ?? const Duration(seconds: 30),
-      pauseFor: pauseFor ?? const Duration(seconds: 3),
-      localeId: _currentLocale,
       onSoundLevelChange: (level) {
         _soundLevel = level;
         notifyListeners();
       },
-      cancelOnError: true,
-      partialResults: true,
+      listenOptions: SpeechListenOptions(
+        listenFor: listenFor ?? const Duration(seconds: 30),
+        pauseFor: pauseFor ?? const Duration(seconds: 3),
+        localeId: _currentLocale,
+        cancelOnError: true,
+        partialResults: true,
+      ),
     );
   }
 
