@@ -88,7 +88,6 @@ class _SplashScreenState extends State<SplashScreen>
                       width: _getResponsiveLogoSize(size),
                       height: _getResponsiveLogoSize(size),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
                             color: MusiXColors.primaryPurple.withValues(
@@ -107,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ],
                       ),
                       child: Image.asset(
-                        'assets/musix_logo.png',
+                        'assets/splash_logo.png',
                         fit: BoxFit.contain,
                       ),
                     ),
