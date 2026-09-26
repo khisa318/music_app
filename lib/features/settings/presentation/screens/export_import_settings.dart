@@ -16,6 +16,7 @@ import '../../../playlists/data/providers/playlist_album_library_provider.dart';
 import '../../data/services/export_import_settings_service.dart';
 import '../widgets/settings_item.dart';
 import '../../../../shared/components/app_snackbar.dart';
+import '../widgets/settings_surface.dart';
 
 class ExportImportSettingsScreen extends StatefulWidget {
   const ExportImportSettingsScreen({super.key});
@@ -96,22 +97,11 @@ class _ExportImportSettingsScreenState
       top: false,
       child: Scaffold(
         backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
-        appBar: AppBar(
-          backgroundColor: isDarkMode
-              ? Colors.transparent
-              : MainScreenColors.getSurfaceColor(false),
-          elevation: 0,
-          title: Text(
-            'export_import_settings_title'.tr(),
-            style: AppTextStyles.appBarTitle(isDarkMode: isDarkMode),
-          ),
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back,
-              color: MainScreenColors.getTextColor(isDarkMode),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
+        appBar: SettingsAppBar(
+          title: 'export_import_settings_title'.tr(),
+          icon: Icons.swap_horiz_rounded,
+          isDarkMode: isDarkMode,
+          accentColor: accentColor,
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(AppDimens.paddingLg),

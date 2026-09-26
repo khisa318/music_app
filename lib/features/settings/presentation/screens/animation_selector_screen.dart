@@ -11,6 +11,7 @@ import '../../../../shared/animations/animation_2.dart';
 import '../../../../shared/animations/animation_3.dart';
 import '../../../../shared/animations/animation_4.dart';
 import '../../../../shared/animations/animation_5.dart';
+import '../widgets/settings_surface.dart';
 
 class AnimationSelectorScreen extends StatefulWidget {
   const AnimationSelectorScreen({super.key});
@@ -74,25 +75,11 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
             backgroundColor: themeData.isDarkMode
                 ? MainScreenColors.darkBackgroundColor
                 : MainScreenColors.lightBackgroundColor,
-            appBar: AppBar(
-              backgroundColor: themeData.isDarkMode
-                  ? Colors.transparent
-                  : MainScreenColors.getSurfaceColor(false),
-              elevation: 0,
-              title: Text(
-                'animations'.tr(),
-                style: AppTextStyles.appBarTitle(
-                  isDarkMode: themeData.isDarkMode,
-                ),
-              ),
-              leading: IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: MainScreenColors.getTextColor(themeData.isDarkMode),
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-              centerTitle: false,
+            appBar: SettingsAppBar(
+              title: 'animations'.tr(),
+              icon: Icons.movie_rounded,
+              isDarkMode: themeData.isDarkMode,
+              accentColor: themeData.accentColor,
               actions: [
                 Container(
                   margin: EdgeInsets.only(right: AppDimens.paddingLg),
