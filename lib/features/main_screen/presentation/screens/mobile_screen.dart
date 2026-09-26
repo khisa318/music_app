@@ -11,18 +11,14 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 
 import '../../../home/presentation/screens/home_screen.dart';
-import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../ota/data/providers/ota_provider.dart';
 import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
 import '../../../player/presentation/screens/player_ui.dart';
-import '../../../library/presentation/screens/library_screen.dart';
-import '../../../library/data/providers/library_provider.dart';
-import '../../../library/presentation/widgets/library_song_search_delegate.dart';
-import '../../../playlists/presentation/screens/playlists_screen.dart';
-import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 
 import 'full_player_screen.dart';
+import 'library_hub_screen.dart';
 
 class MobileMainScreen extends StatefulWidget {
   const MobileMainScreen({super.key});
@@ -53,18 +49,15 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // CREATE PLAYLIST
+  // NAVIGATION
   // ---------------------------------------------------------------------------
 
-  Future<void> _createPlaylist() async {
-    await showModalBottomSheet<bool?>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return const CreatePlaylistBottomSheet();
-      },
-    );
+  static const int _profileTabIndex = 3;
+
+  void _goToProfile() {
+    if (_controller.index != _profileTabIndex) {
+      _controller.jumpToTab(_profileTabIndex);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -122,11 +115,12 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     // HOME
                     // ----------------------------------------------------------------
                     PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('home_tab'),
+                      screen: _TabWrapper(
+                        key: const ValueKey('home_tab'),
                         titleKey: 'home',
                         isHome: true,
-                        child: HomeScreen(),
+                        onProfileTap: _goToProfile,
+                        child: const HomeScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(Icons.home_rounded, size: navIconSize),
@@ -164,22 +158,22 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     ),
 
                     // ----------------------------------------------------------------
-                    // PLAYLISTS
+                    // LIBRARY (playlists + songs)
                     // ----------------------------------------------------------------
                     PersistentTabConfig(
-                      screen: _TabWrapper(
-                        key: const ValueKey('playlists_tab'),
-                        titleKey: 'playlists',
+                      screen: const _TabWrapper(
+                        key: ValueKey('library_tab'),
+                        titleKey: 'library',
                         isHome: false,
-                        onCreatePlaylist: _createPlaylist,
-                        child: const PlaylistScreen(),
+                        showAppBar: false,
+                        child: LibraryHubScreen(),
                       ),
                       item: ItemConfig(
                         icon: Icon(
-                          Icons.playlist_play_rounded,
+                          Icons.library_music_rounded,
                           size: navIconSize,
                         ),
-                        title: 'playlists'.tr(),
+                        title: 'library'.tr(),
                         activeForegroundColor: accentColor,
                         inactiveForegroundColor:
                             theme.textTheme.bodyLarge?.color?.withValues(
@@ -190,21 +184,19 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                     ),
 
                     // ----------------------------------------------------------------
-                    // LIBRARY
+                    // PROFILE
                     // ----------------------------------------------------------------
                     PersistentTabConfig(
                       screen: const _TabWrapper(
-                        key: ValueKey('library_tab'),
-                        titleKey: 'library',
+                        key: ValueKey('profile_tab'),
+                        titleKey: 'profile',
                         isHome: false,
-                        child: LibraryScreen(),
+                        showAppBar: false,
+                        child: ProfileScreen(),
                       ),
                       item: ItemConfig(
-                        icon: Icon(
-                          Icons.library_music_rounded,
-                          size: navIconSize,
-                        ),
-                        title: 'library'.tr(),
+                        icon: Icon(Icons.person_rounded, size: navIconSize),
+                        title: 'profile'.tr(),
                         activeForegroundColor: accentColor,
                         inactiveForegroundColor:
                             theme.textTheme.bodyLarge?.color?.withValues(
@@ -366,170 +358,17 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
 }
 
 // =============================================================================
-// PLAYLIST APP BAR
-// =============================================================================
-
-class PlaylistMainAppBar extends StatelessWidget
-    implements PreferredSizeWidget {
-  final VoidCallback onCreatePlaylist;
-
-  const PlaylistMainAppBar({super.key, required this.onCreatePlaylist});
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<SettingsProvider>(
-      builder: (context, settingsProvider, child) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        final accentColor = settingsProvider.accentColor;
-
-        final isDarkMode = theme.brightness == Brightness.dark;
-
-        final textScale = MediaQuery.of(context).textScaler.scale(1.0);
-
-        final double iconScale = textScale > 1.0
-            ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
-            : 1.0;
-
-        return AppBar(
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          backgroundColor: colorScheme.surface,
-          surfaceTintColor: Colors.transparent,
-          automaticallyImplyLeading: false,
-          titleSpacing: 0,
-
-          title: Padding(
-            padding: const EdgeInsets.only(
-              left: AppDimens.paddingLg,
-              right: AppDimens.paddingSm,
-            ),
-            child: Row(
-              children: [
-                // --------------------------------------------------------------
-                // PLAYLIST ICON
-                // --------------------------------------------------------------
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.playlist_play_rounded,
-                    color: accentColor,
-                    size: 23 * iconScale,
-                  ),
-                ),
-
-                const SizedBox(width: AppDimens.spacingMd),
-
-                // --------------------------------------------------------------
-                // TITLE
-                // --------------------------------------------------------------
-                Expanded(
-                  child: Text(
-                    'Playlists',
-                    style:
-                        AppTextStyles.titleLg(
-                          isDarkMode: isDarkMode,
-                          color: colorScheme.onSurface,
-                        ).copyWith(
-                          // Match the other page headers.
-                          fontSize: AppTextStyles.fontSizeTitleLg,
-                          fontWeight: FontWeight.w600,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-
-                // --------------------------------------------------------------
-                // GRID / LIST TOGGLE
-                // --------------------------------------------------------------
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurface.withValues(
-                      alpha: isDarkMode ? 0.08 : 0.06,
-                    ),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: colorScheme.onSurface.withValues(
-                        alpha: isDarkMode ? 0.12 : 0.10,
-                      ),
-                    ),
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      settingsProvider.isGridView =
-                          !settingsProvider.isGridView;
-                    },
-                    icon: Icon(
-                      settingsProvider.isGridView
-                          ? Icons.view_list_rounded
-                          : Icons.grid_view_rounded,
-                      color: colorScheme.onSurface,
-                      size: 21 * iconScale,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: AppDimens.spacingSm),
-
-                // --------------------------------------------------------------
-                // ADD PLAYLIST
-                // --------------------------------------------------------------
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: accentColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentColor.withValues(alpha: 0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: onCreatePlaylist,
-                    icon: Icon(
-                      Icons.add_rounded,
-                      color: Colors.black,
-                      size: 24 * iconScale,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// =============================================================================
 // TAB WRAPPER
 // =============================================================================
 
+/// Gives a tab a [Scaffold] plus the standard app bar (avatar, title and
+/// actions). Tabs that own their own header pass `showAppBar: false`.
 class _TabWrapper extends StatelessWidget {
   final Widget child;
   final String titleKey;
   final bool isHome;
   final bool showAppBar;
-  final VoidCallback? onSearchTap;
-  final VoidCallback? onCreatePlaylist;
+  final VoidCallback? onProfileTap;
 
   const _TabWrapper({
     super.key,
@@ -537,42 +376,14 @@ class _TabWrapper extends StatelessWidget {
     required this.titleKey,
     required this.isHome,
     this.showAppBar = true,
-    this.onCreatePlaylist,
-  }) : onSearchTap = null;
-
-  // ---------------------------------------------------------------------------
-  // SEARCH
-  // ---------------------------------------------------------------------------
+    this.onProfileTap,
+  });
 
   void _openSearch(BuildContext context) {
-    if (titleKey == 'library') {
-      final libraryProvider = Provider.of<LibraryProvider>(
-        context,
-        listen: false,
-      );
-
-      showSearch(
-        context: context,
-        delegate: LibrarySongSearchDelegate(
-          libraryProvider.likedSongs,
-          libraryProvider.downloadedSongs,
-          libraryProvider.lastPlayed,
-          libraryProvider.localSongs,
-          Provider.of<SettingsProvider>(context, listen: false).accentColor,
-        ),
-      );
-
-      return;
-    }
-
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const SearchScreen()));
   }
-
-  // ---------------------------------------------------------------------------
-  // BUILD
-  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -587,23 +398,6 @@ class _TabWrapper extends StatelessWidget {
     final double appBarIconScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
         : 1.0;
-
-    final bool isPlaylist = titleKey == 'playlists';
-
-    // -------------------------------------------------------------------------
-    // PLAYLIST
-    // -------------------------------------------------------------------------
-
-    if (isPlaylist) {
-      return Scaffold(
-        appBar: PlaylistMainAppBar(onCreatePlaylist: onCreatePlaylist ?? () {}),
-        body: child,
-      );
-    }
-
-    // -------------------------------------------------------------------------
-    // NORMAL TABS
-    // -------------------------------------------------------------------------
 
     return Scaffold(
       appBar: showAppBar
@@ -620,13 +414,7 @@ class _TabWrapper extends StatelessWidget {
                     SizedBox(width: AppDimens.spacingSm * appBarIconScale),
 
                     GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const ProfileScreen(),
-                          ),
-                        );
-                      },
+                      onTap: onProfileTap,
                       child: CircleAvatar(
                         radius: 17 * appBarIconScale,
                         backgroundColor: accentColor.withValues(alpha: 0.22),
@@ -657,11 +445,7 @@ class _TabWrapper extends StatelessWidget {
                             : AppDimens.spacingSm * appBarIconScale,
                       ),
                       child: Text(
-                        isHome
-                            ? 'Musix'
-                            : titleKey == 'library'
-                            ? 'Your library'
-                            : titleKey.tr(),
+                        isHome ? 'Musix' : titleKey.tr(),
                         style:
                             AppTextStyles.titleLg(
                               isDarkMode:
@@ -672,8 +456,6 @@ class _TabWrapper extends StatelessWidget {
                               ).textTheme.titleLarge?.color,
                             ).copyWith(
                               fontSize: isHome
-                                  ? AppTextStyles.fontSizeTitleLg + 2
-                                  : titleKey == 'library'
                                   ? AppTextStyles.fontSizeTitleLg + 2
                                   : null,
                               fontWeight: FontWeight.w600,
@@ -694,7 +476,7 @@ class _TabWrapper extends StatelessWidget {
                         size: AppDimens.iconLg * appBarIconScale,
                       ),
                       onPressed: settingsProvider.toggleTheme,
-                      tooltip: 'Toggle Theme',
+                      tooltip: 'toggle_theme'.tr(),
                     ),
 
                     IconButton(
@@ -703,32 +485,7 @@ class _TabWrapper extends StatelessWidget {
                         size: AppDimens.iconLg * appBarIconScale,
                       ),
                       onPressed: () => _openSearch(context),
-                      tooltip: 'Search',
-                    ),
-                  ],
-
-                  // ------------------------------------------------------------
-                  // LIBRARY ACTIONS
-                  // ------------------------------------------------------------
-                  if (titleKey == 'library') ...[
-                    IconButton(
-                      icon: Icon(
-                        Icons.search_rounded,
-                        size: AppDimens.iconLg * appBarIconScale,
-                      ),
-                      onPressed: () => _openSearch(context),
-                      tooltip: 'Search',
-                    ),
-
-                    IconButton(
-                      icon: Icon(
-                        settingsProvider.themeMode == ThemeMode.dark
-                            ? Icons.light_mode_rounded
-                            : Icons.dark_mode_rounded,
-                        size: AppDimens.iconLg * appBarIconScale,
-                      ),
-                      onPressed: settingsProvider.toggleTheme,
-                      tooltip: 'Toggle Theme',
+                      tooltip: 'search'.tr(),
                     ),
                   ],
                 ],
@@ -740,6 +497,7 @@ class _TabWrapper extends StatelessWidget {
     );
   }
 }
+
 
 // =============================================================================
 // FULL PLAYER RESPONSIVE WRAPPER
