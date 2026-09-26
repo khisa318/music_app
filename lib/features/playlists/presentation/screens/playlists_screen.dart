@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
@@ -13,14 +14,36 @@ import '../../../../core/services/content_details_service.dart';
 
 import '../../data/providers/playlist_album_library_provider.dart';
 
+import '../../../library/presentation/widgets/library_dense_row.dart';
 import '../../../playlist_album_content/presentation/screens/playlist_album_content_screen.dart';
 import '../widgets/create_playlist_bottomsheet.dart';
 import 'playlists_detail_screen.dart';
 
 import '../../../../shared/components/app_snackbar.dart';
 
+/// One row in the merged, dense playlist list.
+class _PlaylistDenseItem {
+  final String title;
+  final String subtitle;
+  final String thumbnail;
+  final bool isCreated;
+  final Map<String, dynamic> source;
+
+  const _PlaylistDenseItem({
+    required this.title,
+    required this.subtitle,
+    required this.thumbnail,
+    required this.isCreated,
+    required this.source,
+  });
+}
+
 class PlaylistScreen extends StatefulWidget {
-  const PlaylistScreen({super.key});
+  /// Renders created playlists, saved playlists and saved albums as a single
+  /// flat list instead of the nested Created/Saved tabs.
+  final bool dense;
+
+  const PlaylistScreen({super.key, this.dense = false});
 
   @override
   State<PlaylistScreen> createState() => _PlaylistScreenState();
@@ -215,6 +238,10 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     Color accentColor,
     SettingsProvider settingsProvider,
   ) {
+    if (widget.dense) {
+      return _buildDenseMergedList(isDarkMode, accentColor);
+    }
+
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -834,6 +861,104 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           },
         );
       },
+    );
+  }
+
+  // ============================================================
+  // DENSE MERGED LIST
+  // ============================================================
+
+  /// Flattens created playlists, saved playlists and saved albums into one
+  /// list so the Library page can show a single collection per filter chip.
+  Widget _buildDenseMergedList(bool isDarkMode, Color accentColor) {
+    return Consumer<PlaylistAlbumLibraryProvider>(
+      builder: (context, provider, child) {
+        final items = <_PlaylistDenseItem>[
+          for (final playlist in provider.createdPlaylists)
+            _PlaylistDenseItem(
+              title: playlist['name']?.toString() ?? 'Playlist',
+              subtitle: 'Playlist',
+              thumbnail: playlist['thumbnail']?.toString() ?? '',
+              isCreated: true,
+              source: playlist,
+            ),
+          for (final saved in provider.savedPlaylists)
+            _PlaylistDenseItem(
+              title:
+                  saved['name']?.toString() ??
+                  saved['title']?.toString() ??
+                  'Playlist',
+              subtitle: 'Saved playlist',
+              thumbnail: saved['thumbnail']?.toString() ?? '',
+              isCreated: false,
+              source: saved,
+            ),
+          for (final album in provider.savedAlbums)
+            _PlaylistDenseItem(
+              title:
+                  album['name']?.toString() ??
+                  album['title']?.toString() ??
+                  'Album',
+              subtitle:
+                  'Album • ${album['artist']?.toString() ?? 'Unknown artist'}',
+              thumbnail: album['thumbnail']?.toString() ?? '',
+              isCreated: false,
+              source: album,
+            ),
+        ];
+
+        if (items.isEmpty) {
+          return _buildCreatedEmptyState(isDarkMode, accentColor);
+        }
+
+        return RefreshIndicator(
+          color: accentColor,
+          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          onRefresh: () async {
+            await provider.loadAll();
+            await provider.loadCreatedPlaylistsWithThumbnails();
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 120),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+
+              return LibraryDenseRow(
+                title: item.title,
+                subtitle: item.subtitle,
+                artworkUrl: item.thumbnail,
+                placeholderIcon: item.isCreated
+                    ? Icons.queue_music_rounded
+                    : Icons.bookmark_rounded,
+                isDarkMode: isDarkMode,
+                accentColor: accentColor,
+                onTap: () => item.isCreated
+                    ? _showPlaylistDetails(item.source)
+                    : _openContentDetail(_normalizeContent(item.source)),
+                actions: item.isCreated
+                    ? _buildDenseMoreAction(item.source, isDarkMode)
+                    : null,
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDenseMoreAction(Map<String, dynamic> playlist, bool isDarkMode) {
+    return IconButton(
+      tooltip: 'Playlist options',
+      onPressed: () => _deletePlaylist(playlist),
+      icon: Icon(
+        Icons.more_vert,
+        size: AppDimens.iconMd,
+        color: MainScreenColors.getTextColor(
+          isDarkMode,
+        ).withValues(alpha: AppDimens.opacityMuted),
+      ),
     );
   }
 

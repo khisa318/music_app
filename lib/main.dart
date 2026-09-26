@@ -39,6 +39,7 @@ import 'core/services/windows_file_service.dart';
 import 'core/theme/app_theme.dart';
 
 import 'features/home/data/providers/home_screen_provider.dart';
+import 'features/home/data/providers/covers_and_remixes_provider.dart';
 import 'features/library/data/providers/library_provider.dart';
 import 'features/ota/data/providers/ota_provider.dart';
 import 'features/playlists/data/providers/playlist_album_library_provider.dart';
@@ -354,6 +355,11 @@ Future<void> main() async {
                 lazy: false,
                 create: (_) => HomeScreenProvider()..initialize(),
               ),
+
+              // --------------------------------------------------
+              // COVERS AND REMIXES
+              // --------------------------------------------------
+              ChangeNotifierProvider(create: (_) => CoversAndRemixesProvider()),
 
               // --------------------------------------------------
               // TRENDING
