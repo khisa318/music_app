@@ -2,9 +2,9 @@
 // Do not modify
 // Check in to version control
 
-import 'package:hive_ce/hive.dart';
-import 'features/home/data/providers/home_screen_provider.dart';
-import 'features/trending/data/provider/trending_provider.dart';
+import 'package:hive_ce/hive_ce.dart';
+import 'package:music_app/features/home/data/providers/home_screen_provider.dart';
+import 'package:music_app/features/trending/data/provider/trending_provider.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {

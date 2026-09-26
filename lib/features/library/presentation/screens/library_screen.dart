@@ -25,8 +25,55 @@ import '../../../../core/utils/content_router.dart';
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+/// The song collections the Library page can surface.
+enum LibrarySongScope { all, downloads, recentlyPlayed, favorites, localMusic }
+
+/// The two kinds of content the favourites collection can show.
+enum LibraryFavoritesView { songs, artists }
+
+extension LibrarySongScopeDetails on LibrarySongScope {
+  /// Index of the matching tab in the legacy five-tab layout.
+  int get tabIndex => switch (this) {
+    LibrarySongScope.all => 0,
+    LibrarySongScope.downloads => 1,
+    LibrarySongScope.recentlyPlayed => 2,
+    LibrarySongScope.favorites => 3,
+    LibrarySongScope.localMusic => 4,
+  };
+
+  /// The key the rest of the screen already uses to identify this collection.
+  String get tabKey => switch (this) {
+    LibrarySongScope.all => 'all',
+    LibrarySongScope.downloads => 'downloads',
+    LibrarySongScope.recentlyPlayed => 'recently_played',
+    LibrarySongScope.favorites => 'favorites',
+    LibrarySongScope.localMusic => 'local_music',
+  };
+}
+
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key});
+  /// When null the screen keeps its own five-tab chrome (desktop layout).
+  /// The Library page passes a scope so the surrounding page owns the chrome.
+  final LibrarySongScope? scope;
+
+  /// Overrides the internal sort state when embedded.
+  final String? sortBy;
+  final bool? sortAscending;
+
+  /// Chooses between songs and artists for [LibrarySongScope.favorites].
+  final LibraryFavoritesView? favoritesView;
+
+  /// Puts the artwork on the trailing edge to match the Library page design.
+  final bool denseArtwork;
+
+  const LibraryScreen({
+    super.key,
+    this.scope,
+    this.sortBy,
+    this.sortAscending,
+    this.favoritesView,
+    this.denseArtwork = false,
+  });
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -50,6 +97,33 @@ class _LibraryScreenState extends State<LibraryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+
+    final scope = widget.scope;
+
+    if (scope != null) {
+      _tabController.index = scope.tabIndex;
+      _currentTab = scope.tabKey;
+
+      if (scope == LibrarySongScope.localMusic) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Provider.of<LibraryProvider>(
+              context,
+              listen: false,
+            ).ensureLocalSongsLoaded();
+          }
+        });
+      }
+    }
+
+    final favoritesView = widget.favoritesView;
+
+    if (favoritesView != null) {
+      _favoritesFilter = favoritesView == LibraryFavoritesView.artists
+          ? 'Artists'
+          : 'Songs';
+    }
+
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {
@@ -102,116 +176,169 @@ class _LibraryScreenState extends State<LibraryScreen>
       child: Scaffold(
         body: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppDimens.paddingLg,
-                vertical: AppDimens.paddingMd, // Increased vertical padding
-              ),
-              decoration: BoxDecoration(
-                // Customize your background color here
-                color: isDarkMode
-                    ? Colors.black.withValues(alpha: 0.5)
-                    : Colors.grey[100],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: [
-                          _buildGlassTab(
-                            'all'.tr(),
-                            0,
-                            accentColor,
-                            isDarkMode,
-                          ),
-                          const SizedBox(width: AppDimens.spacingSm),
-                          _buildGlassTab(
-                            'downloads'.tr(),
-                            1,
-                            accentColor,
-                            isDarkMode,
-                          ),
-                          const SizedBox(width: AppDimens.spacingSm),
-                          _buildGlassTab(
-                            'recently_played'.tr(),
-                            2,
-                            accentColor,
-                            isDarkMode,
-                          ),
-                          const SizedBox(width: AppDimens.spacingSm),
-                          _buildGlassTab(
-                            'favorites'.tr(),
-                            3,
-                            accentColor,
-                            isDarkMode,
-                          ),
-                          const SizedBox(width: AppDimens.spacingSm),
-                          _buildGlassTab(
-                            'local_music'.tr(),
-                            4,
-                            accentColor,
-                            isDarkMode,
-                          ),
-                        ],
+            if (widget.scope == null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimens.paddingLg,
+                  vertical: AppDimens.paddingMd, // Increased vertical padding
+                ),
+                decoration: BoxDecoration(
+                  // Customize your background color here
+                  color: isDarkMode
+                      ? Colors.black.withValues(alpha: 0.5)
+                      : Colors.grey[100],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            _buildGlassTab(
+                              'all'.tr(),
+                              0,
+                              accentColor,
+                              isDarkMode,
+                            ),
+                            const SizedBox(width: AppDimens.spacingSm),
+                            _buildGlassTab(
+                              'downloads'.tr(),
+                              1,
+                              accentColor,
+                              isDarkMode,
+                            ),
+                            const SizedBox(width: AppDimens.spacingSm),
+                            _buildGlassTab(
+                              'recently_played'.tr(),
+                              2,
+                              accentColor,
+                              isDarkMode,
+                            ),
+                            const SizedBox(width: AppDimens.spacingSm),
+                            _buildGlassTab(
+                              'favorites'.tr(),
+                              3,
+                              accentColor,
+                              isDarkMode,
+                            ),
+                            const SizedBox(width: AppDimens.spacingSm),
+                            _buildGlassTab(
+                              'local_music'.tr(),
+                              4,
+                              accentColor,
+                              isDarkMode,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  _buildSortButton(accentColor),
-                ],
+                    _buildSortButton(accentColor),
+                  ],
+                ),
               ),
-            ),
             if (_isSelectionMode) _buildSelectionMenu(accentColor, isDarkMode),
             Expanded(
               child: libraryProvider.isLoading
                   ? Center(child: CircularProgressIndicator(color: accentColor))
-                  : TabBarView(
-                      controller: _tabController,
-                      physics: _isSelectionMode
-                          ? const NeverScrollableScrollPhysics()
-                          : null,
-                      children: [
-                        _buildSongList(
-                          _getAllSongs(libraryProvider),
-                          isDarkMode,
-                          'all',
-                          libraryProvider,
-                          accentColor,
-                          paginate: true,
-                        ),
-                        _buildSongList(
-                          libraryProvider.downloadedSongs,
-                          isDarkMode,
-                          'downloads',
-                          libraryProvider,
-                          accentColor,
-                        ),
-                        _buildSongList(
-                          libraryProvider.lastPlayed,
-                          isDarkMode,
-                          'recently_played',
-                          libraryProvider,
-                          accentColor,
-                        ),
-                        _buildFavoritesTab(
-                          libraryProvider,
-                          isDarkMode,
-                          accentColor,
-                        ),
-                        _buildLocalMusicTab(
-                          libraryProvider,
-                          isDarkMode,
-                          accentColor,
-                        ),
-                      ],
-                    ),
+                  : _buildContent(libraryProvider, isDarkMode, accentColor),
             ),
           ],
         ),
       ),
     );
+  }
+
+  LibraryFavoritesView get _effectiveFavoritesView =>
+      widget.favoritesView ??
+      (_favoritesFilter == 'Artists'
+          ? LibraryFavoritesView.artists
+          : LibraryFavoritesView.songs);
+
+  /// Renders either the legacy five-tab layout used by the desktop shell, or
+  /// the single collection requested by the surrounding Library page.
+  Widget _buildContent(
+    LibraryProvider libraryProvider,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    final scope = widget.scope;
+
+    if (scope == null) {
+      return TabBarView(
+        controller: _tabController,
+        physics: _isSelectionMode ? const NeverScrollableScrollPhysics() : null,
+        children: [
+          _buildSongList(
+            _getAllSongs(libraryProvider),
+            isDarkMode,
+            'all',
+            libraryProvider,
+            accentColor,
+            paginate: true,
+          ),
+          _buildSongList(
+            libraryProvider.downloadedSongs,
+            isDarkMode,
+            'downloads',
+            libraryProvider,
+            accentColor,
+          ),
+          _buildSongList(
+            libraryProvider.lastPlayed,
+            isDarkMode,
+            'recently_played',
+            libraryProvider,
+            accentColor,
+          ),
+          _buildFavoritesTab(libraryProvider, isDarkMode, accentColor),
+          _buildLocalMusicTab(libraryProvider, isDarkMode, accentColor),
+        ],
+      );
+    }
+
+    if (scope == LibrarySongScope.favorites &&
+        _effectiveFavoritesView == LibraryFavoritesView.artists) {
+      return _buildArtistList(isDarkMode, accentColor);
+    }
+
+    return switch (scope) {
+      LibrarySongScope.all => _buildSongList(
+        _getAllSongs(libraryProvider),
+        isDarkMode,
+        scope.tabKey,
+        libraryProvider,
+        accentColor,
+        paginate: true,
+      ),
+      LibrarySongScope.downloads => _buildSongList(
+        libraryProvider.downloadedSongs,
+        isDarkMode,
+        scope.tabKey,
+        libraryProvider,
+        accentColor,
+      ),
+      LibrarySongScope.recentlyPlayed => _buildSongList(
+        libraryProvider.lastPlayed,
+        isDarkMode,
+        scope.tabKey,
+        libraryProvider,
+        accentColor,
+      ),
+      LibrarySongScope.favorites => _buildSongList(
+        libraryProvider.likedSongs,
+        isDarkMode,
+        scope.tabKey,
+        libraryProvider,
+        accentColor,
+      ),
+      LibrarySongScope.localMusic => _buildLocalMusicTab(
+        libraryProvider,
+        isDarkMode,
+        accentColor,
+      ),
+    };
   }
 
   Widget _buildGlassTab(
@@ -316,19 +443,24 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   List<Map<String, dynamic>> _sortSongs(List<Map<String, dynamic>> songs) {
+    final activeSortBy = widget.sortBy ?? _sortBy;
+    final activeAscending = widget.sortAscending ?? _sortAscending;
+
     final sortedSongs = List<Map<String, dynamic>>.from(songs);
     sortedSongs.sort((first, second) {
       int result;
-      if (_sortBy == 'duration') {
+      if (activeSortBy == 'duration') {
         result = (first['duration'] as num? ?? 0).compareTo(
           second['duration'] as num? ?? 0,
         );
       } else {
-        final firstValue = (first[_sortBy] ?? '').toString().toLowerCase();
-        final secondValue = (second[_sortBy] ?? '').toString().toLowerCase();
+        final firstValue = (first[activeSortBy] ?? '').toString().toLowerCase();
+        final secondValue = (second[activeSortBy] ?? '')
+            .toString()
+            .toLowerCase();
         result = firstValue.compareTo(secondValue);
       }
-      return _sortAscending ? result : -result;
+      return activeAscending ? result : -result;
     });
     return sortedSongs;
   }
@@ -600,6 +732,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         isPlaying: isPlaying,
                         isDarkMode: isDarkMode,
                         accentColor: accentColor,
+                        artworkOnRight: widget.denseArtwork,
                       ),
                     ),
                   ),

@@ -22,6 +22,11 @@ class LibrarySongListTile extends StatelessWidget {
   final Color accentColor;
   final EdgeInsets? contentPadding;
 
+  /// Moves the artwork from the leading edge to the trailing edge so the row
+  /// matches the Library page design, where text sits left and the square
+  /// thumbnail sits flush right.
+  final bool artworkOnRight;
+
   const LibrarySongListTile({
     super.key,
     required this.song,
@@ -31,6 +36,7 @@ class LibrarySongListTile extends StatelessWidget {
     required this.isDarkMode,
     required this.accentColor,
     this.contentPadding,
+    this.artworkOnRight = false,
   });
 
   String _formatDuration(dynamic duration) {
@@ -130,6 +136,39 @@ class LibrarySongListTile extends StatelessWidget {
     final mq = MediaQuery.of(context);
     final enforcedTextScale = textScale > 1.0 ? 1.0 : textScale;
 
+    final Widget artworkStack = Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm * uiScale),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: AppDimens.elevationMedium * uiScale,
+                offset: Offset(0, AppDimens.spacingXxs * uiScale),
+              ),
+            ],
+          ),
+          child: buildArtwork(uiScale),
+        ),
+        if (isPlaying)
+          Container(
+            width: AppDimens.thumbnailDefault * uiScale,
+            height: AppDimens.thumbnailDefault * uiScale,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm * uiScale),
+            ),
+            child: Icon(
+              Icons.equalizer,
+              color: accentColor,
+              size: AppDimens.iconLg * uiScale,
+            ),
+          ),
+      ],
+    );
+
     return RepaintBoundary(
       child: MediaQuery(
         data: mq.copyWith(textScaler: TextScaler.linear(enforcedTextScale)),
@@ -139,42 +178,7 @@ class LibrarySongListTile extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             contentPadding: tilePadding,
-            leading: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(
-                      AppDimens.radiusSm * uiScale,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: AppDimens.elevationMedium * uiScale,
-                        offset: Offset(0, AppDimens.spacingXxs * uiScale),
-                      ),
-                    ],
-                  ),
-                  child: buildArtwork(uiScale),
-                ),
-                if (isPlaying)
-                  Container(
-                    width: AppDimens.thumbnailDefault * uiScale,
-                    height: AppDimens.thumbnailDefault * uiScale,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(
-                        AppDimens.radiusSm * uiScale,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.equalizer,
-                      color: accentColor,
-                      size: AppDimens.iconLg * uiScale,
-                    ),
-                  ),
-              ],
-            ),
+            leading: artworkOnRight ? null : artworkStack,
             title: Text(
               song['title'] ?? song['name'] ?? 'Unknown Title',
               style: AppTextStyles.bodyLg(
@@ -359,6 +363,10 @@ class LibrarySongListTile extends StatelessWidget {
                       );
                     },
                   ),
+                if (artworkOnRight) ...[
+                  const SizedBox(width: AppDimens.spacingSm),
+                  artworkStack,
+                ],
               ],
             ),
             onTap: onTap ?? onPlay,

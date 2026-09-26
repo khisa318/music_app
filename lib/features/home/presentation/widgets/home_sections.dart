@@ -28,7 +28,9 @@ class HomeSections extends StatelessWidget {
       return ShimmerLoading.buildShimmerList();
     }
 
-    final visibleSections = provider.homeSections.where((section) {
+    // `carouselSections` excludes song shelves so the Speed Dial is the single
+    // place they appear, instead of a second tap-to-nothing carousel.
+    final visibleSections = provider.carouselSections.where((section) {
       final title = section.title.toString().toLowerCase();
       return !title.contains('india') && !title.contains('all hits');
     }).toList();

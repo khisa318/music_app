@@ -408,6 +408,26 @@
 	"ota_try_again": "Try Again",
 	"update_now": "Update Now",
 
+	"speed_dial": "Speed dial",
+	"listen_again": "Listen again",
+	"covers_and_remixes": "Covers and remixes",
+	"covers_and_remixes_subtitle": "Alternate versions of music you've played",
+	"unknown_artist": "Unknown artist",
+
+	"library_filters": "Filters",
+	"songs_in_library": "Songs in library",
+	"favourites_show": "Favourites show",
+	"sort_by": "Sort by",
+	"sort_by_title": "Title",
+	"sort_by_artist": "Artist",
+	"sort_by_duration": "Duration",
+	"sort_order": "Order",
+	"sort_order_ascending": "Ascending",
+	"sort_order_descending": "Descending",
+	"appearance": "Appearance",
+	"light_mode": "Light",
+	"dark_mode": "Dark",
+
 	"Gemini": "Gemini",
 	"OpenAI": "OpenAI"
 }
