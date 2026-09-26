@@ -10,6 +10,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../shared/components/app_snackbar.dart';
+import '../widgets/settings_surface.dart';
 
 class CrashLogsScreen extends StatefulWidget {
   const CrashLogsScreen({super.key});
@@ -127,29 +128,20 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
           backgroundColor: themeData.isDarkMode
               ? MainScreenColors.darkBackgroundColor
               : MainScreenColors.lightBackgroundColor,
-          appBar: AppBar(
-            backgroundColor: themeData.isDarkMode
-                ? Colors.transparent
-                : MainScreenColors.getSurfaceColor(false),
-            elevation: 0,
-            title: Text(
-              'crash_logs_title'.tr(),
-              style: AppTextStyles.headingLg(isDarkMode: themeData.isDarkMode),
-            ),
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back,
-                color: MainScreenColors.getTextColor(themeData.isDarkMode),
-              ),
-              onPressed: () => Navigator.pop(context),
-            ),
+          appBar: SettingsAppBar(
+            title: 'crash_logs_title'.tr(),
+            icon: Icons.bug_report_rounded,
+            isDarkMode: themeData.isDarkMode,
+            accentColor: themeData.accentColor,
             actions: [
-              IconButton(
-                icon: Icon(
-                  Icons.delete_forever,
-                  color: MainScreenColors.getTextColor(themeData.isDarkMode),
-                ),
-                onPressed: () async {
+              Padding(
+                padding: const EdgeInsets.only(right: AppDimens.paddingSm),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.delete_forever_rounded,
+                    color: MainScreenColors.getTextColor(themeData.isDarkMode),
+                  ),
+                  onPressed: () async {
                   final confirmed = await showDialog<bool>(
                     context: context,
                     builder: (c) => AlertDialog(
@@ -204,6 +196,7 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                   }
                 },
                 tooltip: 'clear'.tr(),
+              ),
               ),
             ],
           ),

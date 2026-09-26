@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../widgets/settings_item.dart';
 import '../../../../shared/components/app_snackbar.dart';
+import '../widgets/settings_surface.dart';
 
 class AiApiConfigScreen extends StatefulWidget {
   const AiApiConfigScreen({super.key});
@@ -55,21 +56,11 @@ class _AiApiConfigScreenState extends State<AiApiConfigScreen> {
       backgroundColor: isDarkMode
           ? MainScreenColors.darkBackgroundColor
           : MainScreenColors.lightBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          'ai_api_configuration'.tr(),
-          style: AppTextStyles.appBarTitle(isDarkMode: isDarkMode),
-        ),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: MainScreenColors.getTextColor(isDarkMode),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        centerTitle: false,
+      appBar: SettingsAppBar(
+        title: 'ai_api_configuration'.tr(),
+        icon: Icons.vpn_key_rounded,
+        isDarkMode: isDarkMode,
+        accentColor: accentColor,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimens.paddingLg),

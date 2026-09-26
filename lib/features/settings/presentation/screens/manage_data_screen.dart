@@ -11,6 +11,7 @@ import '../../../../core/providers/stats_provider.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../data/services/data_management_service.dart';
 import '../widgets/settings_item.dart';
+import '../widgets/settings_surface.dart';
 
 class ManageDataScreen extends StatefulWidget {
   const ManageDataScreen({super.key});
@@ -101,23 +102,11 @@ class _ManageDataScreenState extends State<ManageDataScreen> {
         backgroundColor: isDarkMode
             ? MainScreenColors.darkBackgroundColor
             : MainScreenColors.lightBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: isDarkMode
-              ? Colors.transparent
-              : MainScreenColors.getSurfaceColor(false),
-          elevation: 0,
-          title: Text(
-            'manage_data'.tr(),
-            style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
-          ),
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back,
-              color: MainScreenColors.getTextColor(isDarkMode),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          centerTitle: false,
+        appBar: SettingsAppBar(
+          title: 'manage_data'.tr(),
+          icon: Icons.storage_rounded,
+          isDarkMode: isDarkMode,
+          accentColor: accentColor,
         ),
         body: RefreshIndicator(
           onRefresh: _refreshActionStats,

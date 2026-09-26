@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../widgets/settings_surface.dart';
 
 class LanguageSelectionScreen extends StatelessWidget {
   final VoidCallback? onSelected;
@@ -49,24 +51,12 @@ class LanguageSelectionScreen extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: isDarkMode
-              ? Colors.transparent
-              : MainScreenColors.getSurfaceColor(false),
-          elevation: 0,
-          title: Text(
-            'Select Language',
-            style: AppTextStyles.appBarTitle(isDarkMode: isDarkMode),
-          ),
-          leading: isOnboardingFlow
-              ? null
-              : IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: MainScreenColors.getTextColor(isDarkMode),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
+        appBar: SettingsAppBar(
+          title: 'select_language'.tr(),
+          icon: Icons.language_rounded,
+          isDarkMode: isDarkMode,
+          accentColor: accentColor,
+          showBackButton: !isOnboardingFlow,
         ),
         backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
         body: Padding(

@@ -8,6 +8,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'settings_item.dart';
+import 'settings_surface.dart';
 import '../screens/animation_selector_screen.dart';
 
 class AppearanceSettingsSection extends StatelessWidget {
@@ -25,150 +26,108 @@ class AppearanceSettingsSection extends StatelessWidget {
         language: settingsProvider.language,
       ),
       builder: (context, themeData, child) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        final isDarkMode = themeData.isDarkMode;
+        final accentColor = themeData.accentColor;
+
+        return SettingsGroup(
+          title: 'appearance_settings'.tr(),
+          icon: Icons.palette_rounded,
+          isDarkMode: isDarkMode,
+          accentColor: accentColor,
           children: [
-            SettingsSectionHeader(
-              title: 'appearance_settings'.tr(),
-              icon: Icons.color_lens,
-              isDarkMode: themeData.isDarkMode,
-              accentColor: themeData.accentColor,
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, child) {
+                return SettingsItem(
+                  icon: Icons.brightness_6_rounded,
+                  title: 'theme_card_title'.tr(),
+                  showChevron: false,
+                  trailing: _buildThemeSelector(
+                    context,
+                    settingsProvider,
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                );
+              },
             ),
 
-            Container(
-              decoration: BoxDecoration(
-                color: themeData.isDarkMode
-                    ? MainScreenColors.darkSurfaceColor
-                    : MainScreenColors.lightSurfaceColor,
-                borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                border: Border.all(
-                  color: themeData.isDarkMode
-                      ? Colors.white.withValues(alpha: AppDimens.opacitySubtle)
-                      : Colors.black.withValues(alpha: AppDimens.opacitySubtle),
-                  width: AppDimens.borderWidthThin,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Consumer<SettingsProvider>(
-                    builder: (context, settingsProvider, child) {
-                      return SettingsItem(
-                        icon: Icons.brightness_6,
-                        title: 'theme_card_title'.tr(),
-                        trailing: _buildThemeSelector(
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, child) {
+                return SettingsItem(
+                  icon: Icons.palette_rounded,
+                  title: 'accent_color_card_title'.tr(),
+                  showChevron: false,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: settingsProvider.adaptiveColorEnabled
+                            ? 0.5
+                            : 1.0,
+                        child: Container(
+                          width: AppDimens.iconMd,
+                          height: AppDimens.iconMd,
+                          decoration: BoxDecoration(
+                            color: settingsProvider.accentColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: MainScreenColors.getTextColor(
+                                isDarkMode,
+                              ).withValues(alpha: 0.25),
+                              width: AppDimens.borderWidthThin,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimens.spacingSm),
+                      SettingsChevron(
+                        isDarkMode: isDarkMode,
+                        muted: settingsProvider.adaptiveColorEnabled,
+                      ),
+                    ],
+                  ),
+                  onTap: settingsProvider.adaptiveColorEnabled
+                      ? null
+                      : () => _showColorPickerDialog(
                           context,
                           settingsProvider,
-                          themeData.accentColor,
+                          isDarkMode,
                         ),
-                        isDarkMode: themeData.isDarkMode,
-                        accentColor: themeData.accentColor,
-                      );
-                    },
-                  ),
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                );
+              },
+            ),
 
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: themeData.isDarkMode
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.06),
-                  ),
-
-                  Consumer<SettingsProvider>(
-                    builder: (context, settingsProvider, child) {
-                      return SettingsItem(
-                        icon: Icons.palette,
-                        title: 'accent_color_card_title'.tr(),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Opacity(
-                              opacity: settingsProvider.adaptiveColorEnabled
-                                  ? 0.5
-                                  : 1.0,
-                              child: Container(
-                                width: AppDimens.iconMd,
-                                height: AppDimens.iconMd,
-                                decoration: BoxDecoration(
-                                  color: settingsProvider.accentColor,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey,
-                                    width: AppDimens.borderWidthThin,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: AppDimens.spacingSm),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: AppDimens.iconXs,
-                              color: settingsProvider.adaptiveColorEnabled
-                                  ? Colors.grey.withValues(alpha: 0.6)
-                                  : Colors.grey,
-                            ),
-                          ],
-                        ),
-                        onTap: settingsProvider.adaptiveColorEnabled
-                            ? null
-                            : () => _showColorPickerDialog(
-                                context,
-                                settingsProvider,
-                                themeData.isDarkMode,
-                              ),
-                        isDarkMode: themeData.isDarkMode,
-                        accentColor: themeData.accentColor,
-                      );
-                    },
-                  ),
-
-                  if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)
-                    _AdaptiveColorSettingsItem(
-                      isDarkMode: themeData.isDarkMode,
-                      accentColor: themeData.accentColor,
-                      platform: TargetPlatform.android,
-                    ),
-                  if (Platform.isWindows)
-                    _AdaptiveColorSettingsItem(
-                      isDarkMode: themeData.isDarkMode,
-                      accentColor: themeData.accentColor,
-                      platform: TargetPlatform.windows,
-                    ),
-
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: themeData.isDarkMode
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.06),
-                  ),
-
-                  Consumer<SettingsProvider>(
-                    builder: (context, settingsProvider, child) {
-                      return SettingsItem(
-                        icon: Icons.movie,
-                        title: 'animation_type'.tr(),
-                        trailing: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AnimationSelectorScreen(),
-                            ),
-                          );
-                        },
-                        isDarkMode: themeData.isDarkMode,
-                        accentColor: themeData.accentColor,
-                      );
-                    },
-                  ),
-                ],
+            if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)
+              _AdaptiveColorSettingsItem(
+                isDarkMode: isDarkMode,
+                accentColor: accentColor,
+                platform: TargetPlatform.android,
               ),
+            if (Platform.isWindows)
+              _AdaptiveColorSettingsItem(
+                isDarkMode: isDarkMode,
+                accentColor: accentColor,
+                platform: TargetPlatform.windows,
+              ),
+
+            SettingsItem(
+              icon: Icons.movie_rounded,
+              title: 'animation_type'.tr(),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AnimationSelectorScreen(),
+                  ),
+                );
+              },
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
             ),
           ],
         );
@@ -179,76 +138,89 @@ class AppearanceSettingsSection extends StatelessWidget {
   Widget _buildThemeSelector(
     BuildContext context,
     SettingsProvider settingsProvider,
+    bool isDarkMode,
     Color accentColor,
   ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildThemeButton(
-          context: context,
-          label: 'Light',
-          selected: settingsProvider.theme == 'Light',
-          onTap: () => settingsProvider.theme = 'Light',
-          accentColor: accentColor,
-        ),
-        SizedBox(width: MediaQuery.of(context).size.width < 360 ? 2 : 4),
-        _buildThemeButton(
-          context: context,
-          label: 'Dark',
-          selected: settingsProvider.theme == 'Dark',
-          onTap: () => settingsProvider.theme = 'Dark',
-          accentColor: accentColor,
-        ),
-        SizedBox(width: MediaQuery.of(context).size.width < 360 ? 2 : 4),
-        _buildThemeButton(
-          context: context,
-          label: 'Auto',
-          selected: settingsProvider.theme == 'System Default',
-          onTap: () => settingsProvider.theme = 'System Default',
-          accentColor: accentColor,
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: MainScreenColors.getTextColor(
+          isDarkMode,
+        ).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppDimens.radiusMdLg),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildThemeButton(
+            label: 'Light',
+            selected: settingsProvider.theme == 'Light',
+            onTap: () => settingsProvider.theme = 'Light',
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+          ),
+          _buildThemeButton(
+            label: 'Dark',
+            selected: settingsProvider.theme == 'Dark',
+            onTap: () => settingsProvider.theme = 'Dark',
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+          ),
+          _buildThemeButton(
+            label: 'Auto',
+            selected: settingsProvider.theme == 'System Default',
+            onTap: () => settingsProvider.theme = 'System Default',
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildThemeButton({
-    required BuildContext context,
     required String label,
     required bool selected,
     required VoidCallback onTap,
+    required bool isDarkMode,
     required Color accentColor,
   }) {
-    final bool isSmall = AppDimens.isSmallMobile(context);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          vertical: isSmall ? AppDimens.paddingXs : AppDimens.paddingSm,
-          horizontal: isSmall ? AppDimens.paddingSm : AppDimens.paddingMd,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimens.spacingMd,
+          vertical: AppDimens.spacingXs + 1,
         ),
         decoration: BoxDecoration(
-          color: selected
-              ? accentColor.withValues(alpha: 0.2)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(
-            isSmall ? AppDimens.radiusSm : AppDimens.radiusMd,
-          ),
-          border: Border.all(
-            color: selected ? accentColor : Colors.grey.withValues(alpha: 0.3),
-            width: AppDimens.borderWidthThin,
-          ),
+          color: selected ? accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
-          style:
-              AppTextStyles.caption(
-                isDarkMode: false,
-                color: selected ? accentColor : Colors.grey,
-              ).copyWith(
-                fontWeight: selected
-                    ? AppTextStyles.weightSemiBold
-                    : AppTextStyles.weightRegular,
-              ),
+          style: AppTextStyles.caption(
+            isDarkMode: isDarkMode,
+            color: selected
+                ? Colors.black
+                : MainScreenColors.getTextColor(
+                    isDarkMode,
+                  ).withValues(alpha: 0.7),
+          ).copyWith(
+            fontWeight: selected
+                ? AppTextStyles.weightSemiBold
+                : AppTextStyles.weightRegular,
+          ),
         ),
       ),
     );
