@@ -9,6 +9,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../settings/presentation/widgets/settings_item.dart';
 import '../../../downloads/presentation/screens/downloads_screen.dart';
 import '../../../stats/presentation/screens/stats_screen.dart';
 
@@ -22,13 +23,15 @@ class ProfileScreen extends StatelessWidget {
     final accentColor = settingsProvider.accentColor;
     
     return Scaffold(
-      backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+      backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 200.0,
             floating: false,
             pinned: true,
+            backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: BoxDecoration(
@@ -85,13 +88,13 @@ class ProfileScreen extends StatelessWidget {
           ),
           SliverList(
             delegate: SliverChildListDelegate([
-              const SizedBox(height: AppDimens.spacingMd),
-              _buildMainMenuSection(context, isDarkMode),
-              const Divider(),
+              const SizedBox(height: AppDimens.spacingSm),
+              _buildMainMenuSection(context, isDarkMode, accentColor),
+              const Divider(height: AppDimens.spacingXxl),
               _buildSocialLinksSection(context, isDarkMode, accentColor),
-              const Divider(),
-              _buildBottomSection(context, isDarkMode),
-              const SizedBox(height: AppDimens.paddingXl * 3), // space for bottom nav
+              const Divider(height: AppDimens.spacingXxl),
+              _buildShareSection(context, isDarkMode, accentColor),
+              const SizedBox(height: AppDimens.paddingXl * 2),
             ]),
           ),
         ],
@@ -99,29 +102,37 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMainMenuSection(BuildContext context, bool isDarkMode) {
-    return Column(
+  Widget _buildMainMenuSection(
+    BuildContext context,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    return SettingsGroup(
+      title: 'app_settings'.tr(),
+      icon: Icons.settings_rounded,
+      isDarkMode: isDarkMode,
+      accentColor: accentColor,
       children: [
-        _buildMenuItem(
-          context,
-          icon: Icons.settings_rounded,
+        SettingsItem(
+          icon: Icons.tune_rounded,
           title: 'settings'.tr(),
           onTap: () => _navigateTo(context, const SettingsScreen()),
           isDarkMode: isDarkMode,
+          accentColor: accentColor,
         ),
-        _buildMenuItem(
-          context,
+        SettingsItem(
           icon: Icons.download_done_rounded,
           title: 'downloads'.tr(),
           onTap: () => _navigateTo(context, const DownloadsScreen()),
           isDarkMode: isDarkMode,
+          accentColor: accentColor,
         ),
-        _buildMenuItem(
-          context,
+        SettingsItem(
           icon: Icons.show_chart_rounded,
           title: 'stats'.tr(),
-          onTap: () => _navigateTo(context, StatsScreen()),
+          onTap: () => _navigateTo(context, const StatsScreen()),
           isDarkMode: isDarkMode,
+          accentColor: accentColor,
         ),
       ],
     );
@@ -179,36 +190,28 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomSection(BuildContext context, bool isDarkMode) {
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.paddingLg),
-      child: ListTile(
-        leading: const Icon(Icons.share, size: AppDimens.iconLg),
-        title: Text(
-          'share_app'.tr(),
-          style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
-        ),
-        onTap: () {
-          _shareApp();
-        },
+  Widget _buildShareSection(
+    BuildContext context,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+      child: SettingsGroup(
+        title: 'connect_with_us'.tr(),
+        icon: Icons.ios_share_rounded,
+        isDarkMode: isDarkMode,
+        accentColor: accentColor,
+        children: [
+          SettingsItem(
+            icon: Icons.share_rounded,
+            title: 'share_app'.tr(),
+            onTap: _shareApp,
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    required bool isDarkMode,
-  }) {
-    return ListTile(
-      leading: Icon(icon, size: AppDimens.iconLg),
-      title: Text(
-        title,
-        style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
-      ),
-      onTap: onTap,
     );
   }
 
