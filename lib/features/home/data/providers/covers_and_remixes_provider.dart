@@ -1,32 +1,60 @@
-import 'dart:math' as math;
-
+import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/models/song_model.dart';
 import '../../../../core/services/related_song_service.dart';
 
-/// Alternate versions of music the listener has actually played.
+/// Alternate versions of music the listener has actually played: covers,
+/// remixes, acoustic and live takes.
 ///
-/// YouTube Music builds its "Covers and remixes" shelf from recent listening,
-/// but exposes no standalone endpoint for it. This walks the locally stored
-/// play history and pulls each seed track's related videos, which is the same
-/// signal YT Music uses, then keeps only the alternate-version candidates.
+/// YT Music builds the same shelf from recent listening but exposes no
+/// standalone endpoint for it, so this seeds from local play history and looks
+/// the alternate versions up explicitly.
+///
+/// The lookup has two sources because neither is sufficient alone:
+///
+///  * YT Music search for `"<track> cover"` / `"<track> remix"`, which is what
+///    actually surfaces alternate versions.
+///  * The seed's related videos, which reliably surface live and unplugged
+///    takes that search tends to miss.
+///
+/// Searching by related-video title alone left the shelf empty most of the
+/// time, because mainstream uploads rarely carry "cover" in their title.
 class CoversAndRemixesProvider extends ChangeNotifier {
+  final YTMusic _ytMusic = GetIt.I<YTMusic>();
   final RelatedSongService _relatedSongService = RelatedSongService();
 
   /// Seeds are the most recently played tracks, newest first.
-  static const int _maxSeeds = 3;
-
-  /// Candidates pulled per seed before ranking.
-  static const int _maxPerSeed = 12;
+  static const int _maxSeeds = 2;
 
   /// Final shelf size.
   static const int _maxResults = 8;
 
-  /// Cheap pre-filter: related-video titles for alternate versions almost
-  /// always contain one of these words. Keeps the network payload small and
-  /// stops unrelated uploads crowding out real covers.
-  static const List<String> _versionKeywords = [
+  /// Words that describe a track's *form* rather than being part of its name.
+  static const Set<String> _noiseWords = {
+    'feat',
+    'ft',
+    'featuring',
+    'with',
+    'official',
+    'video',
+    'audio',
+    'music',
+    'lyric',
+    'lyrics',
+    'hd',
+    'hq',
+    'mv',
+    'm/v',
+    'version',
+    'remaster',
+    'remastered',
+    'edition',
+    'deluxe',
+    'bonus',
+    'track',
+    'quality',
     'cover',
     'remix',
     'acoustic',
@@ -36,13 +64,17 @@ class CoversAndRemixesProvider extends ChangeNotifier {
     'karaoke',
     'rework',
     'flip',
-    'sped up',
-    'slowed',
-    'reverb',
     'mashup',
     'bootleg',
     'vip',
-  ];
+    'sped',
+    'slowed',
+    'reverb',
+    'mix',
+  };
+
+  /// Qualifiers appended to the seed title when searching.
+  static const List<String> _searchQualifiers = ['cover', 'remix'];
 
   List<SongInfo> _results = [];
   bool _isLoading = false;
@@ -61,37 +93,38 @@ class CoversAndRemixesProvider extends ChangeNotifier {
     if (_results.isNotEmpty && !forceRefresh) return;
 
     final seeds = seedSongs
-        .map(_toSeed)
+        .map(SongInfo.fromHistoryMap)
         .whereType<SongInfo>()
         .take(_maxSeeds)
         .toList();
 
-    if (seeds.isEmpty) {
-      return;
-    }
+    if (seeds.isEmpty) return;
 
     _isLoading = true;
     notifyListeners();
 
     try {
-      final seedIds = seeds.map((s) => s.videoId).toSet();
       final collected = <SongInfo>[];
+      final seen = seeds.map((s) => s.videoId).toSet();
 
       for (final seed in seeds) {
-        try {
-          final related = await _relatedSongService.getRelatedSongs(
-            seed.videoId,
-          );
-          for (final candidate in related) {
-            if (seedIds.contains(candidate.videoId)) continue;
-            if (!_looksLikeAlternateVersion(candidate.name)) continue;
-            collected.add(candidate);
-            if (collected.length >= _maxSeeds * _maxPerSeed) break;
-          }
-        } catch (e) {
-          debugPrint('Covers/remixes lookup failed for ${seed.name}: $e');
+        for (final candidate in await _searchAlternateVersions(seed)) {
+          if (!seen.add(candidate.videoId)) continue;
+          if (!_looksLikeAlternateVersion(candidate.name)) continue;
+          if (!_matchesSeedTitle(candidate.name, seed.name)) continue;
+          collected.add(candidate);
         }
-        if (collected.length >= _maxSeeds * _maxPerSeed) break;
+      }
+
+      if (collected.length < _maxResults) {
+        for (final candidate in await _relatedAlternateVersions(seeds)) {
+          if (!seen.add(candidate.videoId)) continue;
+          if (!_looksLikeAlternateVersion(candidate.name)) continue;
+          if (!seeds.any((s) => _matchesSeedTitle(candidate.name, s.name))) {
+            continue;
+          }
+          collected.add(candidate);
+        }
       }
 
       _results = _rank(collected).take(_maxResults).toList();
@@ -99,6 +132,58 @@ class CoversAndRemixesProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Explicit lookups for the seed's cover and remix versions.
+  Future<List<SongInfo>> _searchAlternateVersions(SongInfo seed) async {
+    final found = <SongInfo>[];
+
+    for (final qualifier in _searchQualifiers) {
+      try {
+        final results = await _ytMusic.search('${seed.name} $qualifier');
+        for (final result in results) {
+          if (result is! SongDetailedSearchResult) continue;
+          final song = result.songDetailed;
+          found.add(
+            SongInfo(
+              videoId: song.videoId,
+              name: song.name,
+              artists: [
+                Artist(name: song.artist.name, id: song.artist.artistId ?? ''),
+              ],
+              thumbnails: song.thumbnails
+                  .map(
+                    (t) =>
+                        Thumbnail(url: t.url, width: t.width, height: t.height),
+                  )
+                  .toList(),
+              duration: Duration(seconds: song.duration ?? 0),
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          'Covers/remixes search failed for "$seed.name $qualifier": $e',
+        );
+      }
+    }
+
+    return found;
+  }
+
+  /// Live/unplugged takes from each seed's related videos.
+  Future<List<SongInfo>> _relatedAlternateVersions(List<SongInfo> seeds) async {
+    final found = <SongInfo>[];
+
+    for (final seed in seeds) {
+      try {
+        found.addAll(await _relatedSongService.getRelatedSongs(seed.videoId));
+      } catch (e) {
+        debugPrint('Covers/remixes related lookup failed for ${seed.name}: $e');
+      }
+    }
+
+    return found;
   }
 
   /// Prioritise explicit covers and remixes over generic live/unplugged takes,
@@ -112,7 +197,9 @@ class CoversAndRemixesProvider extends ChangeNotifier {
       if (title.contains('rework') || title.contains('flip')) score += 2;
       if (title.contains('acoustic') || title.contains('unplugged')) score += 2;
       if (title.contains('live')) score += 1;
-      if (title.contains('instrumental') || title.contains('karaoke')) score += 1;
+      if (title.contains('instrumental') || title.contains('karaoke')) {
+        score += 1;
+      }
       if (title.contains('official')) score += 1;
 
       final minutes = song.duration.inMinutes;
@@ -133,51 +220,39 @@ class CoversAndRemixesProvider extends ChangeNotifier {
 
   bool _looksLikeAlternateVersion(String title) {
     final lower = title.toLowerCase();
-    return _versionKeywords.any(lower.contains);
+    for (final qualifier in _searchQualifiers) {
+      if (lower.contains(qualifier)) return true;
+    }
+    return [
+      'acoustic',
+      'unplugged',
+      'live',
+      'instrumental',
+      'karaoke',
+      'rework',
+      'flip',
+      'mashup',
+      'bootleg',
+    ].any(lower.contains);
   }
 
-  SongInfo? _toSeed(Map<String, dynamic> song) {
-    final rawId = song['id'] ?? song['videoId'];
-    final id = rawId?.toString().trim() ?? '';
-    if (id.isEmpty) return null;
+  /// Guards against covers of a completely different track.
+  ///
+  /// The search query pulls in loosely related results, so a candidate has to
+  /// share at least one meaningful word with the seed it was found for.
+  bool _matchesSeedTitle(String candidate, String seed) {
+    final seedWords = _significantWords(seed);
+    if (seedWords.isEmpty) return false;
 
-    final title = (song['title'] ?? song['name'])?.toString() ?? '';
-    if (title.isEmpty) return null;
-
-    final artistNames = <String>[];
-    final rawArtists = song['artists'];
-    if (rawArtists is List) {
-      for (final a in rawArtists) {
-        if (a is Map && a['name'] != null) {
-          artistNames.add(a['name'].toString());
-        } else if (a != null) {
-          artistNames.add(a.toString());
-        }
-      }
-    }
-    if (artistNames.isEmpty && song['artist'] != null) {
-      artistNames.add(song['artist'].toString());
-    }
-
-    return SongInfo(
-      videoId: id,
-      name: title,
-      artists: [
-        Artist(name: artistNames.isEmpty ? '' : artistNames.first, id: ''),
-      ],
-      thumbnails: [
-        Thumbnail(url: (song['thumbnail'] ?? '').toString(), width: 480, height: 480),
-      ],
-      duration: Duration(seconds: _toSeconds(song['duration'])),
-    );
+    final candidateWords = _significantWords(candidate);
+    return seedWords.any(candidateWords.contains);
   }
 
-  /// History entries store duration in seconds, but a few legacy rows hold a
-  /// string, so parse defensively instead of throwing mid-build.
-  int _toSeconds(dynamic value) {
-    if (value is int) return math.max(0, value);
-    if (value is num) return math.max(0, value.toInt());
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
+  Set<String> _significantWords(String title) {
+    return title
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((w) => w.length > 3 && !_noiseWords.contains(w))
+        .toSet();
   }
 }

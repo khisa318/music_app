@@ -178,6 +178,61 @@ class PlaylistDetailedDTOAdapter extends TypeAdapter<PlaylistDetailedDTO> {
           typeId == other.typeId;
 }
 
+class SongContentItemDTOAdapter extends TypeAdapter<SongContentItemDTO> {
+  @override
+  final typeId = 9;
+
+  @override
+  SongContentItemDTO read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return SongContentItemDTO(
+      name: fields[0] as String,
+      contentType: fields[1] as String,
+      playlistId: fields[2] as String,
+      thumbnails: (fields[3] as List).cast<ThumbnailFullDTO>(),
+      videoId: fields[4] as String,
+      duration: fields[5] as int,
+      artistName: fields[6] as String,
+      artistId: fields[7] as String?,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, SongContentItemDTO obj) {
+    writer
+      ..writeByte(8)
+      ..writeByte(0)
+      ..write(obj.name)
+      ..writeByte(1)
+      ..write(obj.contentType)
+      ..writeByte(2)
+      ..write(obj.playlistId)
+      ..writeByte(3)
+      ..write(obj.thumbnails)
+      ..writeByte(4)
+      ..write(obj.videoId)
+      ..writeByte(5)
+      ..write(obj.duration)
+      ..writeByte(6)
+      ..write(obj.artistName)
+      ..writeByte(7)
+      ..write(obj.artistId);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SongContentItemDTOAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
 class ArtistBasicDTOAdapter extends TypeAdapter<ArtistBasicDTO> {
   @override
   final typeId = 4;

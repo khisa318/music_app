@@ -18,13 +18,20 @@ import 'home_screen_shimmer.dart';
 
 /// YouTube Music's quick-access area.
 ///
-/// Backed by the genuine "Listen again" shelf returned inside the Home
-/// browse response, so the contents reflect real listening behaviour rather
-/// than being guessed locally.
+/// Prefers the genuine "Listen again" shelf returned inside the Home browse
+/// response, and falls back to local play history when the feed does not carry
+/// one — the shelf is account-scoped, so an anonymous or freshly-installed
+/// client never receives it.
 class SpeedDialSection extends StatelessWidget {
   const SpeedDialSection({super.key});
 
   static const String _playlistId = 'listen_again';
+
+  /// Upper bound on tiles so the section stays a glanceable strip.
+  static const int _maxTiles = 12;
+
+  /// Recent local plays used when the remote shelf is unavailable.
+  static const int _maxHistoryTiles = 8;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +43,7 @@ class SpeedDialSection extends StatelessWidget {
       return ShimmerLoading.buildShimmerList();
     }
 
-    final songs = provider.listenAgainSongs;
-
+    final songs = _resolveSongs(context, provider);
     if (songs.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -84,6 +90,33 @@ class SpeedDialSection extends StatelessWidget {
         _SpeedDialGrid(songs: songs, isDarkMode: isDarkMode),
       ],
     );
+  }
+
+  /// Remote shelf first, local play history second.
+  ///
+  /// Watching [PlayerProvider] keeps the section in sync while the history is
+  /// still being restored from disk during startup.
+  static List<SongInfo> _resolveSongs(
+    BuildContext context,
+    HomeScreenProvider provider,
+  ) {
+    final remote = provider.listenAgainSongs;
+    if (remote.isNotEmpty) {
+      return remote.length > _maxTiles ? remote.sublist(0, _maxTiles) : remote;
+    }
+
+    final history = context.watch<PlayerProvider>().lastPlayedSongs;
+    final seen = <String>{};
+    final songs = <SongInfo>[];
+
+    for (final entry in history) {
+      final song = SongInfo.fromHistoryMap(entry);
+      if (song == null || !seen.add(song.videoId)) continue;
+      songs.add(song);
+      if (songs.length >= _maxHistoryTiles) break;
+    }
+
+    return songs;
   }
 
   static Future<void> _playAll(
@@ -174,7 +207,11 @@ class _SpeedDialGrid extends StatelessWidget {
           AppDimens.maxContentWidth - AppDimens.paddingLg * 2,
         );
         final columns = math.max(2, (available / _maxTileWidth).floor());
-        final tileWidth = available / columns;
+        // The grid also spends `crossAxisSpacing` between tiles, so the real
+        // tile width is narrower than the raw share. Using the raw share made
+        // every tile taller than it was wide and stretched the covers.
+        final tileWidth =
+            (available - AppDimens.spacingMdLg * (columns - 1)) / columns;
 
         return GridView.builder(
           shrinkWrap: true,
@@ -250,10 +287,8 @@ class _SpeedDialTile extends StatelessWidget {
                       : CachedNetworkImage(
                           imageUrl: thumbnailUrl,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => _thumbnailFallback(
-                            context,
-                            showSpinner: true,
-                          ),
+                          placeholder: (context, url) =>
+                              _thumbnailFallback(context, showSpinner: true),
                           errorWidget: (context, url, error) =>
                               _thumbnailFallback(context),
                         ),

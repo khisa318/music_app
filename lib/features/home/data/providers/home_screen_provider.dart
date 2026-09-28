@@ -5,7 +5,6 @@ import 'package:get_it/get_it.dart';
 import 'package:hive_ce/hive.dart';
 import '../../../../core/models/song_model.dart';
 import '../../../../core/providers/connectivity_provider.dart';
-import '../../../trending/data/provider/trending_provider.dart';
 
 part '../../../../generated/home_screen_provider.g.dart';
 
@@ -22,8 +21,11 @@ class HomeScreenProvider with ChangeNotifier {
   List<dynamic> _homeSections = [];
 
   // Bumped whenever the cached DTO shape changes so stale entries are ignored.
-  static const String _cacheKey = 'homeSectionsV2';
-  static const String _cacheTimestampKey = 'lastFetchTimeV2';
+  // V3 stores tracks as SongContentItemDTO; V2 entries were unreadable because
+  // the contents list was cast to List<ContentItemDTO> while holding
+  // SongInfoDTO values.
+  static const String _cacheKey = 'homeSectionsV3';
+  static const String _cacheTimestampKey = 'lastFetchTimeV3';
 
   String get error => _error;
   List<dynamic> get homeSections => _homeSections;
@@ -34,21 +36,32 @@ class HomeScreenProvider with ChangeNotifier {
   /// YT Music returns this section as a list of `SongDetailed` rather than
   /// albums/playlists, so it is identified by content type instead of by title
   /// (the title is localised and has changed across app versions).
+  ///
+  /// The feed occasionally mixes a stray album or artist into the shelf, so a
+  /// section is accepted as soon as it yields a usable run of tracks rather
+  /// than only when every single item parses as a song.
   List<SongInfo> get listenAgainSongs {
+    const int minSongsPerShelf = 2;
+    const int maxSongs = 12;
+
     final results = <SongInfo>[];
+    final seen = <String>{};
 
     for (final section in _homeSections) {
       final contents = section.contents;
       if (contents is! List || contents.isEmpty) continue;
 
-      if (contents.every((c) => c is SongDetailed)) {
-        for (final content in contents.whereType<SongDetailed>()) {
-          results.add(_songDetailedToSongInfo(content));
-        }
-      } else if (contents.every((c) => c is SongInfo)) {
-        for (final content in contents.whereType<SongInfo>()) {
-          results.add(content);
-        }
+      final songs = contents
+          .whereType<SongDetailed>()
+          .map(_songDetailedToSongInfo)
+          .where((song) => seen.add(song.videoId))
+          .toList();
+
+      if (songs.length < minSongsPerShelf) continue;
+
+      for (final song in songs) {
+        results.add(song);
+        if (results.length >= maxSongs) return results;
       }
     }
 
@@ -59,9 +72,7 @@ class HomeScreenProvider with ChangeNotifier {
     return SongInfo(
       videoId: song.videoId,
       name: song.name,
-      artists: [
-        Artist(name: song.artist.name, id: song.artist.artistId ?? ''),
-      ],
+      artists: [Artist(name: song.artist.name, id: song.artist.artistId ?? '')],
       thumbnails: song.thumbnails
           .map((t) => Thumbnail(url: t.url, width: t.width, height: t.height))
           .toList(),
@@ -69,12 +80,15 @@ class HomeScreenProvider with ChangeNotifier {
     );
   }
 
-  /// True when a section is a pure track shelf, from either the live response
-  /// ([SongDetailed]) or the Hive cache ([SongInfo]).
+  /// True when a section is a track shelf, from either the live response
+  /// ([SongDetailed]) or the Hive cache (converted back to [SongDetailed]).
+  ///
+  /// Uses the same rule as [listenAgainSongs] so a shelf is never rendered as
+  /// both the Speed Dial and a carousel.
   static bool _isSongShelf(dynamic section) {
     final contents = section.contents;
     if (contents is! List || contents.isEmpty) return false;
-    return contents.every((c) => c is SongDetailed || c is SongInfo);
+    return contents.whereType<SongDetailed>().length >= 2;
   }
 
   /// Sections that are not song shelves, i.e. the album/playlist carousels.
@@ -135,17 +149,15 @@ class HomeScreenProvider with ChangeNotifier {
 
   Future<void> saveHomeSections() async {
     try {
+      final dtos = _homeSections
+          .map((section) => HomeSectionDTO.fromHomeSection(section))
+          .whereType<HomeSectionDTO>()
+          .toList();
+      if (dtos.isEmpty) return;
+
       final box = await Hive.openBox<dynamic>('home_sections_cache');
-      await box.put(
-        _cacheKey,
-        _homeSections
-            .map((section) => HomeSectionDTO.fromHomeSection(section))
-            .toList(),
-      );
-      await box.put(
-        _cacheTimestampKey,
-        DateTime.now().millisecondsSinceEpoch,
-      );
+      await box.put(_cacheKey, dtos);
+      await box.put(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('Error saving home sections: $e');
     }
@@ -155,12 +167,14 @@ class HomeScreenProvider with ChangeNotifier {
     try {
       final box = await Hive.openBox<dynamic>('home_sections_cache');
       final cachedData = box.get(_cacheKey);
-      if (cachedData != null) {
-        final newSections = (cachedData as List)
-            .cast<HomeSectionDTO>()
+      if (cachedData is List) {
+        final newSections = cachedData
+            .whereType<HomeSectionDTO>()
             .map((dto) => dto.toHomeSection())
+            .where((section) => section.contents.isNotEmpty)
             .toList();
-        if (!_collectionEquality.equals(_homeSections, newSections)) {
+        if (newSections.isNotEmpty &&
+            !_collectionEquality.equals(_homeSections, newSections)) {
           _homeSections = newSections;
         }
       }
@@ -279,51 +293,56 @@ class HomeSectionDTO {
 
   HomeSectionDTO({required this.title, required this.contents});
 
-  factory HomeSectionDTO.fromHomeSection(HomeSection section) {
-    return HomeSectionDTO(
-      title: section.title,
-      contents: section.contents.map<dynamic>((content) {
-        if (content is AlbumDetailed) {
-          return AlbumDetailedDTO.fromAlbumDetailed(content);
-        } else if (content is PlaylistDetailed) {
-          return PlaylistDetailedDTO.fromPlaylistDetailed(content);
-        } else if (content is SongDetailed) {
-          return SongInfoDTO.fromSongInfo(
-            HomeScreenProvider._songDetailedToSongInfo(content),
-          );
-        }
-        throw Exception('Unknown content type for DTO conversion');
-      }).toList(),
-    );
+  /// Converts a live section for the Hive cache.
+  ///
+  /// The home feed also carries content types that have no DTO here (artists,
+  /// videos, …). Those are dropped instead of throwing: a single unconvertible
+  /// item used to abort the whole save, which left the cache permanently empty
+  /// and forced every launch to re-fetch — or show nothing when offline.
+  static HomeSectionDTO? fromHomeSection(HomeSection section) {
+    // `whereType<Object>` rather than `whereType<dynamic>`: every element of a
+    // List<dynamic> satisfies `is dynamic`, so that would keep the nulls the
+    // converter produces for uncacheable content.
+    final contents = section.contents
+        .map<Object?>(_contentToDto)
+        .whereType<Object>()
+        .toList();
+
+    if (contents.isEmpty) return null;
+
+    return HomeSectionDTO(title: section.title, contents: contents);
+  }
+
+  static dynamic _contentToDto(dynamic content) {
+    if (content is AlbumDetailed) {
+      return AlbumDetailedDTO.fromAlbumDetailed(content);
+    } else if (content is PlaylistDetailed) {
+      return PlaylistDetailedDTO.fromPlaylistDetailed(content);
+    } else if (content is SongDetailed) {
+      return SongContentItemDTO.fromSongDetailed(content);
+    }
+    return null;
   }
 
   HomeSection toHomeSection() {
     return HomeSection(
       title: title,
-      contents: contents.map<dynamic>((dto) {
-        if (dto is AlbumDetailedDTO) {
-          return dto.toAlbumDetailed();
-        } else if (dto is PlaylistDetailedDTO) {
-          return dto.toPlaylistDetailed();
-        } else if (dto is SongInfoDTO) {
-          final song = dto.toSongInfo();
-          return SongDetailed(
-            type: 'SONG',
-            videoId: song.videoId,
-            name: song.name,
-            artist: ArtistBasic(
-              name: song.artists.isEmpty ? '' : song.artists.first.name,
-              artistId: song.artists.isEmpty ? null : song.artists.first.id,
-            ),
-            duration: song.duration.inSeconds,
-            thumbnails: song.thumbnails
-                .map((t) => ThumbnailFull(url: t.url, width: t.width, height: t.height))
-                .toList(),
-          );
-        }
-        throw Exception('Unknown content type for original conversion');
-      }).toList(),
+      contents: contents
+          .map<Object?>(_dtoToContent)
+          .whereType<Object>()
+          .toList(),
     );
+  }
+
+  static dynamic _dtoToContent(dynamic dto) {
+    if (dto is AlbumDetailedDTO) {
+      return dto.toAlbumDetailed();
+    } else if (dto is PlaylistDetailedDTO) {
+      return dto.toPlaylistDetailed();
+    } else if (dto is SongContentItemDTO) {
+      return dto.toSongDetailed();
+    }
+    return null;
   }
 }
 
@@ -414,6 +433,69 @@ class PlaylistDetailedDTO extends ContentItemDTO {
       playlistId: playlistId,
       thumbnails: thumbnails.map((t) => t.toThumbnailFull()).toList(),
       artist: ArtistBasic(name: ''),
+    );
+  }
+}
+
+/// A cached track from a song shelf.
+///
+/// Extends [ContentItemDTO] deliberately: the generated
+/// `HomeSectionDTOAdapter` reads the contents list as
+/// `List<ContentItemDTO>`, so every stored item has to be a
+/// `ContentItemDTO`. Reusing the trending module's `SongInfoDTO` here
+/// violated that and made the reader throw on the first song it met, which
+/// silently discarded the entire home cache.
+@HiveType(typeId: 9)
+class SongContentItemDTO extends ContentItemDTO {
+  @HiveField(4)
+  final String videoId;
+  @HiveField(5)
+  final int duration;
+  @HiveField(6)
+  final String artistName;
+  @HiveField(7)
+  final String? artistId;
+
+  SongContentItemDTO({
+    required super.name,
+    required super.contentType,
+    required super.playlistId,
+    required super.thumbnails,
+    required this.videoId,
+    required this.duration,
+    required this.artistName,
+    required this.artistId,
+  });
+
+  factory SongContentItemDTO.fromSongDetailed(SongDetailed song) {
+    final lastThumbnail = song.thumbnails.isEmpty ? null : song.thumbnails.last;
+
+    return SongContentItemDTO(
+      name: song.name,
+      contentType: song.type,
+      playlistId: song.videoId,
+      thumbnails: [
+        ThumbnailFullDTO(
+          url: lastThumbnail?.url ?? '',
+          width: lastThumbnail?.width ?? 0,
+          height: lastThumbnail?.height ?? 0,
+        ),
+      ],
+      videoId: song.videoId,
+      duration: song.duration ?? 0,
+      artistName: song.artist.name,
+      artistId: song.artist.artistId,
+    );
+  }
+
+  SongDetailed toSongDetailed() {
+    return SongDetailed(
+      type: contentType.isEmpty ? 'SONG' : contentType,
+      videoId: videoId,
+      name: name,
+      artist: ArtistBasic(name: artistName, artistId: artistId),
+      duration: duration,
+      thumbnails: thumbnails.map((t) => t.toThumbnailFull()).toList(),
     );
   }
 }
