@@ -14,6 +14,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(ContentItemDTOAdapter());
     registerAdapter(HomeSectionDTOAdapter());
     registerAdapter(PlaylistDetailedDTOAdapter());
+    registerAdapter(SongContentItemDTOAdapter());
     registerAdapter(SongInfoDTOAdapter());
     registerAdapter(ThumbnailDTOAdapter());
     registerAdapter(ThumbnailFullDTOAdapter());
@@ -28,6 +29,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(ContentItemDTOAdapter());
     registerAdapter(HomeSectionDTOAdapter());
     registerAdapter(PlaylistDetailedDTOAdapter());
+    registerAdapter(SongContentItemDTOAdapter());
     registerAdapter(SongInfoDTOAdapter());
     registerAdapter(ThumbnailDTOAdapter());
     registerAdapter(ThumbnailFullDTOAdapter());

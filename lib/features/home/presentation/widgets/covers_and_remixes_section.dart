@@ -30,22 +30,52 @@ class CoversAndRemixesSection extends StatefulWidget {
 }
 
 class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
+  bool _loadScheduled = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _scheduleLoad();
   }
 
-  void _load() {
-    if (!mounted) return;
-    final history = context.read<PlayerProvider>().lastPlayedSongs;
-    if (history.isEmpty) return;
-    context.read<CoversAndRemixesProvider>().load(history);
+  /// Play history is restored from disk asynchronously during startup, so the
+  /// lookup is retried from the build phase instead of only once on mount.
+  /// A one-shot read in `initState` almost always saw an empty history and
+  /// left the section permanently blank.
+  ///
+  /// Deferred to after the frame because [CoversAndRemixesProvider.load]
+  /// notifies synchronously, and that must not happen during build.
+  void _scheduleLoad() {
+    if (_loadScheduled) return;
+    _loadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadScheduled = false;
+      if (!mounted) return;
+
+      final player = context.read<PlayerProvider>();
+      if (player.isLoadingLastPlayedSongs) return;
+
+      final history = player.lastPlayedSongs;
+      if (history.isEmpty) return;
+
+      context.read<CoversAndRemixesProvider>().load(history);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Watching keeps the section in sync while the history is still being
+    // restored from disk during startup, and as playback advances the seeds.
+    final player = context.watch<PlayerProvider>();
     final provider = context.watch<CoversAndRemixesProvider>();
+
+    if (provider.results.isEmpty &&
+        !provider.isLoading &&
+        !player.isLoadingLastPlayedSongs &&
+        player.lastPlayedSongs.isNotEmpty) {
+      _scheduleLoad();
+    }
+
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
@@ -198,7 +228,11 @@ class _CoversList extends StatelessWidget {
           constraints.maxWidth - AppDimens.paddingLg * 2,
           AppDimens.maxContentWidth - AppDimens.paddingLg * 2,
         );
-        final columns = math.max(1, (available / 320).floor());
+        final columns = math.max(
+          1,
+          ((available + AppDimens.spacingMd) / (280 + AppDimens.spacingMd))
+              .floor(),
+        );
 
         return GridView.builder(
           shrinkWrap: true,
@@ -315,7 +349,11 @@ class _CoversTile extends StatelessWidget {
             ),
           ),
           if (isPlaying)
-            Icon(Icons.graphic_eq_rounded, size: AppDimens.iconMd, color: accentColor)
+            Icon(
+              Icons.graphic_eq_rounded,
+              size: AppDimens.iconMd,
+              color: accentColor,
+            )
           else
             Icon(
               Icons.play_circle_outline_rounded,
