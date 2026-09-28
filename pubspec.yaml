@@ -99,8 +99,16 @@ flutter:
 
 flutter_native_splash:
   color: "#000000"
-  image: assets/splash_logo.png
+  # The generator only density-scales its input (copyResize, pixelDensity ~/ 4)
+  # and never fits it to the screen, so the artwork has to carry its own
+  # padding. splash_native_logo.png holds the logo at 48% of the canvas, which
+  # renders as ~150dp instead of the ~254dp the unpadded source produced.
+  image: assets/splash_native_logo.png
   fullscreen: true
   android_12:
     color: "#000000"
-    image: assets/splash_logo.png
+    # Android 12 scales the animated icon into a 240dp box and only the inner
+    # 2/3 (160dp) is guaranteed visible, so this variant is padded to 60%
+    # instead. Reusing the same file as above is what made the logo look
+    # cropped and oversized on Android 12+.
+    image: assets/splash_android12_logo.png
