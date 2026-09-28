@@ -16,13 +16,14 @@ import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart
 /// The single Library destination.
 ///
 /// Follows the reference design: a large page title with actions on the
-/// right, one row of three evenly distributed filter chips, and a single flat
-/// list of dense rows (text on the left, square artwork on the right).
+/// right, one scrollable row of filter chips, and a single flat list of dense
+/// rows (text on the left, square artwork on the right).
 ///
-/// The former Playlists/Songs segment switch and the five song sub-tabs are
-/// gone; the chips pick the collection and the remaining song collections,
-/// sort options and appearance live in the filter sheet behind the header
-/// action, so no existing capability is dropped.
+/// The chips are the library's collections, in reading order: All songs,
+/// Playlists, Recently played, Downloads, Favourites, Local music. Each one is
+/// its own tab, so the previous "Songs" chip that swapped collections through
+/// the filter sheet is gone; what remains in the sheet is the favourites
+/// songs/artists switch, sort order and appearance.
 class LibraryHubScreen extends StatefulWidget {
   const LibraryHubScreen({super.key});
 
@@ -34,26 +35,27 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _filterController;
 
-  /// Which of the three chips is active.
+  /// Which of the collection chips is active.
   int _filterIndex = 0;
 
-  /// Which song collection the Songs chip shows.
-  LibrarySongScope _songScope = LibrarySongScope.all;
-
-  /// Whether the Favourites chip shows songs or artists.
+  /// Whether the Favourites collection shows songs or artists.
   LibraryFavoritesView _favoritesView = LibraryFavoritesView.songs;
 
   String _sortBy = 'title';
   bool _sortAscending = true;
 
-  static const int _playlistsFilter = 0;
-  static const int _songsFilter = 1;
-  static const int _favoritesFilter = 2;
+  // Positions within the chip and tab lists in build(). Only the destinations
+  // something can jump to are named; the rest are reached by tapping a chip.
+  static const int _playlistsFilter = 1;
+  static const int _favoritesFilter = 4;
+
+  /// One chip per collection, in the same order as the chips themselves.
+  static const int _filterCount = 6;
 
   @override
   void initState() {
     super.initState();
-    _filterController = TabController(length: 3, vsync: this)
+    _filterController = TabController(length: _filterCount, vsync: this)
       ..addListener(() {
         if (!_filterController.indexIsChanging) {
           setState(() => _filterIndex = _filterController.index);
@@ -111,15 +113,10 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
       builder: (sheetContext) => _LibraryFilterSheet(
         isDarkMode: isDarkMode,
         accentColor: accentColor,
-        songScope: _songScope,
         favoritesView: _favoritesView,
         sortBy: _sortBy,
         sortAscending: _sortAscending,
         isDarkTheme: isDarkMode,
-        onSongScopeChanged: (scope) {
-          setState(() => _songScope = scope);
-          _selectFilter(_songsFilter);
-        },
         onFavoritesViewChanged: (view) {
           setState(() => _favoritesView = view);
           _selectFilter(_favoritesFilter);
@@ -131,6 +128,29 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
           Provider.of<SettingsProvider>(context, listen: false).toggleTheme();
         },
       ),
+    );
+  }
+
+  /// One song collection as a tab of its own.
+  ///
+  /// The key is derived from the scope rather than being a constant so each
+  /// collection keeps its own scroll position and pagination state across chip
+  /// changes.
+  Widget _buildSongTab(
+    LibrarySongScope scope, {
+    LibraryFavoritesView? favoritesView,
+  }) {
+    return LibraryScreen(
+      key: ValueKey(
+        favoritesView == null
+            ? 'songs-${scope.tabKey}'
+            : 'favorites-${favoritesView.name}',
+      ),
+      scope: scope,
+      favoritesView: favoritesView,
+      sortBy: _sortBy,
+      sortAscending: _sortAscending,
+      denseArtwork: true,
     );
   }
 
@@ -155,11 +175,21 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
             ),
 
             LibraryFilterChips(
-              labels: ['playlists'.tr(), 'songs'.tr(), 'favorites'.tr()],
+              labels: [
+                'songs'.tr(),
+                'playlists'.tr(),
+                'recently_played'.tr(),
+                'downloads'.tr(),
+                'favorites'.tr(),
+                'local_music'.tr(),
+              ],
               icons: const [
-                Icons.queue_music_rounded,
                 Icons.library_music_rounded,
+                Icons.queue_music_rounded,
+                Icons.history_rounded,
+                Icons.download_rounded,
                 Icons.favorite_rounded,
+                Icons.folder_rounded,
               ],
               selectedIndex: _filterIndex,
               onSelected: _selectFilter,
@@ -172,22 +202,15 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
                 controller: _filterController,
                 physics: const BouncingScrollPhysics(),
                 children: [
+                  _buildSongTab(LibrarySongScope.all),
                   const PlaylistScreen(dense: true),
-                  LibraryScreen(
-                    key: ValueKey('songs-${_songScope.name}'),
-                    scope: _songScope,
-                    sortBy: _sortBy,
-                    sortAscending: _sortAscending,
-                    denseArtwork: true,
-                  ),
-                  LibraryScreen(
-                    key: ValueKey('favorites-${_favoritesView.name}'),
-                    scope: LibrarySongScope.favorites,
+                  _buildSongTab(LibrarySongScope.recentlyPlayed),
+                  _buildSongTab(LibrarySongScope.downloads),
+                  _buildSongTab(
+                    LibrarySongScope.favorites,
                     favoritesView: _favoritesView,
-                    sortBy: _sortBy,
-                    sortAscending: _sortAscending,
-                    denseArtwork: true,
                   ),
+                  _buildSongTab(LibrarySongScope.localMusic),
                 ],
               ),
             ),
@@ -299,17 +322,17 @@ class _HeaderIconButton extends StatelessWidget {
 // FILTER SHEET
 // =============================================================================
 
-/// Hosts the options that no longer fit on the page itself: the remaining song
-/// collections, how favourites are presented, sort order and appearance.
+/// Hosts the options that no longer fit on the page itself: how favourites are
+/// presented, sort order and appearance.
+///
+/// The song collections are not here any more; each is a chip on the page.
 class _LibraryFilterSheet extends StatelessWidget {
   final bool isDarkMode;
   final Color accentColor;
-  final LibrarySongScope songScope;
   final LibraryFavoritesView favoritesView;
   final String sortBy;
   final bool sortAscending;
   final bool isDarkTheme;
-  final ValueChanged<LibrarySongScope> onSongScopeChanged;
   final ValueChanged<LibraryFavoritesView> onFavoritesViewChanged;
   final ValueChanged<String> onSortByChanged;
   final ValueChanged<bool> onSortAscendingChanged;
@@ -318,12 +341,10 @@ class _LibraryFilterSheet extends StatelessWidget {
   const _LibraryFilterSheet({
     required this.isDarkMode,
     required this.accentColor,
-    required this.songScope,
     required this.favoritesView,
     required this.sortBy,
     required this.sortAscending,
     required this.isDarkTheme,
-    required this.onSongScopeChanged,
     required this.onFavoritesViewChanged,
     required this.onSortByChanged,
     required this.onSortAscendingChanged,
@@ -378,48 +399,6 @@ class _LibraryFilterSheet extends StatelessWidget {
               ),
 
               const SizedBox(height: AppDimens.paddingLg),
-
-              _SheetSection(
-                isDarkMode: isDarkMode,
-                title: 'songs_in_library'.tr(),
-                child: Wrap(
-                  spacing: AppDimens.spacingSm,
-                  runSpacing: AppDimens.spacingSm,
-                  children: [
-                    _SheetOption(
-                      label: 'all'.tr(),
-                      isSelected: songScope == LibrarySongScope.all,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () => onSongScopeChanged(LibrarySongScope.all),
-                    ),
-                    _SheetOption(
-                      label: 'downloads'.tr(),
-                      isSelected: songScope == LibrarySongScope.downloads,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () =>
-                          onSongScopeChanged(LibrarySongScope.downloads),
-                    ),
-                    _SheetOption(
-                      label: 'recently_played'.tr(),
-                      isSelected: songScope == LibrarySongScope.recentlyPlayed,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () =>
-                          onSongScopeChanged(LibrarySongScope.recentlyPlayed),
-                    ),
-                    _SheetOption(
-                      label: 'local_music'.tr(),
-                      isSelected: songScope == LibrarySongScope.localMusic,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () =>
-                          onSongScopeChanged(LibrarySongScope.localMusic),
-                    ),
-                  ],
-                ),
-              ),
 
               _SheetSection(
                 isDarkMode: isDarkMode,
