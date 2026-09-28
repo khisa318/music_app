@@ -13,6 +13,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../widgets/premium_card.dart';
 
 class AboutSettingsScreen extends StatelessWidget {
   const AboutSettingsScreen({super.key});
@@ -112,175 +113,6 @@ class AboutSettingsScreen extends StatelessWidget {
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
     }
-  }
-
-  Widget _buildGradientCard({
-    required Widget child,
-    required bool isDarkMode,
-    required Color accentColor,
-    double? height,
-  }) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDarkMode
-              ? [
-                  accentColor.withValues(alpha: 0.08),
-                  accentColor.withValues(alpha: 0.03),
-                ]
-              : [
-                  accentColor.withValues(alpha: 0.05),
-                  accentColor.withValues(alpha: 0.02),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
-        border: Border.all(
-          color: accentColor.withValues(alpha: AppDimens.opacityLight),
-          width: AppDimens.borderWidthThin,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withValues(alpha: 0.05),
-            blurRadius: AppDimens.paddingMd,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    required bool isDarkMode,
-    required Color accentColor,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-      child: Container(
-        padding: const EdgeInsets.all(AppDimens.paddingXl),
-        decoration: BoxDecoration(
-          color: isDarkMode
-              ? Colors.white.withValues(alpha: 0.03)
-              : Colors.black.withValues(alpha: 0.02),
-          borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-          border: Border.all(
-            color: isDarkMode
-                ? Colors.white.withValues(alpha: AppDimens.opacitySubtle)
-                : Colors.black.withValues(alpha: AppDimens.opacitySubtle),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppDimens.paddingMd),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [accentColor, accentColor.withValues(alpha: 0.7)],
-                ),
-                borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withValues(
-                      alpha: AppDimens.opacityOverlay,
-                    ),
-                    blurRadius: AppDimens.spacingSm,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: AppDimens.iconLg),
-            ),
-            SizedBox(width: AppDimens.spacingLg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.bodyLg(isDarkMode: isDarkMode),
-                  ),
-                  SizedBox(height: AppDimens.spacingXs),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.caption(isDarkMode: isDarkMode)
-                        .copyWith(
-                          color: MainScreenColors.getTextColor(
-                            isDarkMode,
-                          ).withValues(alpha: AppDimens.opacityMid),
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: accentColor,
-              size: AppDimens.iconSm,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required Color accentColor,
-    required bool isDarkMode,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: AppDimens.paddingXl),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accentColor.withValues(alpha: 0.15),
-                accentColor.withValues(alpha: 0.08),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-            border: Border.all(
-              color: accentColor.withValues(alpha: AppDimens.opacityMedium),
-              width: AppDimens.borderWidthThick,
-            ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppDimens.paddingMd),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: accentColor, size: AppDimens.iconXl),
-              ),
-              SizedBox(height: AppDimens.spacingMd),
-              Text(
-                label,
-                style: AppTextStyles.body2(
-                  isDarkMode: isDarkMode,
-                ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -505,7 +337,7 @@ class AboutSettingsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildGradientCard(
+                          PremiumGradientCard(
                             isDarkMode: isDarkMode,
                             accentColor: accentColor,
                             child: Padding(
@@ -570,17 +402,12 @@ class AboutSettingsScreen extends StatelessWidget {
                             ),
                           ),
 
-                          SizedBox(height: AppDimens.spacingXxxl),
-
-                          Text(
-                            'development'.tr(),
-                            style: AppTextStyles.heading(
-                              isDarkMode: isDarkMode,
-                            ),
+                          PremiumSectionLabel(
+                            title: 'development'.tr(),
+                            isDarkMode: isDarkMode,
                           ),
-                          SizedBox(height: AppDimens.spacingLg),
 
-                          _buildGradientCard(
+                          PremiumGradientCard(
                             isDarkMode: isDarkMode,
                             accentColor: accentColor,
                             child: Padding(
@@ -856,17 +683,12 @@ class AboutSettingsScreen extends StatelessWidget {
                             ),
                           ),
 
-                          SizedBox(height: AppDimens.spacingXxxl),
-
-                          Text(
-                            'project'.tr(),
-                            style: AppTextStyles.heading(
-                              isDarkMode: isDarkMode,
-                            ),
+                          PremiumSectionLabel(
+                            title: 'project'.tr(),
+                            isDarkMode: isDarkMode,
                           ),
-                          SizedBox(height: AppDimens.spacingLg),
 
-                          _buildActionCard(
+                          PremiumActionCard(
                             icon: Icons.code_rounded,
                             title: 'github_repository'.tr(),
                             subtitle: 'View source code',
@@ -878,7 +700,7 @@ class AboutSettingsScreen extends StatelessWidget {
 
                           SizedBox(height: AppDimens.spacingMd),
 
-                          _buildActionCard(
+                          PremiumActionCard(
                             icon: Icons.volunteer_activism_rounded,
                             title: 'contribute'.tr(),
                             subtitle: 'help_improve_noize'.tr(),
@@ -891,7 +713,7 @@ class AboutSettingsScreen extends StatelessWidget {
 
                           SizedBox(height: AppDimens.spacingMd),
 
-                          _buildActionCard(
+                          PremiumActionCard(
                             icon: Icons.new_releases_rounded,
                             title: 'release_notes'.tr(),
                             subtitle: 'see_release_notes_subtitle'.tr(),
@@ -906,7 +728,7 @@ class AboutSettingsScreen extends StatelessWidget {
 
                           SizedBox(height: AppDimens.spacingMd),
 
-                          _buildActionCard(
+                          PremiumActionCard(
                             icon: Icons.description_rounded,
                             title: 'open_source_licenses_card_title'.tr(),
                             subtitle: 'open_source_licenses_description'.tr(),
@@ -920,17 +742,12 @@ class AboutSettingsScreen extends StatelessWidget {
                             accentColor: accentColor,
                           ),
 
-                          SizedBox(height: AppDimens.spacingXxxl),
-
-                          Text(
-                            'contact_and_support'.tr(),
-                            style: AppTextStyles.heading(
-                              isDarkMode: isDarkMode,
-                            ),
+                          PremiumSectionLabel(
+                            title: 'contact_and_support'.tr(),
+                            isDarkMode: isDarkMode,
                           ),
-                          SizedBox(height: AppDimens.spacingLg),
 
-                          _buildGradientCard(
+                          PremiumGradientCard(
                             isDarkMode: isDarkMode,
                             accentColor: accentColor,
                             child: Padding(
@@ -973,81 +790,45 @@ class AboutSettingsScreen extends StatelessWidget {
                                         ),
                                   ),
                                   SizedBox(height: AppDimens.spacingXxl),
-                                  isDesktop
-                                      ? Row(
-                                          children: [
-                                            _buildSocialButton(
-                                              icon: Icons.telegram,
-                                              label: 'Telegram',
-                                              onTap: () => _launchURL(
-                                                'https://t.me/NoizeUpdates',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                            SizedBox(
-                                              width: AppDimens.spacingMd,
-                                            ),
-                                            _buildSocialButton(
-                                              icon: Icons.email_rounded,
-                                              label: 'Email',
-                                              onTap: () => _launchURL(
-                                                'mailto:gravityappslabin@gmail.com',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                            SizedBox(
-                                              width: AppDimens.spacingMd,
-                                            ),
-                                            _buildSocialButton(
-                                              icon: Icons.language_rounded,
-                                              label: 'Website',
-                                              onTap: () => _launchURL(
-                                                'https://noizeapp.netlify.app/',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                          ],
-                                        )
-                                      : Row(
-                                          children: [
-                                            _buildSocialButton(
-                                              icon: Icons.telegram,
-                                              label: 'Telegram',
-                                              onTap: () => _launchURL(
-                                                'https://t.me/NoizeUpdates',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                            SizedBox(
-                                              width: AppDimens.spacingMd,
-                                            ),
-                                            _buildSocialButton(
-                                              icon: Icons.email_rounded,
-                                              label: 'Email',
-                                              onTap: () => _launchURL(
-                                                'mailto:gravityappslabin@gmail.com',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                            SizedBox(
-                                              width: AppDimens.spacingMd,
-                                            ),
-                                            _buildSocialButton(
-                                              icon: Icons.language_rounded,
-                                              label: 'Website',
-                                              onTap: () => _launchURL(
-                                                'https://noizeapp.netlify.app/',
-                                              ),
-                                              accentColor: accentColor,
-                                              isDarkMode: isDarkMode,
-                                            ),
-                                          ],
+                                  // The desktop and mobile branches were byte
+                                  // identical, so the split bought nothing.
+                                  Row(
+                                    children: [
+                                      PremiumSocialButton(
+                                        icon: Icons.telegram,
+                                        label: 'Telegram',
+                                        onTap: () => _launchURL(
+                                          'https://t.me/NoizeUpdates',
                                         ),
+                                        accentColor: accentColor,
+                                        isDarkMode: isDarkMode,
+                                      ),
+                                      SizedBox(
+                                        width: AppDimens.spacingMd,
+                                      ),
+                                      PremiumSocialButton(
+                                        icon: Icons.email_rounded,
+                                        label: 'Email',
+                                        onTap: () => _launchURL(
+                                          'mailto:gravityappslabin@gmail.com',
+                                        ),
+                                        accentColor: accentColor,
+                                        isDarkMode: isDarkMode,
+                                      ),
+                                      SizedBox(
+                                        width: AppDimens.spacingMd,
+                                      ),
+                                      PremiumSocialButton(
+                                        icon: Icons.language_rounded,
+                                        label: 'Website',
+                                        onTap: () => _launchURL(
+                                          'https://noizeapp.netlify.app/',
+                                        ),
+                                        accentColor: accentColor,
+                                        isDarkMode: isDarkMode,
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
