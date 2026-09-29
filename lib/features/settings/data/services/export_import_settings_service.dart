@@ -65,17 +65,7 @@ class ExportImportSettingsService {
 
   Future<String> createExportFile(Map<String, dynamic> exportData) async {
     final jsonString = json.encode(exportData);
-    String directoryPath;
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      directoryPath = '/storage/emulated/0/Download/Noize/Exports';
-    } else if (defaultTargetPlatform == TargetPlatform.windows) {
-      final directory = await getApplicationDocumentsDirectory();
-      directoryPath = '${directory.path}/noize/exports';
-    } else {
-      final directory = await getApplicationDocumentsDirectory();
-      directoryPath = directory.path;
-    }
+    const directoryPath = '/storage/emulated/0/Download/Noize/Exports';
 
     final Directory exportDirectory = Directory(directoryPath);
     if (!await exportDirectory.exists()) {

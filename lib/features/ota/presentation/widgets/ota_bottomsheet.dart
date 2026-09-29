@@ -1,6 +1,5 @@
-import 'package:easy_localization/easy_localization.dart';
+﻿import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
@@ -95,25 +94,17 @@ class OTABottomSheet extends StatelessWidget {
               height: AppDimens.buttonHeightLarge,
               child: ElevatedButton(
                 onPressed: () {
-                  if (Platform.isLinux) {
-                    otaProvider.openReleasePage();
-                    otaProvider.setUpdateUIShown(false);
-                    Navigator.pop(context);
-                  } else {
-                    otaProvider.setOTAScreenActive(true);
-                    Navigator.pop(context);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const OTAScreen(),
-                        ),
-                      ).then((_) {
-                        otaProvider.setOTAScreenActive(false);
-                        otaProvider.setUpdateUIShown(false);
-                      });
+                  otaProvider.setOTAScreenActive(true);
+                  Navigator.pop(context);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const OTAScreen()),
+                    ).then((_) {
+                      otaProvider.setOTAScreenActive(false);
+                      otaProvider.setUpdateUIShown(false);
                     });
-                  }
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
@@ -123,7 +114,7 @@ class OTABottomSheet extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  Platform.isLinux ? 'Open Releases' : 'update_now'.tr(),
+                  'update_now'.tr(),
                   style: AppTextStyles.subtitle(
                     isDarkMode: isDarkMode,
                   ).copyWith(fontWeight: AppTextStyles.weightBold),

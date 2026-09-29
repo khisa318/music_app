@@ -22,10 +22,6 @@ class LocalFolderManagementScreen extends StatefulWidget {
 class _LocalFolderManagementScreenState
     extends State<LocalFolderManagementScreen> {
   bool _containsFolder(List<String> folders, String folder) {
-    if (Platform.isWindows) {
-      final normalizedFolder = folder.toLowerCase();
-      return folders.any((f) => f.toLowerCase() == normalizedFolder);
-    }
     return folders.contains(folder);
   }
 
@@ -150,58 +146,48 @@ class _LocalFolderManagementScreenState
                             if (extension.isNotEmpty &&
                                 extension.startsWith('.')) {
                               final extLower = extension.toLowerCase();
-                              if ((Platform.isWindows || Platform.isLinux) &&
-                                  extLower == '.ogg') {
+                              final includedExts = settings.includedExtensions
+                                  .map((e) => e.toLowerCase())
+                                  .toSet();
+                              final excludedExts = settings.excludedExtensions
+                                  .map((e) => e.toLowerCase())
+                                  .toSet();
+
+                              if (include && excludedExts.contains(extLower)) {
                                 AppSnackBar.showWarning(
                                   context,
-                                  '".ogg" files are not supported on Windows/Linux',
+                                  'Extension already exists in excluded extensions',
                                 );
-                              } else {
-                                final includedExts = settings.includedExtensions
-                                    .map((e) => e.toLowerCase())
-                                    .toSet();
-                                final excludedExts = settings.excludedExtensions
-                                    .map((e) => e.toLowerCase())
-                                    .toSet();
-
-                                if (include &&
-                                    excludedExts.contains(extLower)) {
-                                  AppSnackBar.showWarning(
-                                    context,
-                                    'Extension already exists in excluded extensions',
-                                  );
-                                  Navigator.pop(context);
-                                  return;
-                                }
-
-                                if (!include &&
-                                    includedExts.contains(extLower)) {
-                                  AppSnackBar.showWarning(
-                                    context,
-                                    'Extension already exists in included extensions',
-                                  );
-                                  Navigator.pop(context);
-                                  return;
-                                }
-
-                                setState(() {
-                                  if (include) {
-                                    if (!includedExts.contains(extLower)) {
-                                      settings.includedExtensions = [
-                                        ...settings.includedExtensions,
-                                        extLower,
-                                      ];
-                                    }
-                                  } else {
-                                    if (!excludedExts.contains(extLower)) {
-                                      settings.excludedExtensions = [
-                                        ...settings.excludedExtensions,
-                                        extLower,
-                                      ];
-                                    }
-                                  }
-                                });
+                                Navigator.pop(context);
+                                return;
                               }
+
+                              if (!include && includedExts.contains(extLower)) {
+                                AppSnackBar.showWarning(
+                                  context,
+                                  'Extension already exists in included extensions',
+                                );
+                                Navigator.pop(context);
+                                return;
+                              }
+
+                              setState(() {
+                                if (include) {
+                                  if (!includedExts.contains(extLower)) {
+                                    settings.includedExtensions = [
+                                      ...settings.includedExtensions,
+                                      extLower,
+                                    ];
+                                  }
+                                } else {
+                                  if (!excludedExts.contains(extLower)) {
+                                    settings.excludedExtensions = [
+                                      ...settings.excludedExtensions,
+                                      extLower,
+                                    ];
+                                  }
+                                }
+                              });
                             }
                             Navigator.pop(context);
                           },

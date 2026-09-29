@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -102,18 +101,10 @@ class AppearanceSettingsSection extends StatelessWidget {
               },
             ),
 
-            if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)
-              _AdaptiveColorSettingsItem(
-                isDarkMode: isDarkMode,
-                accentColor: accentColor,
-                platform: TargetPlatform.android,
-              ),
-            if (Platform.isWindows)
-              _AdaptiveColorSettingsItem(
-                isDarkMode: isDarkMode,
-                accentColor: accentColor,
-                platform: TargetPlatform.windows,
-              ),
+            _AdaptiveColorSettingsItem(
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
+            ),
 
             SettingsItem(
               icon: Icons.movie_rounded,
@@ -299,12 +290,10 @@ class AppearanceSettingsSection extends StatelessWidget {
 class _AdaptiveColorSettingsItem extends StatefulWidget {
   final bool isDarkMode;
   final Color accentColor;
-  final TargetPlatform platform;
 
   const _AdaptiveColorSettingsItem({
     required this.isDarkMode,
     required this.accentColor,
-    required this.platform,
   });
 
   @override
@@ -319,9 +308,7 @@ class _AdaptiveColorSettingsItemState
   @override
   void initState() {
     super.initState();
-    _adaptiveColorFuture = widget.platform == TargetPlatform.windows
-        ? DynamicColorPlugin.getAccentColor()
-        : DynamicColorPlugin.getCorePalette();
+    _adaptiveColorFuture = DynamicColorPlugin.getCorePalette();
   }
 
   @override
@@ -346,17 +333,13 @@ class _AdaptiveColorSettingsItemState
               onChanged: (value) async {
                 if (value) {
                   Color? dynamicColor;
-                  if (widget.platform == TargetPlatform.windows) {
-                    dynamicColor = colorData as Color?;
-                  } else {
-                    final core = colorData;
-                    try {
-                      final int? primaryTonal = core.primary.get(40);
-                      if (primaryTonal != null) {
-                        dynamicColor = Color(primaryTonal);
-                      }
-                    } catch (_) {}
-                  }
+                  final core = colorData;
+                  try {
+                    final int? primaryTonal = core.primary.get(40);
+                    if (primaryTonal != null) {
+                      dynamicColor = Color(primaryTonal);
+                    }
+                  } catch (_) {}
                   await settingsProvider.setAdaptiveColorEnabled(
                     true,
                     dynamicColor: dynamicColor,

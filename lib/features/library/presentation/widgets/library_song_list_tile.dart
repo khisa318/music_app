@@ -76,15 +76,11 @@ class LibrarySongListTile extends StatelessWidget {
   Widget buildArtwork(double uiScale) {
     final double size = AppDimens.thumbnailDefault * uiScale;
     if (song['isLocal'] == true) {
-      if (Platform.isWindows || Platform.isLinux) {
-        return LocalArtworkWidget(song: song, uiScale: uiScale);
-      } else {
-        return _AndroidArtworkWidget(
-          id: int.parse(song['id']),
-          size: size,
-          uiScale: uiScale,
-        );
-      }
+      return _AndroidArtworkWidget(
+        id: int.parse(song['id']),
+        size: size,
+        uiScale: uiScale,
+      );
     } else {
       return ClipRRect(
         borderRadius: BorderRadius.circular(AppDimens.radiusSm * uiScale),

@@ -59,11 +59,6 @@ class OTAProvider with ChangeNotifier {
   }) async {
     if (_status == OTAStatus.checking) return;
 
-    if (Platform.isLinux) {
-      _setStatus(OTAStatus.idle);
-      return;
-    }
-
     if (showChecking) {
       _setStatus(OTAStatus.checking);
     }
@@ -75,11 +70,7 @@ class OTAProvider with ChangeNotifier {
       final currentVersion = packageInfo.version;
       final currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 1;
 
-      final platform = Platform.isAndroid
-          ? 'android'
-          : Platform.isWindows
-          ? 'windows'
-          : 'linux';
+      const platform = 'android';
       final updateUrl = '$_baseUpdateUrl/$platform-update-$_updateChannel.json';
 
       final response = await _dio.get(updateUrl);
@@ -88,11 +79,9 @@ class OTAProvider with ChangeNotifier {
           : response.data;
 
       String? deviceAbi;
-      if (Platform.isAndroid) {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        final abis = androidInfo.supportedAbis;
-        deviceAbi = abis.isNotEmpty ? abis.first : 'arm64-v8a';
-      }
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      final abis = androidInfo.supportedAbis;
+      deviceAbi = abis.isNotEmpty ? abis.first : 'arm64-v8a';
 
       final updateInfo = OTAUpdateInfo.fromJson(data, deviceAbi: deviceAbi);
 
@@ -109,7 +98,7 @@ class OTAProvider with ChangeNotifier {
 
       if (isUpdateAvailable) {
         final directory = await getApplicationDocumentsDirectory();
-        final extension = Platform.isAndroid ? 'apk' : 'msix';
+        const extension = 'apk';
         final fileName = 'musix-music-${updateInfo.latestVersion}.$extension';
         final filePath = '${directory.path}/noize/$fileName';
         final file = File(filePath);
@@ -177,14 +166,10 @@ class OTAProvider with ChangeNotifier {
   }
 
   Future<void> downloadUpdate() async {
-    if (Platform.isLinux) {
-      return;
-    }
-
     if (_updateInfo == null || _status == OTAStatus.downloading) return;
 
     final directory = await getApplicationDocumentsDirectory();
-    final extension = Platform.isAndroid ? 'apk' : 'msix';
+    const extension = 'apk';
     final fileName = 'musix-music-${_updateInfo!.latestVersion}.$extension';
     final filePath = '${directory.path}/noize/$fileName';
     final file = File(filePath);
@@ -273,60 +258,31 @@ class OTAProvider with ChangeNotifier {
   }
 
   Future<void> installUpdate() async {
-    if (Platform.isLinux) {
-      // nothing to install via OTA
-      return;
-    }
-
     if (_downloadedFilePath == null || _status != OTAStatus.downloaded) return;
 
     _setStatus(OTAStatus.installing);
 
     try {
-      if (Platform.isAndroid) {
-        final status = await Permission.requestInstallPackages.request();
+      final status = await Permission.requestInstallPackages.request();
 
-        if (status.isGranted) {
-          final result = await AndroidPackageInstaller.installApk(
-            apkFilePath: _downloadedFilePath!,
-          );
+      if (status.isGranted) {
+        final result = await AndroidPackageInstaller.installApk(
+          apkFilePath: _downloadedFilePath!,
+        );
 
-          if (result == 0) {
-            _setStatus(OTAStatus.installed);
-            await _cleanupDownloadedFile();
-          } else {
-            _handleError(
-              OTAError.installError,
-              'Installation failed with code: $result',
-            );
-          }
-        } else {
-          _handleError(
-            OTAError.permissionError,
-            'Permission to install packages denied.',
-          );
-        }
-      } else if (Platform.isWindows) {
-        final result = await Process.run('powershell', [
-          '-Command',
-          'Add-AppxPackage -Path "$_downloadedFilePath" -ForceApplicationShutdown; '
-              r"$pkg = Get-AppxPackage -Name 'com.anand.noize'; "
-              r'if ($pkg) { Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!App" }',
-        ], runInShell: true);
-
-        if (result.exitCode == 0) {
+        if (result == 0) {
           _setStatus(OTAStatus.installed);
           await _cleanupDownloadedFile();
         } else {
           _handleError(
             OTAError.installError,
-            'Installation failed: ${result.stderr}',
+            'Installation failed with code: $result',
           );
         }
       } else {
         _handleError(
-          OTAError.installError,
-          'Installation not supported on this platform',
+          OTAError.permissionError,
+          'Permission to install packages denied.',
         );
       }
     } catch (e) {

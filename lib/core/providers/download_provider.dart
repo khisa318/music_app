@@ -79,26 +79,18 @@ class DownloadProvider with ChangeNotifier {
     final settingsProvider = GetIt.I<SettingsProvider>();
     if (!settingsProvider.notificationsEnabled) return false;
 
-    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+    try {
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    } on MissingPluginException catch (e) {
+      debugPrint(
+        'Notification permission check unavailable, assuming granted: $e',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error while checking notification permission: $e');
       return true;
     }
-
-    if (Platform.isAndroid || Platform.isIOS) {
-      try {
-        final status = await Permission.notification.status;
-        return status.isGranted;
-      } on MissingPluginException catch (e) {
-        debugPrint(
-          'Notification permission check unavailable, assuming granted: $e',
-        );
-        return true;
-      } catch (e) {
-        debugPrint('Error while checking notification permission: $e');
-        return true;
-      }
-    }
-
-    return true;
   }
 
   Future<void> _initializeDownloads() async {

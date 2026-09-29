@@ -36,8 +36,7 @@ class VoiceSearchService extends ChangeNotifier {
   List<LocaleName> get locales => _locales;
   String get currentLocale => _currentLocale;
 
-  bool get _isMobilePlatform =>
-      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _isMobilePlatform => true;
 
   /// Initialize the speech recognition service.
   Future<bool> initialize() async {

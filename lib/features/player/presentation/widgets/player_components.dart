@@ -326,21 +326,19 @@ class PlayerComponents {
     final screenWidth = MediaQuery.of(context).size.width;
     final shortestSide = MediaQuery.of(context).size.shortestSide;
     final isTablet = shortestSide >= AppDimens.breakpointTabletShort;
-    final isDesktop =
-        Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
     final compactScale = isTablet ? 0.85 : 0.95;
     final isCompact = screenWidth < AppDimens.breakpointSmallMobile;
     final uiScale = isCompact ? 0.75 : compactScale;
 
     final titleFontSize =
-        (screenWidth * (isDesktop ? 0.035 : (isTablet ? 0.04 : 0.06)) * uiScale)
+        (screenWidth * (isTablet ? 0.04 : 0.06) * uiScale)
             .clamp(
               AppTextStyles.fontSizeBody2,
               AppTextStyles.fontSizeHeadingLg,
             );
     final artistFontSize =
-        (screenWidth * (isDesktop ? 0.025 : (isTablet ? 0.03 : 0.04)) * uiScale)
+        (screenWidth * (isTablet ? 0.03 : 0.04) * uiScale)
             .clamp(AppTextStyles.fontSizeXs, AppTextStyles.fontSizeTitle);
     final spacingBetween = AppDimens.spacingXxs * (isCompact ? 0.5 : 0.7);
 

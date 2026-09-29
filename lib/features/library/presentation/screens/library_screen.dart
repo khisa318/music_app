@@ -902,38 +902,36 @@ class _LibraryScreenState extends State<LibraryScreen>
     bool isDarkMode,
     Color accentColor,
   ) {
-    if (!Platform.isWindows && !Platform.isLinux) {
-      final status = libraryProvider.localPermissionStatus;
-      if (status == LocalPermissionStatus.unknown) {
-        return Center(child: CircularProgressIndicator(color: accentColor));
-      }
-      if (status == LocalPermissionStatus.denied ||
-          status == LocalPermissionStatus.permanentlyDenied) {
-        return RefreshIndicator(
-          onRefresh: libraryProvider.refreshLibraryData,
-          color: accentColor,
-          child: LayoutBuilder(
-            builder:
-                (BuildContext context, BoxConstraints viewportConstraints) {
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: viewportConstraints.maxHeight,
-                      ),
-                      child: _buildPermissionRequired(
-                        isDarkMode: isDarkMode,
-                        accentColor: accentColor,
-                        isPermanentlyDenied:
-                            status == LocalPermissionStatus.permanentlyDenied,
-                        libraryProvider: libraryProvider,
-                      ),
-                    ),
-                  );
-                },
-          ),
-        );
-      }
+    final status = libraryProvider.localPermissionStatus;
+    if (status == LocalPermissionStatus.unknown) {
+      return Center(child: CircularProgressIndicator(color: accentColor));
+    }
+    if (status == LocalPermissionStatus.denied ||
+        status == LocalPermissionStatus.permanentlyDenied) {
+      return RefreshIndicator(
+        onRefresh: libraryProvider.refreshLibraryData,
+        color: accentColor,
+        child: LayoutBuilder(
+          builder:
+              (BuildContext context, BoxConstraints viewportConstraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: viewportConstraints.maxHeight,
+                ),
+                child: _buildPermissionRequired(
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                  isPermanentlyDenied:
+                      status == LocalPermissionStatus.permanentlyDenied,
+                  libraryProvider: libraryProvider,
+                ),
+              ),
+            );
+          },
+        ),
+      );
     }
 
     if (libraryProvider.isLoadingLocalSongs) {
@@ -948,40 +946,21 @@ class _LibraryScreenState extends State<LibraryScreen>
     List<Map<String, dynamic>> songs = libraryProvider.localSongs;
 
     if (_selectedFilter == 'Download') {
-      if (Platform.isWindows || Platform.isLinux) {
-        songs = songs
-            .where(
-              (song) => (song['localPath'] as String).toLowerCase().contains(
-                'download',
-              ),
-            )
-            .toList();
-      } else {
-        songs = songs
-            .where(
-              (song) => (song['localPath'] as String).contains(
-                '/storage/emulated/0/Download',
-              ),
-            )
-            .toList();
-      }
+      songs = songs
+          .where(
+            (song) => (song['localPath'] as String).contains(
+              '/storage/emulated/0/Download',
+            ),
+          )
+          .toList();
     } else if (_selectedFilter == 'Music') {
-      if (Platform.isWindows || Platform.isLinux) {
-        songs = songs
-            .where(
-              (song) =>
-                  (song['localPath'] as String).toLowerCase().contains('music'),
-            )
-            .toList();
-      } else {
-        songs = songs
-            .where(
-              (song) => (song['localPath'] as String).contains(
-                '/storage/emulated/0/Music',
-              ),
-            )
-            .toList();
-      }
+      songs = songs
+          .where(
+            (song) => (song['localPath'] as String).contains(
+              '/storage/emulated/0/Music',
+            ),
+          )
+          .toList();
     } else if (_selectedFilter != 'All') {
       songs = songs
           .where(
