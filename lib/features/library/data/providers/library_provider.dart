@@ -1,9 +1,8 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:metadata_god/metadata_god.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../../../core/services/local_songs_service.dart';
@@ -164,104 +163,36 @@ class LibraryProvider with ChangeNotifier {
     try {
       List<Map<String, dynamic>> songs = [];
 
-      if (Platform.isWindows || Platform.isLinux) {
-        final userDirectory = Platform.environment['USERPROFILE'];
-        final List<Directory> dirsToScan = [];
-
-        if (userDirectory != null) {
-          dirsToScan.add(
-            Directory('$userDirectory${Platform.pathSeparator}Music'),
-          );
-          dirsToScan.add(
-            Directory('$userDirectory${Platform.pathSeparator}Downloads'),
-          );
-        }
-
-        for (final folder in _settingsProvider.includedFolders) {
-          final normalized = folder.replaceAll('/', Platform.pathSeparator);
-          final dir = Directory(normalized);
-          if (!dirsToScan.any((d) => d.path == dir.path)) dirsToScan.add(dir);
-        }
-
-        final seen = <String>{};
-        for (final dir in dirsToScan) {
-          try {
-            if (!dir.existsSync()) continue;
-            final audioFiles = await _findAudioFiles(dir);
-            for (final file in audioFiles) {
-              if (!seen.add(file.path)) continue;
-
-              try {
-                final metadata = await MetadataGod.readMetadata(
-                  file: file.path,
-                );
-                final duration = metadata.duration?.inSeconds ?? 0;
-
-                if (duration >= _settingsProvider.minSongDuration) {
-                  songs.add({
-                    'id': file.path.hashCode.toString(),
-                    'title':
-                        metadata.title ??
-                        file.path.split(Platform.pathSeparator).last,
-                    'artist': metadata.artist ?? 'unknown_artist'.tr(),
-                    'duration': duration,
-                    'isLocal': true,
-                    'localPath': file.path,
-                    'albumId': metadata.album ?? '',
-                    'thumbnail': null,
-                  });
-                }
-              } catch (e) {
-                debugPrint('Error reading metadata for ${file.path}: $e');
-                final fileName = file.path.split(Platform.pathSeparator).last;
-                songs.add({
-                  'id': file.path.hashCode.toString(),
-                  'title': fileName,
-                  'artist': 'unknown_artist'.tr(),
-                  'duration': 0,
-                  'isLocal': true,
-                  'localPath': file.path,
-                  'albumId': '',
-                  'thumbnail': null,
-                });
-              }
-            }
-          } catch (e) {
-            debugPrint('Failed scanning directory ${dir.path}: $e');
-          }
-        }
-      } else {
-        List<Map<String, dynamic>> allSongs;
-        try {
-          final service = LocalSongsService();
-          allSongs = await service.querySongs();
-        } catch (e) {
-          debugPrint('Error querying songs: $e');
-          _isLoadingLocalSongs = false;
-          notifyListeners();
-          return;
-        }
-
-        songs = allSongs
-            .where(
-              (song) =>
-                  ((song['durationMs'] as int?) ?? 0) >=
-                  (_settingsProvider.minSongDuration * 1000),
-            )
-            .map(
-              (song) => {
-                'id': song['id'].toString(),
-                'title': song['title'] ?? 'Unknown',
-                'artist': song['artist'] ?? 'unknown_artist'.tr(),
-                'duration': song['duration'] ?? 0,
-                'isLocal': true,
-                'localPath': song['data'] ?? '',
-                'albumId': song['albumId'],
-                'thumbnail': null,
-              },
-            )
-            .toList();
+      List<Map<String, dynamic>> allSongs;
+      try {
+        final service = LocalSongsService();
+        allSongs = await service.querySongs();
+      } catch (e) {
+        debugPrint('Error querying songs: $e');
+        _isLoadingLocalSongs = false;
+        notifyListeners();
+        return;
       }
+
+      songs = allSongs
+          .where(
+            (song) =>
+                ((song['durationMs'] as int?) ?? 0) >=
+                (_settingsProvider.minSongDuration * 1000),
+          )
+          .map(
+            (song) => {
+              'id': song['id'].toString(),
+              'title': song['title'] ?? 'Unknown',
+              'artist': song['artist'] ?? 'unknown_artist'.tr(),
+              'duration': song['duration'] ?? 0,
+              'isLocal': true,
+              'localPath': song['data'] ?? '',
+              'albumId': song['albumId'],
+              'thumbnail': null,
+            },
+          )
+          .toList();
 
       final includedFolders = _settingsProvider.includedFolders;
       final excludedFolders = _settingsProvider.excludedFolders;
@@ -273,20 +204,14 @@ class LibraryProvider with ChangeNotifier {
               .replaceAll('/', Platform.pathSeparator)
               .toLowerCase();
 
-          if (Platform.isWindows || Platform.isLinux) {
-            return includedFolders.any((folder) {
-              final norm = folder
-                  .replaceAll('/', Platform.pathSeparator)
-                  .toLowerCase();
-              return path.startsWith(norm);
-            });
-          } else {
+          if (includedFolders.isNotEmpty) {
             return includedFolders.any(
                   (folder) => rawPath.startsWith(folder),
                 ) ||
                 path.contains('/storage/emulated/0/Download') ||
                 path.contains('/storage/emulated/0/Music');
           }
+          return true;
         }).toList();
       }
 
@@ -326,35 +251,6 @@ class LibraryProvider with ChangeNotifier {
       _isLoadingLocalSongs = false;
       notifyListeners();
     }
-  }
-
-  Future<List<File>> _findAudioFiles(Directory directory) async {
-    final List<File> audioFiles = [];
-    try {
-      await for (final entity in directory.list(
-        recursive: true,
-        followLinks: false,
-      )) {
-        try {
-          if (entity is File && _isAudioFile(entity)) {
-            audioFiles.add(entity);
-          }
-        } catch (e) {
-          debugPrint('Skipping entry ${entity.path}: $e');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error listing directory ${directory.path}: $e');
-    }
-    return audioFiles;
-  }
-
-  bool _isAudioFile(File file) {
-    final extension = file.path.split('.').last.toLowerCase();
-    if (Platform.isWindows || Platform.isLinux) {
-      return ['mp3', 'wav', 'aac', 'flac', 'm4a'].contains(extension);
-    }
-    return ['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a'].contains(extension);
   }
 
   Future<void> loadLibraryData() async {

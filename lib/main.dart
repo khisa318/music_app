@@ -33,8 +33,6 @@ import 'core/providers/video_info_provider.dart';
 import 'core/services/crash_log_service.dart';
 import 'core/services/download_notification_service.dart';
 import 'core/services/intent_service.dart';
-import 'core/services/smtc_service.dart';
-import 'core/services/windows_file_service.dart';
 
 import 'core/theme/app_theme.dart';
 
@@ -265,7 +263,7 @@ Future<void> main() async {
       // DOWNLOAD NOTIFICATIONS
       // ------------------------------------------------------------
 
-      if (Platform.isAndroid || Platform.isWindows || Platform.isLinux) {
+      if (Platform.isAndroid) {
         try {
           final notificationService = DownloadNotificationService();
 
@@ -290,20 +288,6 @@ Future<void> main() async {
           talker.info('Android audio session initialized');
         } catch (e, st) {
           talker.handle(e, st, 'Audio session initialization failed');
-        }
-      }
-
-      // ------------------------------------------------------------
-      // WINDOWS SMTC
-      // ------------------------------------------------------------
-
-      if (Platform.isWindows) {
-        try {
-          await SmtcService.ensureInitialized();
-
-          talker.info('Windows SMTC initialized');
-        } catch (e, st) {
-          talker.handle(e, st, 'Windows SMTC initialization failed');
         }
       }
 
@@ -502,8 +486,6 @@ class MusiXApp extends StatefulWidget {
 class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
   IntentService? _intentService;
 
-  WindowsFileService? _windowsFileService;
-
   @override
   void initState() {
     super.initState();
@@ -522,27 +504,11 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
 
       _intentService?.init();
     }
-
-    // ------------------------------------------------------------
-    // WINDOWS FILE SERVICE
-    // ------------------------------------------------------------
-
-    if (Platform.isWindows) {
-      _windowsFileService = WindowsFileService(
-        Provider.of<PlayerProvider>(context, listen: false),
-      );
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _windowsFileService?.init();
-      });
-    }
   }
 
   @override
   void dispose() {
     _intentService?.dispose();
-
-    _windowsFileService?.dispose();
 
     WidgetsBinding.instance.removeObserver(this);
 

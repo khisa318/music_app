@@ -58,23 +58,15 @@ class GeneralSettingsSection extends StatelessWidget {
             Consumer<SettingsProvider>(
               builder: (context, settingsProvider, child) {
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
-                  if (Platform.isAndroid || Platform.isIOS) {
-                    try {
-                      PermissionStatus status =
-                          await Permission.notification.status;
-                      if (!status.isGranted &&
-                          settingsProvider.notificationsEnabled) {
-                        settingsProvider.notificationsEnabled = false;
-                      }
-                    } catch (e) {
-                      debugPrint(
-                        'Notification permission check failed: $e',
-                      );
-
-                      if (!Platform.isAndroid && !Platform.isIOS) {
-                        settingsProvider.notificationsEnabled = false;
-                      }
+                  try {
+                    PermissionStatus status =
+                        await Permission.notification.status;
+                    if (!status.isGranted &&
+                        settingsProvider.notificationsEnabled) {
+                      settingsProvider.notificationsEnabled = false;
                     }
+                  } catch (e) {
+                    debugPrint('Notification permission check failed: $e');
                   }
                 });
 
@@ -84,48 +76,44 @@ class GeneralSettingsSection extends StatelessWidget {
                     return;
                   }
 
-                  if (Platform.isAndroid || Platform.isIOS) {
-                    try {
-                      PermissionStatus status =
-                          await Permission.notification.status;
+                  try {
+                    PermissionStatus status =
+                        await Permission.notification.status;
 
-                      if (status.isGranted) {
+                    if (status.isGranted) {
+                      settingsProvider.notificationsEnabled = true;
+                    } else {
+                      PermissionStatus requestStatus = await Permission
+                          .notification
+                          .request();
+
+                      if (requestStatus.isGranted) {
                         settingsProvider.notificationsEnabled = true;
                       } else {
-                        PermissionStatus requestStatus = await Permission
-                            .notification
-                            .request();
-
-                        if (requestStatus.isGranted) {
-                          settingsProvider.notificationsEnabled = true;
-                        } else {
-                          settingsProvider.notificationsEnabled = false;
-                          if (!context.mounted) return;
-                          AppSnackBar.showWarning(
-                            context,
-                            'notification_permission_required_to_enable_notifications'
-                                .tr(),
-                            action: SnackBarAction(
-                              label: 'settings'.tr(),
-                              textColor: accentColor,
-                              onPressed: openAppSettings,
-                            ),
-                          );
-                        }
+                        settingsProvider.notificationsEnabled = false;
+                        if (!context.mounted) return;
+                        AppSnackBar.showWarning(
+                          context,
+                          'notification_permission_required_to_enable_notifications'
+                              .tr(),
+                          action: SnackBarAction(
+                            label: 'settings'.tr(),
+                            textColor: accentColor,
+                            onPressed: openAppSettings,
+                          ),
+                        );
                       }
-                    } on MissingPluginException catch (e) {
-                      debugPrint(
-                        'Notification permission API not available: $e',
-                      );
-                      settingsProvider.notificationsEnabled = true;
-                    } catch (e) {
-                      debugPrint(
-                        'Error while checking/requesting notification permission: $e',
-                      );
-                      settingsProvider.notificationsEnabled = false;
                     }
-                  } else {
+                  } on MissingPluginException catch (e) {
+                    debugPrint(
+                      'Notification permission API not available: $e',
+                    );
                     settingsProvider.notificationsEnabled = true;
+                  } catch (e) {
+                    debugPrint(
+                      'Error while checking/requesting notification permission: $e',
+                    );
+                    settingsProvider.notificationsEnabled = false;
                   }
                 }
 

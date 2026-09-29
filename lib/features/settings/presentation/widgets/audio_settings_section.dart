@@ -1,5 +1,4 @@
-import 'dart:io';
-
+﻿
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,11 +12,7 @@ import 'settings_item.dart';
 class AudioSettingsSection extends StatelessWidget {
   const AudioSettingsSection({super.key});
 
-  static bool get _isEqualizerSupported =>
-      Platform.isAndroid ||
-      Platform.isIOS ||
-      Platform.isWindows ||
-      Platform.isLinux;
+  static bool get _isEqualizerSupported => true;
 
   @override
   Widget build(BuildContext context) {

@@ -1,9 +1,7 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
 import '../../../../core/constants/app_dimens.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
@@ -32,11 +30,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    // youtube_player_flutter 10.0+ supports Android, iOS, macOS, and Web.
-    // We still fallback to InAppWebView for Windows and Linux.
-    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux)) {
-      _initializeYoutubePlayer();
-    }
+    _initializeYoutubePlayer();
   }
 
   void _initializeYoutubePlayer() {
@@ -72,34 +66,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
-      return Container(
-        height: AppDimens.progressCircleLarge,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.white.withValues(alpha: 0.1),
-              blurRadius: AppDimens.elevationHigh,
-              offset: const Offset(0, AppDimens.spacingSmMd),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
-          child: InAppWebView(
-            initialUrlRequest: URLRequest(
-              url: WebUri('https://www.yout-ube.com/watch?v=${widget.videoId}'),
-            ),
-            onWebViewCreated: (controller) {
-              widget.onReady();
-            },
-          ),
-        ),
-      );
-    }
-
     return Container(
       decoration: BoxDecoration(
         borderRadius: _isFullScreen
@@ -127,9 +93,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
-    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux)) {
-      _controller.close();
-    }
+    _controller.close();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }

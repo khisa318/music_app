@@ -18,7 +18,6 @@ import 'audio_url_isolate.dart';
 import 'audio_url_service.dart';
 import 'media_kit_player_adapter.dart';
 import 'settings_storage_service.dart';
-import 'smtc_service.dart';
 import 'temp_audio_cache_service.dart';
 
 class CanceledException implements Exception {
@@ -147,10 +146,6 @@ class PlayerService {
 
   SongInfo? _prebufferedSong;
 
-  SmtcService? _smtcService;
-
-  Timer? _smtcPositionTimer;
-
   AudioSession? _audioSession;
 
   Timer? _progressSyncTimer;
@@ -210,8 +205,6 @@ class PlayerService {
 
     unawaited(_tempAudioCacheService.cleanupExpiredCache());
 
-    _initSmtc();
-
     if (!GetIt.I.isRegistered<EqualizerService>()) {
       GetIt.I.registerSingleton<EqualizerService>(EqualizerService());
     }
@@ -234,8 +227,6 @@ class PlayerService {
       }
 
       _emitState();
-
-      _updateSmtcPlaybackStatus();
 
       _setupStatsOnPlayStateChange();
     });
@@ -487,8 +478,6 @@ class PlayerService {
 
   Future<void> loadSong(SongInfo song) async {
     try {
-      _updateSmtcMetadata(song);
-
       await _openSong(song, playWhenReady: false);
 
       updateBackgroundColor(
@@ -610,8 +599,6 @@ class PlayerService {
     }
 
     playerProvider.setCurrentSong(song);
-
-    _updateSmtcMetadata(song);
 
     unawaited(_recordCurrentPlaybackEnd());
 
@@ -760,8 +747,6 @@ class PlayerService {
     _processingState = ProcessingState.ready;
 
     _emitState();
-
-    _updateSmtcMetadataFromLocal(songData);
 
     updateBackgroundColor(songData['thumbnail']?.toString());
 
@@ -1063,10 +1048,6 @@ class PlayerService {
   // ===========================================================================
 
   Future<void> _initializeAudioSession() async {
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      return;
-    }
-
     try {
       _audioSession = await AudioSession.instance;
 
@@ -1257,66 +1238,6 @@ class PlayerService {
   }
 
   // ===========================================================================
-  // SMTC WINDOWS
-  // ===========================================================================
-
-  void _initSmtc() {
-    if (!Platform.isWindows) {
-      return;
-    }
-
-    _smtcService = SmtcService();
-
-    _smtcService!.initialize(
-      onPlay: () => play(),
-      onPause: () => pause(),
-      onNext: () => playNext(),
-      onPrevious: () => playPrevious(),
-      onStop: () => stop(),
-    );
-
-    _smtcPositionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_duration != null && _duration! > Duration.zero) {
-        _smtcService!.updateTimeline(position: _position, duration: _duration!);
-      }
-    });
-
-    queueProvider.addListener(() {
-      _smtcService?.updateConfig(
-        nextEnabled: queueProvider.hasNext,
-        prevEnabled: queueProvider.hasPrevious,
-      );
-    });
-  }
-
-  void _updateSmtcPlaybackStatus() {
-    if (_smtcService == null) {
-      return;
-    }
-
-    if (_isPlaying) {
-      _smtcService!.setIsPlaying();
-      return;
-    }
-
-    if (_processingState == ProcessingState.completed ||
-        _processingState == ProcessingState.idle) {
-      _smtcService!.setIsStopped();
-      return;
-    }
-
-    _smtcService!.setIsPaused();
-  }
-
-  void _updateSmtcMetadata(SongInfo song) {
-    _smtcService?.updateMetadata(song);
-  }
-
-  void _updateSmtcMetadataFromLocal(Map<String, dynamic> localSong) {
-    _smtcService?.updateMetadataFromLocal(localSong);
-  }
-
-  // ===========================================================================
   // COMPLETION
   // ===========================================================================
 
@@ -1350,8 +1271,6 @@ class PlayerService {
           isExplicitlySettingSong = true;
 
           playerProvider.setCurrentSong(nextSong);
-
-          _updateSmtcMetadata(nextSong);
 
           final swapped = await _mediaKitAdapter.swapToPrebuffered();
 
@@ -1600,11 +1519,7 @@ class PlayerService {
 
     _bufferingTimeoutTimer?.cancel();
 
-    _smtcPositionTimer?.cancel();
-
     _progressSyncTimer?.cancel();
-
-    _smtcService?.dispose();
 
     await _playingSubscription?.cancel();
 

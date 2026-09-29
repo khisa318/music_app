@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart' hide RepeatMode;
 
 import 'package:provider/provider.dart';
@@ -370,9 +369,7 @@ class PlayerUIState extends State<PlayerUI>
             top: false,
             child: Column(
               children: [
-                SizedBox(
-                  height: Platform.isWindows || Platform.isLinux ? 20 : 50,
-                ),
+                SizedBox(height: 50),
                 PlayerComponents.buildFullPlayerAppBar(
                   context,
                   isDarkMode,
@@ -405,15 +402,13 @@ class PlayerUIState extends State<PlayerUI>
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onVerticalDragUpdate: (details) {
-          if (Platform.isAndroid || Platform.isIOS) {
-            setState(() {
-              _fullDragOffset += details.primaryDelta!;
-              _fullDragOffset = _fullDragOffset.clamp(
-                0.0,
-                AppDimens.dragOffsetMax,
-              );
-            });
-          }
+          setState(() {
+            _fullDragOffset += details.primaryDelta!;
+            _fullDragOffset = _fullDragOffset.clamp(
+              0.0,
+              AppDimens.dragOffsetMax,
+            );
+          });
         },
         onVerticalDragEnd: (details) {
           if (_fullDragOffset > 80 ||
@@ -437,9 +432,7 @@ class PlayerUIState extends State<PlayerUI>
               top: false,
               child: Column(
                 children: [
-                  SizedBox(
-                    height: Platform.isWindows || Platform.isLinux ? 20 : 50,
-                  ),
+                  SizedBox(height: 50),
                   PlayerComponents.buildFullPlayerAppBar(
                     context,
                     isDarkMode,
@@ -606,9 +599,7 @@ class PlayerUIState extends State<PlayerUI>
       child: Column(
         children: [
           SizedBox(
-            height: Platform.isWindows || Platform.isLinux
-                ? AppDimens.spacingSmMd
-                : AppDimens.spacingXl,
+            height: AppDimens.spacingXl,
           ),
           Expanded(
             child: PlayerComponents.buildMediaPlayer(
@@ -620,9 +611,7 @@ class PlayerUIState extends State<PlayerUI>
             ),
           ),
           SizedBox(
-            height: Platform.isWindows || Platform.isLinux
-                ? AppDimens.spacingMd
-                : AppDimens.spacingXl,
+            height: AppDimens.spacingXl,
           ),
           Consumer2<DownloadProvider, FavoriteSongProvider>(
             builder: (context, downloadProvider, favoriteSongProvider, child) {
@@ -651,9 +640,7 @@ class PlayerUIState extends State<PlayerUI>
             },
           ),
           SizedBox(
-            height: Platform.isWindows || Platform.isLinux
-                ? AppDimens.spacingMd
-                : AppDimens.spacingXl,
+            height: AppDimens.spacingXl,
           ),
           PlayerControls.buildProgressBar(
             context: context,
@@ -661,7 +648,7 @@ class PlayerUIState extends State<PlayerUI>
             accentColor: accentColor,
             playerService: _playerService,
           ),
-          SizedBox(height: Platform.isWindows || Platform.isLinux ? 12 : 22),
+          SizedBox(height: 22),
           PlayerControls.buildFullPlayerControls(
             isDarkMode: true,
             accentColor: accentColor,
@@ -673,9 +660,7 @@ class PlayerUIState extends State<PlayerUI>
           ),
           if (!_isVideoMode) ...[
             SizedBox(
-              height: Platform.isWindows || Platform.isLinux
-                  ? AppDimens.spacingXs
-                  : AppDimens.spacingXxxl,
+              height: AppDimens.spacingXxxl,
             ),
             Consumer<DownloadProvider>(
               builder: (context, downloadProvider, child) {
@@ -716,9 +701,7 @@ class PlayerUIState extends State<PlayerUI>
             ),
           ],
           SizedBox(
-            height: Platform.isWindows || Platform.isLinux
-                ? AppDimens.spacingSmMd
-                : AppDimens.spacingXl,
+            height: AppDimens.spacingXl,
           ),
         ],
       ),
@@ -1078,9 +1061,6 @@ class PlayerUIState extends State<PlayerUI>
   void _showLyricsBottomSheet() {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isDesktopOrLargeScreen =
-        Platform.isWindows ||
-        Platform.isMacOS ||
-        Platform.isLinux ||
         screenWidth > AppDimens.breakpointWideScreen;
 
     final maxHeight = isDesktopOrLargeScreen

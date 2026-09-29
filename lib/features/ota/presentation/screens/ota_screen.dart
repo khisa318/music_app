@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'dart:io';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
@@ -101,10 +100,6 @@ class _OTAScreenState extends State<OTAScreen>
     bool isDarkMode,
     Color accentColor,
   ) {
-    if (Platform.isLinux) {
-      return _buildLinuxRedirect(context, otaProvider, isDarkMode, accentColor);
-    }
-
     switch (otaProvider.status) {
       case OTAStatus.checking:
         return _buildCheckingUpdate(isDarkMode, accentColor);
@@ -398,7 +393,7 @@ class _OTAScreenState extends State<OTAScreen>
           ),
           const SizedBox(height: 8),
           ...updateInfo.features.map(
-            (feature) => _buildChangeLogItem('✨ $feature', isDarkMode),
+            (feature) => _buildChangeLogItem('âœ¨ $feature', isDarkMode),
           ),
         ],
       ],
@@ -425,7 +420,7 @@ class _OTAScreenState extends State<OTAScreen>
         ),
         const SizedBox(height: 12),
         ...updateInfo.bugFixes.map(
-          (fix) => _buildChangeLogItem('🐛 $fix', isDarkMode),
+          (fix) => _buildChangeLogItem('ðŸ› $fix', isDarkMode),
         ),
       ],
     );
@@ -905,73 +900,6 @@ class _OTAScreenState extends State<OTAScreen>
     );
   }
 
-  Widget _buildLinuxRedirect(
-    BuildContext context,
-    OTAProvider otaProvider,
-    bool isDarkMode,
-    Color accentColor,
-  ) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: MediaQuery.of(context).size.height - 120,
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.open_in_new,
-                  size: AppDimens.iconStatus,
-                  color: accentColor,
-                ),
-                const SizedBox(height: AppDimens.spacingXxxl),
-                Text(
-                  'Updates are handled via GitHub releases.',
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
-                ),
-                const SizedBox(height: AppDimens.spacingLg),
-                Text(
-                  'Please visit the releases page to download the latest version of the app.',
-
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-                    color: MainScreenColors.getTextColor(
-                      isDarkMode,
-                    ).withValues(alpha: 0.7),
-                  ),
-                ),
-                const SizedBox(height: AppDimens.spacingXxxl),
-                SizedBox(
-                  width: double.infinity,
-                  height: AppDimens.buttonHeightLarge,
-                  child: ElevatedButton(
-                    onPressed: () => otaProvider.openReleasePage(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Open Releases',
-                      style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildInitial(
     BuildContext context,

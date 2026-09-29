@@ -166,29 +166,10 @@ class CrashLogService {
       final pkg = await PackageInfo.fromPlatform();
       String appLine = '${pkg.appName} v${pkg.version} (${pkg.buildNumber})';
 
-      String deviceLine;
       final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        deviceLine =
-            'Android ${androidInfo.version.release} (SDK ${androidInfo.version.sdkInt}), ${androidInfo.manufacturer} ${androidInfo.model}';
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        deviceLine =
-            'iOS ${iosInfo.systemVersion}, ${iosInfo.name} ${iosInfo.model}';
-      } else if (Platform.isWindows) {
-        final winInfo = await deviceInfo.windowsInfo;
-        deviceLine =
-            'Windows ${winInfo.releaseId} build ${winInfo.buildNumber}';
-      } else if (Platform.isLinux) {
-        final linuxInfo = await deviceInfo.linuxInfo;
-        deviceLine = 'Linux ${linuxInfo.prettyName} (${linuxInfo.id})';
-      } else if (Platform.isMacOS) {
-        final macInfo = await deviceInfo.macOsInfo;
-        deviceLine = 'macOS ${macInfo.osRelease}';
-      } else {
-        deviceLine = 'Unknown platform';
-      }
+      final androidInfo = await deviceInfo.androidInfo;
+      final deviceLine =
+          'Android ${androidInfo.version.release} (SDK ${androidInfo.version.sdkInt}), ${androidInfo.manufacturer} ${androidInfo.model}';
 
       _logHeader =
           '===== APPLICATION & DEVICE INFO =====\n'
