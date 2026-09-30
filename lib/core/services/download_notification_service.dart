@@ -62,7 +62,39 @@ class DownloadNotificationService {
 
     if (Platform.isAndroid) {
       await _createNotificationChannels();
-      await _requestNotificationPermission();
+    }
+  }
+
+  /// Asks the user for notification permission.
+  ///
+  /// Deliberately NOT part of [initialize]. This blocks until the user answers
+  /// a system dialog, so calling it before the first frame freezes the app on
+  /// the splash with nothing on screen to answer with. Onboarding calls this
+  /// instead, once there is a UI behind it.
+  ///
+  /// Bounded by a timeout because a permission dialog that never appears would
+  /// otherwise strand the user on a dead screen. Declining is a perfectly good
+  /// outcome: downloads still work, they just show no progress notification.
+  Future<bool> requestNotificationPermission() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final status = await Permission.notification.status
+          .timeout(const Duration(seconds: 5));
+
+      if (!status.isDenied) {
+        return status.isGranted;
+      }
+
+      final result = await Permission.notification
+          .request()
+          .timeout(const Duration(seconds: 30));
+
+      return result.isGranted;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -96,18 +128,6 @@ class DownloadNotificationService {
 
     await android?.createNotificationChannel(progressChannel);
     await android?.createNotificationChannel(completeChannel);
-  }
-
-  Future<void> _requestNotificationPermission() async {
-    if (!Platform.isAndroid) {
-      return;
-    }
-
-    final PermissionStatus status = await Permission.notification.status;
-
-    if (status.isDenied) {
-      await Permission.notification.request();
-    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {

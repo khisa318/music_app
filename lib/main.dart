@@ -267,7 +267,13 @@ Future<void> main() async {
         try {
           final notificationService = DownloadNotificationService();
 
-          await notificationService.initialize();
+          // Creates the progress/completion channels. Bounded because this runs
+          // before runApp(): a platform channel that never answers would freeze
+          // the app on the launch screen with no way to recover. Losing the
+          // channels costs progress notifications, which is not worth a hang.
+          await notificationService
+              .initialize()
+              .timeout(const Duration(seconds: 5));
 
           talker.info('Download notifications initialized');
         } catch (e, st) {
@@ -283,7 +289,9 @@ Future<void> main() async {
         try {
           final session = await AudioSession.instance;
 
-          await session.configure(const AudioSessionConfiguration.music());
+          await session
+              .configure(const AudioSessionConfiguration.music())
+              .timeout(const Duration(seconds: 5));
 
           talker.info('Android audio session initialized');
         } catch (e, st) {
@@ -296,7 +304,7 @@ Future<void> main() async {
       // ------------------------------------------------------------
 
       try {
-        await MetadataGod.initialize();
+        await MetadataGod.initialize().timeout(const Duration(seconds: 5));
 
         talker.info('Metadata service initialized');
       } catch (e, st) {
