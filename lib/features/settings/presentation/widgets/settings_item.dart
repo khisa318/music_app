@@ -7,9 +7,10 @@ import 'settings_surface.dart';
 
 /// A single row inside a [SettingsSurface].
 ///
-/// The leading slot is a plain accent icon (no tinted chip) so that a screen
-/// full of rows stays calm, and a themed chevron is rendered automatically
-/// whenever the row is tappable and no explicit [trailing] is supplied.
+/// The leading icon sits in a soft accent chip — the same gradient the Profile
+/// cards use, dialled right down — and a themed chevron is rendered
+/// automatically whenever the row is tappable and no explicit [trailing] is
+/// supplied.
 class SettingsItem extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -38,16 +39,37 @@ class SettingsItem extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
         splashColor: accentColor.withValues(alpha: 0.08),
         highlightColor: accentColor.withValues(alpha: 0.05),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppDimens.paddingLg,
-            vertical: AppDimens.spacingSmMd,
+            vertical: AppDimens.paddingMd,
           ),
           child: Row(
             children: [
-              Icon(icon, color: accentColor, size: AppDimens.iconMd),
+              Container(
+                width: AppDimens.buttonSizeLg,
+                height: AppDimens.buttonSizeLg,
+                padding: const EdgeInsets.all(AppDimens.spacingSm),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      accentColor.withValues(
+                        alpha: isDarkMode ? 0.22 : 0.16,
+                      ),
+                      accentColor.withValues(
+                        alpha: isDarkMode ? 0.10 : 0.07,
+                      ),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                ),
+                child: Icon(icon, color: accentColor, size: AppDimens.iconMd),
+              ),
 
               const SizedBox(width: AppDimens.spacingMd),
 
@@ -59,16 +81,20 @@ class SettingsItem extends StatelessWidget {
                     Text(
                       title,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.settingsItem(
+                      style: AppTextStyles.bodyLg(
                         isDarkMode: isDarkMode,
-                      ),
+                      ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: AppDimens.spacingXxs),
                       Text(
                         subtitle!,
-                        style: AppTextStyles.settingsSubtitle(
+                        style: AppTextStyles.caption(
                           isDarkMode: isDarkMode,
+                        ).copyWith(
+                          color: MainScreenColors.getTextColor(
+                            isDarkMode,
+                          ).withValues(alpha: AppDimens.opacityMuted),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -82,7 +108,10 @@ class SettingsItem extends StatelessWidget {
                 trailing!,
               ] else if (onTap != null && showChevron) ...[
                 const SizedBox(width: AppDimens.spacingSm),
-                SettingsChevron(isDarkMode: isDarkMode),
+                SettingsChevron(
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                ),
               ],
             ],
           ),
@@ -230,6 +259,10 @@ class SettingsToggle extends StatelessWidget {
 }
 
 /// Group label above a [SettingsSurface].
+///
+/// Sized and coloured like the Profile page's section labels — a real heading
+/// rather than a shouty uppercase micro-label — with the group icon lifted
+/// into the glowing gradient chip the Profile cards use.
 class SettingsSectionHeader extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -251,30 +284,38 @@ class SettingsSectionHeader extends StatelessWidget {
         AppDimens.paddingXs,
         AppDimens.spacingXxl,
         AppDimens.paddingXs,
-        AppDimens.spacingSm,
+        AppDimens.spacingSmMd,
       ),
       child: Row(
         children: [
           Container(
-            width: 24,
-            height: 24,
+            padding: const EdgeInsets.all(AppDimens.spacingSmMd),
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [accentColor, accentColor.withValues(alpha: 0.7)],
+              ),
+              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(
+                    alpha: AppDimens.opacityOverlay,
+                  ),
+                  blurRadius: AppDimens.spacingSm,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Icon(icon, color: accentColor, size: AppDimens.iconXs),
+            child: Icon(icon, color: Colors.white, size: AppDimens.iconMd),
           ),
-          const SizedBox(width: AppDimens.spacingSmMd),
+          const SizedBox(width: AppDimens.spacingMd),
           Flexible(
             child: Text(
-              title.toUpperCase(),
-              style: AppTextStyles.caption(
+              title,
+              style: AppTextStyles.subtitle(
                 isDarkMode: isDarkMode,
-              ).copyWith(
-                color: accentColor,
-                fontWeight: AppTextStyles.weightBold,
-                letterSpacing: 0.8,
-              ),
+              ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -326,6 +367,7 @@ class SettingsGroup extends StatelessWidget {
         ),
         SettingsSurface(
           isDarkMode: isDarkMode,
+          accentColor: accentColor,
           child: Column(children: rows),
         ),
       ],

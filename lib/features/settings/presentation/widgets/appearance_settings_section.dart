@@ -84,6 +84,7 @@ class AppearanceSettingsSection extends StatelessWidget {
                       const SizedBox(width: AppDimens.spacingSm),
                       SettingsChevron(
                         isDarkMode: isDarkMode,
+                        accentColor: accentColor,
                         muted: settingsProvider.adaptiveColorEnabled,
                       ),
                     ],
