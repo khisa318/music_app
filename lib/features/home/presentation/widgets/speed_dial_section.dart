@@ -226,18 +226,10 @@ class _SpeedDialGrid extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final song = songs[index];
-            final isPlaying = context.select<PlayerProvider, bool>(
-              (p) => p.currentSong?.videoId == song.videoId,
-            );
-            final accentColor = context.select(
-              (SettingsProvider p) => p.accentColor,
-            );
 
             return _SpeedDialTile(
               song: song,
               isDarkMode: isDarkMode,
-              isPlaying: isPlaying,
-              accentColor: accentColor,
               onTap: () => SpeedDialSection._playAll(context, songs, index),
             );
           },
@@ -250,20 +242,22 @@ class _SpeedDialGrid extends StatelessWidget {
 class _SpeedDialTile extends StatelessWidget {
   final SongInfo song;
   final bool isDarkMode;
-  final bool isPlaying;
-  final Color accentColor;
   final VoidCallback onTap;
 
   const _SpeedDialTile({
     required this.song,
     required this.isDarkMode,
-    required this.isPlaying,
-    required this.accentColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Selected here rather than in the grid's `itemBuilder`: a select there
+    // would subscribe the whole sliver and rebuild every tile on each change.
+    final isPlaying = context.select<PlayerProvider, bool>(
+      (p) => p.currentSong?.videoId == song.videoId,
+    );
+    final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final thumbnailUrl = song.thumbnails.isEmpty
         ? ''
         : song.thumbnails.last.url;
