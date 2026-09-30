@@ -1,4 +1,4 @@
-package com.example.music_app
+package com.khisa318.musiX
 
 import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothManager

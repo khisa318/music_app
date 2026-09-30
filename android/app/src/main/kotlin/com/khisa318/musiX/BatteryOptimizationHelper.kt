@@ -1,4 +1,4 @@
-package com.example.music_app
+package com.khisa318.musiX
 
 import android.annotation.SuppressLint
 import android.app.Activity

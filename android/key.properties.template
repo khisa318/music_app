@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# MusiX release signing - TEMPLATE
+#
+# Copy this file to android/key.properties and fill in real values. The copy is
+# gitignored (see android/.gitignore) and must never be committed:
+#
+#   Windows: copy android\key.properties.template android\key.properties
+#   macOS/Linux: cp android/key.properties.template android/key.properties
+#
+# The file is optional. Without it, `flutter build apk --release` falls back to
+# the Android debug key, which is fine for local testing but MUST NOT be
+# published: every developer machine has a different debug key, so users could
+# not install an update over an existing install.
+#
+# In CI the same values come from GitHub Secrets instead, so nothing sensitive
+# ever touches the repository:
+#
+#   MUSIX_KEYSTORE_BASE64   base64 of the .jks file
+#   MUSIX_KEYSTORE_PASSWORD keystore password
+#   MUSIX_KEY_ALIAS        signing key alias
+#   MUSIX_KEY_PASSWORD     key password
+#
+# `storeFile` is only read from this file. In CI the keystore is supplied as
+# base64 and written to a temporary path outside the repository.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Absolute path to the keystore on this machine, or a path relative to android/.
+# Use forward slashes so the same file works on Windows and Unix.
+storeFile=C:/Users/YOU/keys/musix-release.jks
+
+# Password of the keystore itself.
+storePassword=CHANGE_ME
+
+# Alias of the signing key inside the keystore. `keytool -list -v -keystore
+# <file>` prints it.
+keyAlias=musix
+
+# Password of the signing key. Often the same as storePassword.
+keyPassword=CHANGE_ME
