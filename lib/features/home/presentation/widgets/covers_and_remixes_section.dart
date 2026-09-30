@@ -247,14 +247,10 @@ class _CoversList extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final song = songs[index];
-            final isPlaying = context.select<PlayerProvider, bool>(
-              (p) => p.currentSong?.videoId == song.videoId,
-            );
 
             return _CoversTile(
               song: song,
               isDarkMode: isDarkMode,
-              isPlaying: isPlaying,
               onTap: () =>
                   _CoversAndRemixesSectionState._play(context, songs, index),
             );
@@ -268,19 +264,22 @@ class _CoversList extends StatelessWidget {
 class _CoversTile extends StatelessWidget {
   final SongInfo song;
   final bool isDarkMode;
-  final bool isPlaying;
   final VoidCallback onTap;
 
   const _CoversTile({
     required this.song,
     required this.isDarkMode,
-    required this.isPlaying,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Selected here rather than in the grid's `itemBuilder`: a select there
+    // would subscribe the whole sliver and rebuild every tile on each change.
+    final isPlaying = context.select<PlayerProvider, bool>(
+      (p) => p.currentSong?.videoId == song.videoId,
+    );
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
 
     final artistName = song.artists.isEmpty ? '' : song.artists.first.name;
