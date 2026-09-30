@@ -1,0 +1,128 @@
+name: CI
+
+# Pull requests are the gate. Pushing to main re-runs the same checks so a bad
+# merge can never sit unnoticed on the default branch.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch cancels the previous run. Saves minutes on
+# rapid-fire pushes and keeps the checks list short.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Analyze, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Pinned to the version in .flutter-version, which is the version the
+      # project is actually developed against. Never "latest": a Flutter
+      # upgrade can change the analyzer, the Gradle plugin defaults and the
+      # build output, which would make CI disagree with local builds.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .flutter-version
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # Rust is required because metadata_god is a Rust native library built
+      # from source by cargokit. Without this the APK still builds - it just
+      # silently ships without libmetadata_god.so and every ID3 feature fails
+      # at runtime, so the verification step below is not optional either.
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup target add \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            x86_64-linux-android
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      # Advisory only. The codebase predates a `dart format` sweep and 39
+      # existing files are not format-clean. Reformatting them all would bury
+      # real changes in noise, so this reports drift without blocking a PR.
+      # To turn it into a hard gate, run `dart format lib test` in a dedicated
+      # chore/format PR and drop `continue-on-error`.
+      - name: Verify formatting
+        continue-on-error: true
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Static analysis
+        run: flutter analyze --no-pub
+
+      - name: Tests
+        run: flutter test --no-pub --reporter=compact
+
+      - name: Build debug APK
+        run: flutter build apk --debug --no-pub
+
+      - name: Verify the Rust native library is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-debug.apk"
+          if [ ! -f "$apk" ]; then
+            echo "::error::APK not found at $apk"
+            ls -la build/app/outputs/flutter-apk/ || true
+            exit 1
+          fi
+          # A missing libmetadata_god.so is the classic silent Rust failure:
+          # the build succeeds and every tag read/write breaks on device.
+          if ! unzip -l "$apk" | grep -q 'libmetadata_god.so'; then
+            echo "::error::libmetadata_god.so missing from the APK. Rust targets are not installed - see the Install Rust step."
+            exit 1
+          fi
+          echo "OK: $apk contains libmetadata_god.so"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: musix-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error
