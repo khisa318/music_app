@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/providers/connectivity_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/services/download_notification_service.dart';
 import '../../../../core/services/settings_storage_service.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
@@ -373,6 +374,11 @@ class _IntroScreenState extends State<IntroScreen>
   }
 
   Future<void> _completeSetup() async {
+    // Asked here rather than at startup: there is now a UI behind the dialog,
+    // and the user has just finished choosing settings, so the ask makes sense.
+    // Declining is fine and never blocks the rest of setup.
+    await DownloadNotificationService().requestNotificationPermission();
+
     final box = await SettingsStorageService.getBox();
     await box.put('first_time', false);
 

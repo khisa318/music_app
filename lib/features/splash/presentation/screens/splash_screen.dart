@@ -47,18 +47,31 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkFirstTime() async {
-    final box = await SettingsStorageService.getBox();
-    final bool isFirstTime = (box.get('first_time') as bool?) ?? true;
+    var isFirstTime = true;
 
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              isFirstTime ? const IntroScreen() : const MainScreen(),
-        ),
+    // Deliberately unoptimistic. If storage is slow or broken we still go to
+    // onboarding: showing onboarding to a returning user is a far better
+    // failure than a splash screen that never goes anywhere, which is
+    // indistinguishable from a crashed app.
+    try {
+      final box = await SettingsStorageService.getBox().timeout(
+        const Duration(seconds: 5),
       );
+
+      isFirstTime = (box.get('first_time') as bool?) ?? true;
+    } catch (_) {
+      isFirstTime = true;
     }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            isFirstTime ? const IntroScreen() : const MainScreen(),
+      ),
+    );
   }
 
   @override
