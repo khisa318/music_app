@@ -313,8 +313,8 @@ class _OTAScreenState extends State<OTAScreen>
           ),
           Expanded(
             child: _buildDetailItem(
-              'Version Code',
-              updateInfo.versionCode.toString(),
+              'ota_latest_label'.tr(),
+              updateInfo.latestVersion,
               Icons.tag,
               isDarkMode,
               accentColor,
@@ -492,6 +492,28 @@ class _OTAScreenState extends State<OTAScreen>
           ),
         ),
         ...[
+          const SizedBox(height: AppDimens.spacingSm),
+          SizedBox(
+            width: double.infinity,
+            height: AppDimens.buttonHeightMedium,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await otaProvider.openReleasePage();
+              },
+              icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+              label: Text('ota_update_open_website'.tr()),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accentColor,
+                side: BorderSide(
+                  color: accentColor,
+                  width: AppDimens.borderWidthThick,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: AppDimens.spacingSm),
           SizedBox(
             width: double.infinity,

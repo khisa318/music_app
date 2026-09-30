@@ -1,23 +1,46 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:android_package_installer/android_package_installer.dart';
-import 'package:crypto/crypto.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../../core/models/ota_model.dart';
+import '../models/app_repository.dart';
+import '../services/apk_download_service.dart';
+import '../services/apk_installer_service.dart';
+import '../services/github_release_service.dart';
+import '../services/update_checker.dart';
 
-class OTAProvider with ChangeNotifier {
-  static const String _baseUpdateUrl =
-      'https://raw.githubusercontent.com/khisa318/music_app/main/docs';
+/// Coordinates the in-app update flow.
+///
+/// Deliberately thin: every decision lives in a service under `data/services`
+/// so the logic can be unit tested without a device. This class only holds UI
+/// state and sequences the steps.
+///
+/// Public surface is unchanged from the previous implementation so every call
+/// site (`main.dart`, `mobile_screen.dart`, `settings_screen.dart`,
+/// `general_settings_section.dart`) compiles without modification.
+class OTAProvider extends ChangeNotifier {
+  OTAProvider({
+    GitHubReleaseService? releaseService,
+    ApkDownloadService? downloadService,
+    ApkInstallerService? installerService,
+    AppRepository? repository,
+    UpdateChecker? checker,
+  }) : _releaseService = releaseService ?? GitHubReleaseService(),
+       _downloadService = downloadService ?? ApkDownloadService(),
+       _installerService = installerService ?? const ApkInstallerService(),
+       _repository = repository ?? AppRepository.current,
+       _checker = checker ?? const UpdateChecker();
 
-  final Dio _dio = Dio();
-  String _updateChannel = 'stable';
+  final GitHubReleaseService _releaseService;
+  final ApkDownloadService _downloadService;
+  final ApkInstallerService _installerService;
+  final AppRepository _repository;
+  final UpdateChecker _checker;
+
+  /// Remembered so "skip this version" survives a restart. Without this the
+  /// prompt reappears on every single launch.
+  static const String _skippedVersionKey = 'ota_skipped_version';
 
   OTAStatus _status = OTAStatus.idle;
   OTAUpdateInfo? _updateInfo;
@@ -25,9 +48,10 @@ class OTAProvider with ChangeNotifier {
   OTAError? _error;
   String? _errorMessage;
   String? _downloadedFilePath;
-  CancelToken? _cancelToken;
+  bool _checksumVerified = false;
   bool _isUpdateUIShown = false;
   bool _isOTAScreenActive = false;
+  String _updateChannel = 'stable';
 
   OTAStatus get status => _status;
   OTAUpdateInfo? get updateInfo => _updateInfo;
@@ -41,325 +65,237 @@ class OTAProvider with ChangeNotifier {
   bool get isUpdateUIShown => _isUpdateUIShown;
   bool get isOTAScreenActive => _isOTAScreenActive;
 
-  OTAProvider() {
-    _initializeDio();
-  }
+  /// True when the downloaded APK matched a published SHA-256.
+  bool get isChecksumVerified => _checksumVerified;
 
-  void _initializeDio() {
-    _dio.options = BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {'User-Agent': 'MusiX-Music-App'},
-    );
-  }
+  /// Where the "Open website" option sends the user.
+  String get releasesUrl => _repository.releasesPage.toString();
 
+  /// Asks GitHub for the newest release and decides whether it is newer than
+  /// what is installed.
+  ///
+  /// Never throws. On any failure - offline, rate limited, GitHub down, a
+  /// malformed body - the app keeps working and [status] returns to idle. That
+  /// is the contract: an update check must never get in the user's way.
   Future<void> checkForUpdates({
     bool showNoUpdateMessage = false,
     bool showChecking = true,
   }) async {
     if (_status == OTAStatus.checking) return;
 
-    if (showChecking) {
-      _setStatus(OTAStatus.checking);
-    }
+    if (showChecking) _setStatus(OTAStatus.checking);
     _error = null;
     _errorMessage = null;
 
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version;
-      final currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 1;
-
-      const platform = 'android';
-      final updateUrl = '$_baseUpdateUrl/$platform-update-$_updateChannel.json';
-
-      final response = await _dio.get(updateUrl);
-      final data = response.data is String
-          ? json.decode(response.data)
-          : response.data;
-
-      String? deviceAbi;
-      final androidInfo = await DeviceInfoPlugin().androidInfo;
-      final abis = androidInfo.supportedAbis;
-      deviceAbi = abis.isNotEmpty ? abis.first : 'arm64-v8a';
-
-      final updateInfo = OTAUpdateInfo.fromJson(data, deviceAbi: deviceAbi);
-
-      _updateInfo = updateInfo;
-
-      final isVersionNewer = _isUpdateAvailable(
-        currentVersion,
-        currentBuildNumber,
-        updateInfo.latestVersion,
-        updateInfo.versionCode,
-      );
-
-      final isUpdateAvailable = isVersionNewer;
-
-      if (isUpdateAvailable) {
-        final directory = await getApplicationDocumentsDirectory();
-        const extension = 'apk';
-        final fileName = 'musix-music-${updateInfo.latestVersion}.$extension';
-        final filePath = '${directory.path}/noize/$fileName';
-        final file = File(filePath);
-
-        bool isDownloaded = false;
-        if (await file.exists()) {
-          // if (updateInfo.checksum != null) {
-          //   isDownloaded = await _verifyChecksum(
-          //     filePath,
-          //     updateInfo.checksum!,
-          //   );
-          // } else {
-          //   isDownloaded = true;
-          // }
-          isDownloaded = true;
-        }
-
-        if (isDownloaded) {
-          _downloadedFilePath = filePath;
-          _setStatus(OTAStatus.downloaded);
-        } else {
-          _setStatus(OTAStatus.updateAvailable);
-        }
-      } else {
-        _setStatus(showNoUpdateMessage ? OTAStatus.noUpdate : OTAStatus.idle);
-      }
-
-      debugPrint('Update check completed: $updateInfo');
-    } catch (e) {
-      _handleError(OTAError.networkError, 'Failed to check for updates}');
-      debugPrint('Error checking for updates: ${e.toString()}');
-    }
-  }
-
-  bool _isUpdateAvailable(
-    String currentVersion,
-    int currentBuildNumber,
-    String latestVersion,
-    int latestBuildNumber,
-  ) {
-    if (latestBuildNumber > currentBuildNumber) {
-      return true;
-    }
-
-    return _compareVersions(currentVersion, latestVersion) < 0;
-  }
-
-  int _compareVersions(String version1, String version2) {
-    final parts1 = version1.split('.').map(int.parse).toList();
-    final parts2 = version2.split('.').map(int.parse).toList();
-
-    final maxLength = parts1.length > parts2.length
-        ? parts1.length
-        : parts2.length;
-
-    for (int i = 0; i < maxLength; i++) {
-      final part1 = i < parts1.length ? parts1[i] : 0;
-      final part2 = i < parts2.length ? parts2[i] : 0;
-
-      if (part1 < part2) return -1;
-      if (part1 > part2) return 1;
-    }
-
-    return 0;
-  }
-
-  Future<void> downloadUpdate() async {
-    if (_updateInfo == null || _status == OTAStatus.downloading) return;
-
-    final directory = await getApplicationDocumentsDirectory();
-    const extension = 'apk';
-    final fileName = 'musix-music-${_updateInfo!.latestVersion}.$extension';
-    final filePath = '${directory.path}/noize/$fileName';
-    final file = File(filePath);
-
-    if (await file.exists()) {
-      // bool isValid = false;
-      // if (_updateInfo!.checksum != null) {
-      //   isValid = await _verifyChecksum(filePath, _updateInfo!.checksum!);
-      // } else {
-      //   isValid = true;
-      // }
-      // if (isValid) {
-      _downloadedFilePath = filePath;
-      _setStatus(OTAStatus.downloaded);
+    final installed = await _readInstalledVersion();
+    if (installed == null) {
+      if (showChecking) _setStatus(OTAStatus.idle);
       return;
-      // } else {
-      //   await file.delete();
-      // }
     }
 
-    _setStatus(OTAStatus.downloading);
-    _cancelToken = CancelToken();
+    _releaseService.allowPreReleases = _updateChannel == 'beta';
 
-    try {
-      int startTime = DateTime.now().millisecondsSinceEpoch;
-      int lastBytes = 0;
+    final releaseResult = await _releaseService.fetchLatestRelease();
+    final outcome = _checker.evaluate(
+      installed: installed,
+      result: releaseResult,
+    );
 
-      await _dio.download(
-        _updateInfo!.downloadUrl,
-        filePath,
-        cancelToken: _cancelToken,
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            final currentTime = DateTime.now().millisecondsSinceEpoch;
-            final timeDiff = currentTime - startTime;
-            final bytesDiff = received - lastBytes;
+    switch (outcome) {
+      case UpdateAvailableResult():
+        final info = OTAUpdateInfo.fromRelease(
+          release: outcome.release,
+          installed: installed,
+          fallbackUrl: _repository
+              .releasePage(outcome.release.tagName)
+              .toString(),
+        );
 
-            String downloadSpeed = '0 KB/s';
-            String eta = 'Calculating...';
+        if (info == null) {
+          // No usable APK on the release; treat as nothing to offer.
+          _finishNoUpdate(showNoUpdateMessage);
+          return;
+        }
 
-            if (timeDiff > 1000) {
-              final speed = (bytesDiff / (timeDiff / 1000));
-              downloadSpeed = '${(speed / 1024).toStringAsFixed(1)} KB/s';
+        // A version the user explicitly skipped stays skipped.
+        if (await _isSkipped(info.latestVersion)) {
+          _finishNoUpdate(showNoUpdateMessage);
+          return;
+        }
 
-              if (speed > 0) {
-                final remainingBytes = total - received;
-                final remainingSeconds = remainingBytes / speed;
-                eta = _formatDuration(remainingSeconds.toInt());
-              }
+        _updateInfo = info;
+        _setStatus(OTAStatus.updateAvailable);
+        debugPrint('[Update] ${info.versionDelta} available');
 
-              startTime = currentTime;
-              lastBytes = received;
-            }
+      case UpToDateResult():
+        _updateInfo = null;
+        _finishNoUpdate(showNoUpdateMessage);
 
-            _downloadProgress = OTADownloadProgress(
-              downloaded: received,
-              total: total,
-              percentage: (received / total) * 100,
-              downloadSpeed: downloadSpeed,
-              eta: eta,
-            );
-            notifyListeners();
-          }
-        },
-      );
-
-      // if (_updateInfo!.checksum != null) {
-      //   if (!await _verifyChecksum(filePath, _updateInfo!.checksum!)) {
-      //     await file.delete();
-      //     _handleError(
-      //       OTAError.checksumError,
-      //       'Downloaded file verification failed',
-      //     );
-      //     return;
-      //   }
-      // }
-
-      _downloadedFilePath = filePath;
-      _setStatus(OTAStatus.downloaded);
-    } catch (e) {
-      debugPrint('Download error: $e');
-      if (!_cancelToken!.isCancelled) {
-        _handleError(OTAError.downloadError, 'Download failed}');
-      }
+      case UpdateCheckFailedResult():
+        _updateInfo = null;
+        // Silent by default. A failure is only worth showing when the user
+        // explicitly asked, and even then it must not look like a broken app.
+        if (showNoUpdateMessage) {
+          _handleError(
+            _mapReleaseFailure(outcome.failure),
+            outcome.message ?? 'Could not reach GitHub',
+          );
+        } else {
+          _setStatus(OTAStatus.idle);
+        }
+        debugPrint(
+          '[Update] check failed (${outcome.failure.name}): ${outcome.message}',
+        );
     }
   }
 
+  void _finishNoUpdate(bool showNoUpdateMessage) {
+    _setStatus(showNoUpdateMessage ? OTAStatus.noUpdate : OTAStatus.idle);
+  }
+
+  /// Downloads the APK for the current update, verifies it, and stages it for
+  /// the system installer.
+  Future<void> downloadUpdate() async {
+    final info = _updateInfo;
+    if (info == null || _status == OTAStatus.downloading) return;
+
+    _error = null;
+    _errorMessage = null;
+    _setStatus(OTAStatus.downloading);
+
+    // Uses the release description the user is already looking at. No second
+    // network round trip, so a flaky connection cannot strand them here.
+    final result = await _downloadService.download(
+      apk: info.apkAsset,
+      checksumAsset: info.checksumAsset,
+      host: _repository.host,
+      onProgress: (progress) {
+        _downloadProgress = progress;
+        notifyListeners();
+      },
+    );
+
+    _downloadProgress = null;
+
+    if (result.isSuccess) {
+      _downloadedFilePath = result.filePath;
+      _checksumVerified = result.verified;
+      _setStatus(OTAStatus.downloaded);
+      debugPrint(
+        '[Update] downloaded ${info.apkAssetName} '
+        '(checksum verified: ${result.verified})',
+      );
+      return;
+    }
+
+    switch (result.failure) {
+      case DownloadFailure.cancelled:
+        _setStatus(OTAStatus.updateAvailable);
+      case DownloadFailure.integrity:
+        _handleError(
+          OTAError.checksumError,
+          'The download did not pass verification and was discarded',
+        );
+      case DownloadFailure.notEnoughSpace:
+        _handleError(
+          OTAError.storageError,
+          'Not enough free storage to download the update',
+        );
+      case DownloadFailure.offline:
+      case DownloadFailure.timeout:
+      case DownloadFailure.server:
+        _handleError(
+          OTAError.downloadError,
+          'Download failed. Check your connection and try again.',
+        );
+      case DownloadFailure.unknown:
+      case null:
+        _handleError(OTAError.downloadError, 'Download failed');
+    }
+  }
+
+  /// Hands the verified APK to Android's own installer.
+  ///
+  /// The user confirms on the following system screen; nothing is installed
+  /// silently and Android's security model is never bypassed.
   Future<void> installUpdate() async {
-    if (_downloadedFilePath == null || _status != OTAStatus.downloaded) return;
+    final path = _downloadedFilePath;
+    if (path == null || _status != OTAStatus.downloaded) return;
 
     _setStatus(OTAStatus.installing);
 
-    try {
-      final status = await Permission.requestInstallPackages.request();
+    final result = await _installerService.install(path);
 
-      if (status.isGranted) {
-        final result = await AndroidPackageInstaller.installApk(
-          apkFilePath: _downloadedFilePath!,
-        );
+    if (result.isSuccess) {
+      _setStatus(OTAStatus.installed);
+      // Remove the staged APK. If the user then backs out of the install the
+      // next update attempt just downloads it again.
+      await _downloadService.deleteDownloadedFile(path);
+      _downloadedFilePath = null;
+      return;
+    }
 
-        if (result == 0) {
-          _setStatus(OTAStatus.installed);
-          await _cleanupDownloadedFile();
-        } else {
-          _handleError(
-            OTAError.installError,
-            'Installation failed with code: $result',
-          );
-        }
-      } else {
+    switch (result.failure) {
+      case InstallFailure.permissionDenied:
         _handleError(
           OTAError.permissionError,
-          'Permission to install packages denied.',
+          'MusiX needs permission to install packages',
         );
-      }
-    } catch (e) {
-      debugPrint('Installation error: $e');
-      _handleError(OTAError.installError, 'Installation failed}');
+      case InstallFailure.notEnoughSpace:
+        _handleError(
+          OTAError.storageError,
+          'Not enough free storage to install the update',
+        );
+      case InstallFailure.signatureMismatch:
+        _handleError(
+          OTAError.installError,
+          'This build was signed with a different key and cannot replace '
+          'your installed copy',
+        );
+      case InstallFailure.invalidPackage:
+        _handleError(
+          OTAError.parseError,
+          'The downloaded file is not a valid package',
+        );
+      case InstallFailure.aborted:
+        _setStatus(OTAStatus.downloaded);
+      case InstallFailure.unknown:
+      case null:
+        _handleError(OTAError.installError, 'Installation failed');
     }
   }
 
   void cancelDownload() {
-    if (_cancelToken != null && _status == OTAStatus.downloading) {
-      _cancelToken!.cancel('Download cancelled by user');
-      _setStatus(OTAStatus.updateAvailable);
-      _downloadProgress = null;
-      notifyListeners();
-    }
+    if (_status != OTAStatus.downloading) return;
+    _downloadService.cancel();
+    _downloadProgress = null;
+    _setStatus(OTAStatus.updateAvailable);
   }
 
+  /// Remembers that the user does not want to hear about this version again.
   Future<void> skipVersion() async {
-    if (_updateInfo != null) {
-      _setStatus(OTAStatus.idle);
-      _updateInfo = null;
-    }
-  }
+    final info = _updateInfo;
+    if (info == null) return;
 
-  // Checksum validation is kept ready for update feeds that publish hashes.
-  // ignore: unused_element
-  Future<bool> _verifyChecksum(String filePath, String expectedChecksum) async {
     try {
-      final file = File(filePath);
-      final bytes = await file.readAsBytes();
-      final digest = sha256.convert(bytes);
-      final calculatedChecksum = 'sha256:${digest.toString()}';
-      return calculatedChecksum == expectedChecksum;
-    } catch (e) {
-      return false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_skippedVersionKey, info.latestVersion);
+    } catch (error) {
+      // A failure here only means the prompt shows again next launch.
+      debugPrint('[Update] could not persist skipped version: $error');
     }
+
+    _updateInfo = null;
+    _setStatus(OTAStatus.idle);
   }
 
-  Future<void> _cleanupDownloadedFile() async {
-    if (_downloadedFilePath != null) {
-      try {
-        final file = File(_downloadedFilePath!);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (_) {
-        debugPrint('Failed to clean up downloaded update file.');
-      }
-      _downloadedFilePath = null;
-    }
-  }
-
-  String _formatDuration(int seconds) {
-    if (seconds < 60) return '${seconds}s';
-    if (seconds < 3600) return '${(seconds / 60).floor()}m ${seconds % 60}s';
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-    return '${hours}h ${minutes}m';
-  }
-
-  void _setStatus(OTAStatus status) {
-    _status = status;
-    notifyListeners();
-  }
-
-  void _handleError(OTAError error, String message) {
-    _error = error;
-    _errorMessage = message;
-    _setStatus(OTAStatus.error);
-  }
-
+  /// Opens the GitHub release page in the device browser.
   Future<void> openReleasePage() async {
-    const releaseUrl = 'https://github.com/khisa318/music_app/releases';
-    final uri = Uri.parse(releaseUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    final url = _updateInfo?.releaseUrl ?? releasesUrl;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !await canLaunchUrl(uri)) return;
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void setUpdateUIShown(bool value) {
@@ -373,7 +309,10 @@ class OTAProvider with ChangeNotifier {
   }
 
   void setUpdateChannel(String channel) {
+    if (_updateChannel == channel) return;
     _updateChannel = channel;
+    _updateInfo = null;
+    _setStatus(OTAStatus.idle);
   }
 
   void reset() {
@@ -383,15 +322,63 @@ class OTAProvider with ChangeNotifier {
     _error = null;
     _errorMessage = null;
     _downloadedFilePath = null;
-    _cancelToken = null;
+    _checksumVerified = false;
     _isUpdateUIShown = false;
     notifyListeners();
   }
 
+  /// True when the user has already dismissed this exact version.
+  Future<bool> _isSkipped(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_skippedVersionKey) == version;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<InstalledVersion?> _readInstalledVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return InstalledVersion(
+        versionName: info.version,
+        buildNumber: info.buildNumber,
+      );
+    } catch (error) {
+      debugPrint('[Update] could not read package info: $error');
+      return null;
+    }
+  }
+
+  static OTAError _mapReleaseFailure(ReleaseCheckFailure failure) {
+    switch (failure) {
+      case ReleaseCheckFailure.offline:
+      case ReleaseCheckFailure.timeout:
+      case ReleaseCheckFailure.rateLimited:
+      case ReleaseCheckFailure.serverError:
+        return OTAError.networkError;
+      case ReleaseCheckFailure.malformed:
+        return OTAError.parseError;
+      case ReleaseCheckFailure.notFound:
+      case ReleaseCheckFailure.unknown:
+        return OTAError.unknownError;
+    }
+  }
+
+  void _setStatus(OTAStatus status) {
+    _status = status;
+    notifyListeners();
+  }
+
+  void _handleError(OTAError error, String message) {
+    _error = error;
+    _errorMessage = message;
+    _setStatus(OTAStatus.error);
+  }
+
   @override
   void dispose() {
-    _cancelToken?.cancel();
-    _dio.close();
+    _downloadService.cancel();
     super.dispose();
   }
 }

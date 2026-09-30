@@ -8,6 +8,8 @@ import '../../../../core/models/ota_model.dart';
 import '../../data/providers/ota_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../screens/ota_screen.dart';
+import 'update_method_dialog.dart';
+import 'update_summary.dart';
 
 class OTADialog extends StatelessWidget {
   final OTAUpdateInfo updateInfo;
@@ -71,48 +73,54 @@ class OTADialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: AppDimens.spacingXl),
-            Text(
-              'Version: ${updateInfo.latestVersion} (${updateInfo.versionCode})',
-              style: AppTextStyles.subtitle(
-                isDarkMode: isDarkMode,
-              ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
-            ),
-            const SizedBox(height: AppDimens.spacingXs),
-            Text(
-              'Size: ${updateInfo.size}',
-              style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-                color: MainScreenColors.getTextColor(
-                  isDarkMode,
-                ).withValues(alpha: 0.7),
-              ),
+            UpdateVersionRow(
+              updateInfo: updateInfo,
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
             ),
             const SizedBox(height: AppDimens.spacingLg),
-            Text(
-              updateInfo.releaseNotes,
-              style: AppTextStyles.bodyMd(
-                isDarkMode: isDarkMode,
-              ).copyWith(height: 1.5),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: SingleChildScrollView(
+                child: UpdateNoteList(
+                  updateInfo: updateInfo,
+                  isDarkMode: isDarkMode,
+                  maxItems: 6,
+                ),
+              ),
             ),
-            const SizedBox(height: AppDimens.spacingXxl),
             const SizedBox(height: AppDimens.spacingXxl),
             SizedBox(
               width: double.infinity,
               height: AppDimens.buttonHeightLarge,
               child: ElevatedButton(
-                onPressed: () {
-                  otaProvider.setOTAScreenActive(true);
+                onPressed: () async {
                   Navigator.pop(context);
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const OTAScreen()),
-                    ).then((_) {
-                      otaProvider.setOTAScreenActive(false);
-                      otaProvider.setUpdateUIShown(false);
-                    });
-                  });
+                  final choice = await UpdateMethodDialog.show(
+                    context,
+                    updateInfo,
+                  );
+                  if (!context.mounted) return;
+
+                  switch (choice) {
+                    case UpdateChoice.downloadInApp:
+                      otaProvider.setOTAScreenActive(true);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const OTAScreen(),
+                          ),
+                        ).then((_) {
+                          otaProvider.setOTAScreenActive(false);
+                          otaProvider.setUpdateUIShown(false);
+                        });
+                      });
+                    case UpdateChoice.openWebsite:
+                      await otaProvider.openReleasePage();
+                    case null:
+                      break;
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
