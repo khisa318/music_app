@@ -66,7 +66,10 @@ dependencies:
   youtube_explode_dart:
     git:
       url: https://github.com/justacalico/youtube_explode_dart.git
-      ref: c80de27
+      # Full commit SHA, not a branch name or a 7-char abbreviation. An
+      # abbreviated ref only resolves if git happens to find that object while
+      # fetching, which is fine locally and unreliable in CI.
+      ref: c80de2735c18be0cccc283fe840b48f1b183b4e1
   youtube_player_flutter: ^10.0.1
 
 dependency_overrides:

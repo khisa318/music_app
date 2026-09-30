@@ -1,0 +1,263 @@
+name: Release
+
+# Releasing is a deliberate, separate action from merging.
+#
+#   merge PR into main  ->  nothing is published
+#   push tag v1.2.0      ->  APK built, GitHub Release created, APK attached
+#
+# Only a tag can publish. Merging to main never does.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build a release for, e.g. v1.2.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # GITHUB_TOKEN needs write access to create the Release and upload assets.
+    # Scoped to this one job.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # The tag is what gets built, not the branch tip. This makes the
+          # published artifact reproducible from the tag alone.
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .flutter-version
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup target add \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            x86_64-linux-android
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # ── Signing ────────────────────────────────────────────────────────────
+      # The keystore arrives as a base64 Secret and is decoded by
+      # android/app/build.gradle.kts into a temp path. The alternative -
+      # committing key.properties - is exactly what must never happen.
+      #
+      # If these secrets are missing the build still succeeds but falls back to
+      # the Android debug key, and the step below fails the job. Better a red
+      # build than a published APK users cannot update in place.
+      - name: Check signing secrets are configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret in MUSIX_KEYSTORE_BASE64 MUSIX_KEYSTORE_PASSWORD MUSIX_KEY_ALIAS MUSIX_KEY_PASSWORD; do
+            if [ -z "${!secret:-}" ]; then
+              missing+=("$secret")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing GitHub Secret(s): ${missing[*]}"
+            echo "Without them the APK would be signed with the Android debug"
+            echo "key, and users could not install it over an existing MusiX."
+            echo "See CONTRIBUTING.md -> Release signing."
+            exit 1
+          fi
+
+      - name: Verify the keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Decode here so the keystore can be inspected before spending ~20
+          # minutes on a build that would fail at the very last step. The path
+          # matches the one android/app/build.gradle.kts decodes into, so Gradle
+          # simply rewrites identical bytes over the top of this file.
+          printf '%s' "$MUSIX_KEYSTORE_BASE64" | base64 --decode \
+            > "$RUNNER_TEMP/musix-release.jks"
+
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/musix-release.jks" \
+            -storepass "$MUSIX_KEYSTORE_PASSWORD" \
+            -alias "$MUSIX_KEY_ALIAS" > /dev/null
+          echo "OK: keystore is readable and the alias exists"
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Verify the tag matches pubspec.yaml
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [ "$tag" = "main" ]; then
+            tag="${{ inputs.tag }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "::error::No tag to release"
+            exit 1
+          fi
+
+          # `version: 1.2.0+12` -> versionName 1.2.0, versionCode 12.
+          # pubspec is the single source of truth, so a tag that disagrees with
+          # it would ship a release whose identity does not match the APK.
+          spec_version=$(grep -E '^version:' pubspec.yaml | head -1 | awk '{print $2}' | tr -d '"' | cut -d'+' -f1)
+          spec_code=$(grep -E '^version:' pubspec.yaml | head -1 | awk '{print $2}' | tr -d '"' | cut -s -d'+' -f2)
+          tag_version="${tag#v}"
+
+          echo "tag:            $tag_version"
+          echo "pubspec version: $spec_version"
+          echo "pubspec build:   $spec_code"
+
+          if [ "$tag_version" != "$spec_version" ]; then
+            echo "::error::Tag $tag_version does not match pubspec.yaml version $spec_version"
+            echo "Update pubspec.yaml first, commit it, then tag."
+            exit 1
+          fi
+
+          echo "$tag_version" > "$RUNNER_TEMP/release_version.txt"
+
+      - name: Static analysis
+        run: flutter analyze --no-pub
+
+      - name: Tests
+        run: flutter test --no-pub --reporter=compact
+
+      - name: Build release APK
+        run: flutter build apk --release --no-pub
+
+      - name: Locate, rename and checksum the APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # flutter build apk --release writes app-release.apk here, but the
+          # exact filename has changed across Flutter versions and
+          # --split-per-abi produces several. Glob rather than assume, and fail
+          # loudly if nothing usable was produced.
+          shopt -s nullglob
+          candidates=(build/app/outputs/flutter-apk/*release*.apk)
+          shopt -u nullglob
+
+          if [ ${#candidates[@]} -eq 0 ]; then
+            echo "::error::No APK found in build/app/outputs/flutter-apk"
+            ls -la build/app/outputs/ 2>/dev/null || true
+            ls -la build/app/outputs/flutter-apk/ 2>/dev/null || true
+            exit 1
+          fi
+
+          # Prefer the universal APK; fall back to the first split one.
+          src="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$src" ]; then
+            src="${candidates[0]}"
+            echo "Universal APK not present, using ${src}"
+            echo "::warning::Building a universal APK is recommended so one download covers every device."
+          fi
+
+          version=$(cat "$RUNNER_TEMP/release_version.txt")
+          staged="musix-${version}.apk"
+          cp "$src" "$staged"
+
+          # A release that ships without its checksum leaves the in-app
+          # downloader unable to verify what it fetched.
+          sha256sum "$staged" > "${staged}.sha256"
+
+          echo "APK:      $staged"
+          echo "Checksum: ${staged}.sha256"
+          du -h "$staged"
+
+          echo "path=$staged" >> "$GITHUB_OUTPUT"
+          echo "name=$staged" >> "$GITHUB_OUTPUT"
+          echo "checksum=${staged}.sha256" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the APK is signed and complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="${{ steps.apk.outputs.path }}"
+
+          # apksigner comes with the Android SDK build-tools.
+          signer=$(command -v apksigner || find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          if [ -z "$signer" ]; then
+            echo "::error::apksigner not found"
+            exit 1
+          fi
+
+          echo "--- signer ---"
+          "$signer" verify --print-certs "$apk" | head -20
+
+          "$signer" verify "$apk"
+
+          # Confirms the Rust native library actually made it in.
+          if ! unzip -l "$apk" | grep -q 'libmetadata_god.so'; then
+            echo "::error::libmetadata_god.so missing from the release APK"
+            exit 1
+          fi
+
+      # The Release is created here, after the APK exists. Creating it
+      # beforehand with `gh release create` would leave a public, empty release
+      # on the tag if the build failed.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.apk.outputs.version }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          # Notes are generated from the merged pull requests and commits
+          # between the previous tag and this one, so they describe what
+          # actually changed. Nothing is invented.
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.checksum }}
+          fail_on_unmatched_files: true
