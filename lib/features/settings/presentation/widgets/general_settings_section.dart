@@ -141,7 +141,10 @@ class GeneralSettingsSection extends StatelessWidget {
                   icon: Icons.language_rounded,
                   title: 'language_card_title'.tr(),
                   subtitle: settingsProvider.language,
-                  trailing: SettingsChevron(isDarkMode: isDarkMode),
+                  trailing: SettingsChevron(
+                    isDarkMode: isDarkMode,
+                    accentColor: accentColor,
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -309,7 +312,10 @@ class _BatteryOptimizationStatusTileState
       icon: Icons.battery_charging_full_rounded,
       title: 'battery_optimization_card_title'.tr(),
       subtitle: statusText,
-      trailing: SettingsChevron(isDarkMode: widget.isDarkMode),
+      trailing: SettingsChevron(
+        isDarkMode: widget.isDarkMode,
+        accentColor: widget.accentColor,
+      ),
       onTap: () async {
         try {
           await widget.onOpenSettings();

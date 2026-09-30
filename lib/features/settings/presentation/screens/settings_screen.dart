@@ -260,6 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return SettingsSurface(
       isDarkMode: isDarkMode,
+      accentColor: accentColor,
       padding: const EdgeInsets.all(AppDimens.paddingLg),
       color: accentColor.withValues(alpha: isDarkMode ? 0.10 : 0.06),
       child: Column(
