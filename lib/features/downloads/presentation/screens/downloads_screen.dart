@@ -470,34 +470,34 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
-                          backgroundColor: isDarkMode
-                              ? MainScreenColors.darkSurfaceColor
-                              : Colors.white,
+                          backgroundColor: MainScreenColors.getSurfaceColor(
+                            isDarkMode,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusXxl,
+                            ),
                           ),
                           title: Text(
                             'delete_songs'.tr(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isDarkMode ? Colors.white : Colors.black,
+                            style: AppTextStyles.titleSm(
+                              isDarkMode: isDarkMode,
+                            ).copyWith(
+                              fontWeight: AppTextStyles.weightBold,
+                              color: MainScreenColors.getTextColor(isDarkMode),
                             ),
                           ),
                           content: Text(
                             'are_you_sure_you_want_to_delete_selected_songs'.tr(
                               args: [_selectedSongs.length.toString()],
                             ),
-                            style: TextStyle(
-                              color: isDarkMode
-                                  ? Colors.white70
-                                  : Colors.black87,
-                            ),
+                            style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
                           ),
                           actions: <Widget>[
                             TextButton(
                               child: Text(
                                 'cancel'.tr(),
-                                style: TextStyle(color: textColor),
+                                style: AppTextStyles.button(color: textColor),
                               ),
                               onPressed: () {
                                 Navigator.of(context).pop(false);
@@ -506,7 +506,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                             TextButton(
                               child: Text(
                                 'delete'.tr(),
-                                style: const TextStyle(color: Colors.red),
+                                style: AppTextStyles.button(
+                                  color: Colors.red,
+                                ),
                               ),
                               onPressed: () {
                                 Navigator.of(context).pop(true);
@@ -620,7 +622,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     controller: _tabController,
                     indicatorColor: accentColor,
                     labelColor: accentColor,
-                    unselectedLabelColor: Colors.grey,
+                    unselectedLabelColor: MainScreenColors.getTextColor(
+                      isDarkMode,
+                    ).withValues(alpha: 0.7),
                     labelStyle: AppTextStyles.subtitle(isDarkMode: isDarkMode),
                     tabs: [
                       Tab(text: 'queue'.tr()),

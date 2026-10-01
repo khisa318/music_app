@@ -200,6 +200,8 @@ class _CoversSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -214,12 +216,14 @@ class _CoversSkeleton extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ShimmerLoading.buildShimmerRect(
+                isDarkMode: isDarkMode,
                 width: 180,
                 height: AppDimens.iconLg,
                 borderRadius: AppDimens.radiusSm,
               ),
               const SizedBox(height: AppDimens.spacingXs),
               ShimmerLoading.buildShimmerRect(
+                isDarkMode: isDarkMode,
                 width: 240,
                 height: AppDimens.iconSm,
                 borderRadius: AppDimens.radiusXs,
@@ -237,6 +241,7 @@ class _CoversSkeleton extends StatelessWidget {
                 child: Row(
                   children: [
                     ShimmerLoading.buildShimmerRect(
+                      isDarkMode: isDarkMode,
                       width: 64,
                       height: 64,
                       borderRadius: AppDimens.radiusSm,
@@ -247,12 +252,14 @@ class _CoversSkeleton extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           ShimmerLoading.buildShimmerRect(
+                            isDarkMode: isDarkMode,
                             width: double.infinity,
                             height: AppDimens.iconSm,
                             borderRadius: AppDimens.radiusXs,
                           ),
                           const SizedBox(height: AppDimens.spacingXs),
                           ShimmerLoading.buildShimmerRect(
+                            isDarkMode: isDarkMode,
                             width: 120,
                             height: AppDimens.iconXs,
                             borderRadius: AppDimens.radiusXs,
