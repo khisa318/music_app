@@ -54,6 +54,7 @@ Future<void> main() async {
     }
 
     failures += _checkTagFilters(name, triggers);
+    failures += _checkSecretWiring(name, jobs);
 
     // Every job needs a runs-on, and every step needs a name or an id so a
     // failing run is readable.
@@ -152,6 +153,68 @@ int _checkTagFilters(String name, Object? triggers) {
       'ok    $name  tag filters match '
       '${realTags.take(2).join(', ')} and pre-releases',
     );
+  }
+
+  return failures;
+}
+
+/// Checks that a step reading a repository secret as a shell variable actually
+/// asks for that secret.
+///
+/// A GitHub secret is not an environment variable. A step that reads
+/// `$SOME_SECRET` gets an empty string unless the step's `env:` maps it from
+/// `secrets.`, so the script runs, the variable is unset, and under `set -u`
+/// the step dies - or worse, with `${!name:-}` it reads as "not configured" and
+/// reports every secret as missing when all four are present.
+///
+/// That is not hypothetical. release.yml checked for the four MUSIX_* signing
+/// secrets this way, mapped none of them, and failed a real release with
+/// "Missing GitHub Secret(s)" printed for secrets that were configured. The
+/// build step had the same gap, which is worse: without them the APK is signed
+/// with the Android debug key and still builds.
+int _checkSecretWiring(String name, YamlMap jobs) {
+  // The same shape the workflows use: MUSIX_FOO in a script, $MUSIX_FOO read.
+  final pattern = RegExp(r'\$(?:\{)?(MUSIX_[A-Z0-9_]+)');
+
+  var failures = 0;
+
+  for (final jobEntry in jobs.entries) {
+    final steps = jobEntry.value['steps'];
+    if (steps is! YamlList) continue;
+
+    for (final step in steps) {
+      if (step is! YamlMap) continue;
+
+      final script = step['run'];
+      if (script is! String) continue;
+
+      final used = pattern
+          .allMatches(script)
+          .map((m) => m.group(1)!)
+          .toSet()
+          .toList()
+        ..sort();
+      if (used.isEmpty) continue;
+
+      final env = step['env'];
+      final provided = <String>{};
+      if (env is YamlMap) {
+        for (final entry in env.entries) {
+          final value = entry.value?.toString() ?? '';
+          if (value.contains('secrets.')) provided.add(entry.key.toString());
+        }
+      }
+
+      for (final secret in used) {
+        if (!provided.contains(secret)) {
+          stdout.writeln(
+            'FAIL  $name: step "${step['name'] ?? jobEntry.key}" reads \$$secret '
+            'but does not map it from secrets. in env:, so it will be empty.',
+          );
+          failures++;
+        }
+      }
+    }
   }
 
   return failures;
