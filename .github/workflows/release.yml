@@ -108,6 +108,15 @@ jobs:
       # build than a published APK users cannot update in place.
       - name: Check signing secrets are configured
         shell: bash
+        # Workflows do not support YAML anchors, so this mapping is repeated
+        # per step. The indirect expansion below (`${!secret}`) only works if the
+        # names are actually in the environment, which they are not by default -
+        # a secret is not an environment variable until a step asks for it.
+        env:
+          MUSIX_KEYSTORE_BASE64: ${{ secrets.MUSIX_KEYSTORE_BASE64 }}
+          MUSIX_KEYSTORE_PASSWORD: ${{ secrets.MUSIX_KEYSTORE_PASSWORD }}
+          MUSIX_KEY_ALIAS: ${{ secrets.MUSIX_KEY_ALIAS }}
+          MUSIX_KEY_PASSWORD: ${{ secrets.MUSIX_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           missing=()
@@ -126,6 +135,11 @@ jobs:
 
       - name: Verify the keystore
         shell: bash
+        env:
+          MUSIX_KEYSTORE_BASE64: ${{ secrets.MUSIX_KEYSTORE_BASE64 }}
+          MUSIX_KEYSTORE_PASSWORD: ${{ secrets.MUSIX_KEYSTORE_PASSWORD }}
+          MUSIX_KEY_ALIAS: ${{ secrets.MUSIX_KEY_ALIAS }}
+          MUSIX_KEY_PASSWORD: ${{ secrets.MUSIX_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -184,6 +198,17 @@ jobs:
         run: flutter test --no-pub --reporter=compact
 
       - name: Build release APK
+        # The step that matters. android/app/build.gradle.kts reads these and
+        # decodes the keystore into RUNNER_TEMP, so the signing material never
+        # lands in the repository and no key.properties is ever written. Without
+        # this mapping the build does not fail - it quietly falls back to the
+        # Android debug key and produces an APK nobody can install over MusiX.
+        # The signature check at the end of this job is what catches that.
+        env:
+          MUSIX_KEYSTORE_BASE64: ${{ secrets.MUSIX_KEYSTORE_BASE64 }}
+          MUSIX_KEYSTORE_PASSWORD: ${{ secrets.MUSIX_KEYSTORE_PASSWORD }}
+          MUSIX_KEY_ALIAS: ${{ secrets.MUSIX_KEY_ALIAS }}
+          MUSIX_KEY_PASSWORD: ${{ secrets.MUSIX_KEY_PASSWORD }}
         run: flutter build apk --release --no-pub
 
       - name: Locate, rename and checksum the APK
