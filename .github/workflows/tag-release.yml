@@ -160,7 +160,16 @@ jobs:
           # Annotated, so the tag records who released what and when, and so a
           # release is recoverable from the tag alone rather than from a commit
           # that may later be rebased away.
-          git tag -a "$tag" -m "Release ${{ steps.decide.outputs.version }}"
+          #
+          # The identity is passed inline rather than set on the runner. A hosted
+          # runner has no user.name or user.email configured, and an annotated tag
+          # needs one - without this the step dies with "Committer identity
+          # unknown" and no tag is created, which is safe but means the release
+          # silently does not happen. -c applies to this one command and leaves
+          # the checkout's config untouched.
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "$tag" -m "Release ${{ steps.decide.outputs.version }}"
 
           # Never force. A tag that already exists on the remote is a release
           # someone is relying on, and rewriting it would change the APK a tag
