@@ -20,6 +20,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/services/content_details_service.dart';
+import '../../../../shared/components/app_empty_state.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 enum SortOption {
@@ -332,28 +333,16 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     );
   }
 
-  Widget _buildEmptyState(String message, {required bool isDarkMode}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimens.spacingXxxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_download_outlined,
-              size: AppDimens.iconSplash,
-              color: Colors.grey[600],
-            ),
-            const SizedBox(height: AppDimens.spacingLg),
-            Text(
-              message,
-              style: AppTextStyles.heading(
-                isDarkMode: isDarkMode,
-              ).copyWith(color: Colors.grey[400]),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildEmptyState(
+    String message, {
+    required bool isDarkMode,
+    required Color accentColor,
+  }) {
+    return AppEmptyState(
+      icon: Icons.cloud_download_outlined,
+      title: message,
+      isDarkMode: isDarkMode,
+      accentColor: accentColor,
     );
   }
 
@@ -367,6 +356,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
               ? _buildEmptyState(
                   'no_songs_in_queue'.tr(),
                   isDarkMode: isDarkMode,
+                  accentColor: accentColor,
                 )
               : ListView(
                   children: downloadProvider.downloadQueue
@@ -395,6 +385,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
               ? _buildEmptyState(
                   'no_songs_in_downloads'.tr(),
                   isDarkMode: isDarkMode,
+                  accentColor: accentColor,
                 )
               : ListView(
                   children: sorted
