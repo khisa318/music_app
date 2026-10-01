@@ -106,10 +106,16 @@ void main() {
 
     final provider = CoversAndRemixesProvider();
 
-    // No YTMusic is registered, so a lookup would fail and wipe the shelf. The
-    // cache surviving proves the lookup was never attempted.
+    // No YTMusic is registered, so a lookup would fail. Watching for the loading
+    // flag is what proves the lookup was skipped rather than merely harmless.
+    var sawLoading = false;
+    provider.addListener(() {
+      if (provider.isLoading) sawLoading = true;
+    });
+
     await provider.load(_history(['seedA', 'seedB']));
 
+    expect(sawLoading, isFalse, reason: 'a fresh cache must not be re-looked-up');
     expect(provider.results, hasLength(1));
     expect(provider.results.first.videoId, 'alt1');
     expect(provider.isFromCache, isTrue);
@@ -125,10 +131,23 @@ void main() {
     );
 
     final provider = CoversAndRemixesProvider();
+
+    var sawLoading = false;
+    provider.addListener(() {
+      if (provider.isLoading) sawLoading = true;
+    });
+    final storedBefore = Hive.box<String>(_boxName).get(_key);
+
     await provider.load(_history(['seedC', 'seedD']));
 
+    expect(sawLoading, isTrue, reason: 'new seeds must be looked up');
     expect(provider.results, isEmpty);
     expect(provider.isFromCache, isFalse);
+    expect(
+      Hive.box<String>(_boxName).get(_key),
+      storedBefore,
+      reason: 'the blank shelf must not be written over the stored entry',
+    );
   });
 
   test('a cache older than the TTL is looked up again', () async {
@@ -143,10 +162,47 @@ void main() {
 
     final provider = CoversAndRemixesProvider();
 
+    var sawLoading = false;
+    provider.addListener(() {
+      if (provider.isLoading) sawLoading = true;
+    });
+    final storedBefore = Hive.box<String>(_boxName).get(_key);
+
     await provider.load(_history(['seedA', 'seedB']));
 
+    expect(sawLoading, isTrue, reason: 'a stale cache must be re-looked-up');
+    expect(
+      provider.results,
+      hasLength(1),
+      reason: 'a refresh that could not ask must not blank the shelf',
+    );
+    expect(provider.isFromCache, isTrue);
+    expect(
+      Hive.box<String>(_boxName).get(_key),
+      storedBefore,
+      reason: 'a failed refresh must not be cached as though it succeeded',
+    );
+  });
+
+  test('a failed lookup with nothing cached writes no entry', () async {
+    final provider = CoversAndRemixesProvider();
+
+    var sawLoading = false;
+    provider.addListener(() {
+      if (provider.isLoading) sawLoading = true;
+    });
+
+    await provider.load(_history(['seedA', 'seedB']));
+
+    expect(sawLoading, isTrue);
     expect(provider.results, isEmpty);
     expect(provider.isFromCache, isFalse);
+    expect(
+      Hive.box<String>(_boxName).get(_key),
+      isNull,
+      reason: 'caching "nothing found" during an outage would suppress every '
+          'retry for the next 12 hours',
+    );
   });
 
   test('malformed cache entries are ignored instead of throwing', () {

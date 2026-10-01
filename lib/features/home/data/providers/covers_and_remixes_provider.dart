@@ -25,6 +25,19 @@ import '../../../../core/services/related_song_service.dart';
 ///
 /// Searching by related-video title alone left the shelf empty most of the
 /// time, because mainstream uploads rarely carry "cover" in their title.
+
+/// What one lookup pass found, and how much of it was actually able to ask.
+///
+/// A pass that found nothing because the network refused the question is not
+/// the same as a pass that asked and was told there is nothing there. Only the
+/// second one is an answer worth caching, and the two are told apart by
+/// [succeeded] being zero.
+typedef _Lookup = ({
+  List<SongInfo> items,
+  int attempted,
+  int succeeded,
+});
+
 class CoversAndRemixesProvider extends ChangeNotifier {
   /// Resolved on first lookup rather than at construction, so a cached shelf
   /// can be served without the network client ever being touched.
@@ -265,9 +278,15 @@ class CoversAndRemixesProvider extends ChangeNotifier {
     try {
       final collected = <SongInfo>[];
       final seen = seeds.map((s) => s.videoId).toSet();
+      var attempted = 0;
+      var succeeded = 0;
 
       for (final seed in seeds) {
-        for (final candidate in await _searchAlternateVersions(seed)) {
+        final pass = await _searchAlternateVersions(seed);
+        attempted += pass.attempted;
+        succeeded += pass.succeeded;
+
+        for (final candidate in pass.items) {
           if (!seen.add(candidate.videoId)) continue;
           if (!_looksLikeAlternateVersion(candidate.name)) continue;
           if (!_matchesSeedTitle(candidate.name, seed.name)) continue;
@@ -275,13 +294,35 @@ class CoversAndRemixesProvider extends ChangeNotifier {
         }
       }
 
-      for (final candidate in await _relatedAlternateVersions(seeds)) {
+      final related = await _relatedAlternateVersions(seeds);
+      attempted += related.attempted;
+      succeeded += related.succeeded;
+
+      for (final candidate in related.items) {
         if (!seen.add(candidate.videoId)) continue;
         if (!_looksLikeAlternateVersion(candidate.name)) continue;
         if (!seeds.any((s) => _matchesSeedTitle(candidate.name, s.name))) {
           continue;
         }
         collected.add(candidate);
+      }
+
+      // Nothing got through, so this refresh learned nothing about the shelf
+      // rather than learning it was empty. Connectivity already said the
+      // network was usable, so this is a rate limit, a captive portal or YT
+      // having a moment - the cases a cache exists for. Replacing the shelf
+      // with what we have would blank it and then cache that blankness as
+      // fresh for the next 12 hours, which is the one outcome the cache is
+      // meant to prevent.
+      if (succeeded == 0 && attempted > 0) {
+        if (seedSignature != _cachedSeedSignature) {
+          // The seeds moved, so what is cached describes a different track and
+          // is not this shelf to show. Dropped, but not written: the stored
+          // entry is left for a later attempt rather than overwritten.
+          _results = [];
+          _isFromCache = false;
+        }
+        return;
       }
 
       _results = _rank(collected).take(_maxResults).toList();
@@ -297,12 +338,16 @@ class CoversAndRemixesProvider extends ChangeNotifier {
   }
 
   /// Explicit lookups for the seed's cover and remix versions.
-  Future<List<SongInfo>> _searchAlternateVersions(SongInfo seed) async {
+  Future<_Lookup> _searchAlternateVersions(SongInfo seed) async {
     final found = <SongInfo>[];
+    var attempted = 0;
+    var succeeded = 0;
 
     for (final qualifier in _searchQualifiers) {
+      attempted++;
       try {
         final results = await _ytMusic.search('${seed.name} $qualifier');
+        succeeded++;
         for (final result in results) {
           if (result is! SongDetailedSearchResult) continue;
           final song = result.songDetailed;
@@ -330,22 +375,26 @@ class CoversAndRemixesProvider extends ChangeNotifier {
       }
     }
 
-    return found;
+    return (items: found, attempted: attempted, succeeded: succeeded);
   }
 
   /// Live/unplugged takes from each seed's related videos.
-  Future<List<SongInfo>> _relatedAlternateVersions(List<SongInfo> seeds) async {
+  Future<_Lookup> _relatedAlternateVersions(List<SongInfo> seeds) async {
     final found = <SongInfo>[];
+    var attempted = 0;
+    var succeeded = 0;
 
     for (final seed in seeds) {
+      attempted++;
       try {
         found.addAll(await _relatedSongService.getRelatedSongs(seed.videoId));
+        succeeded++;
       } catch (e) {
         debugPrint('Covers/remixes related lookup failed for ${seed.name}: $e');
       }
     }
 
-    return found;
+    return (items: found, attempted: attempted, succeeded: succeeded);
   }
 
   /// Prioritise explicit covers and remixes over generic live/unplugged takes,
