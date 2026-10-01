@@ -1,0 +1,170 @@
+name: Tag release
+
+# A version bump in pubspec.yaml is the release signal.
+#
+#   PR changes `version:` in pubspec.yaml   ->  merged to main
+#                                          ->  this workflow pushes the
+#                                              matching `v*` tag
+#                                          ->  release.yml builds, signs and
+#                                              publishes the APK
+#
+# So a release is one edited line in one file and a merge. The developer never
+# types `git tag`, and never has to remember to push the tag.
+#
+# What this deliberately does NOT change: a tag is still the only thing that
+# publishes. Merging to main on its own can never ship an APK, because it only
+# creates a tag when pubspec.yaml's version is strictly newer than the last
+# released one - which is itself a deliberate act.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Writing a tag is the whole job, and it is the one permission it needs.
+permissions:
+  contents: write
+
+# Queue rather than cancel. Two version bumps arriving together must each get
+# their own tag; cancelling would silently drop one of them.
+concurrency:
+  group: tag-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Push the release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Every tag, so the newest published version can be compared against
+          # what pubspec.yaml is asking for.
+          fetch-depth: 0
+
+      - name: Compare pubspec.yaml against the newest release tag
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # `version: 1.2.0+12` -> `1.2.0+12`. pubspec.yaml is the single
+          # source of truth; there is no version anywhere else in the tree to
+          # drift out of sync with it.
+          read_version() {
+            grep -E '^version:' | head -1 | awk '{print $2}' | tr -d '"'
+          }
+
+          current="$(read_version < pubspec.yaml)"
+          echo "pubspec.yaml version: $current"
+
+          if [[ "$current" =~ - ]]; then
+            # Pre-releases are tagged by hand for now. Ordering a beta against a
+            # stable version correctly in shell is easy to get subtly wrong,
+            # and a wrong answer here means the wrong APK ships. release.yml
+            # still accepts a manually pushed `v*` tag, so nothing is lost.
+            echo "::notice::$current is a pre-release. Tag it by hand:"
+            echo "::notice::  git tag -a 'v${current%%+*}' -m 'Release' && git push origin 'v${current%%+*}'"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$ ]]; then
+            echo "::error::pubspec.yaml version '$current' is not MAJOR.MINOR.PATCH+BUILD"
+            echo "Both halves are required: versionName is compared by the in-app"
+            echo "updater and versionCode is what Android requires to increase."
+            exit 1
+          fi
+
+          name="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          build="${BASH_REMATCH[4]}"
+
+          # sort -V compares each dot-separated component numerically, so
+          # 1.10.0 correctly beats 1.9.0. A plain string sort picks the wrong
+          # "newest" tag as soon as a component reaches double digits, which
+          # would then reject a perfectly good release.
+          #
+          # `sed '/-/d'` rather than `grep -v -`: grep exits 1 when it selects
+          # nothing, and under `set -e` with pipefail that would abort the step
+          # on a repository whose only tags are pre-releases - turning "nothing
+          # to compare against yet" into a mysterious failed run.
+          newest="$(
+            git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+              | sed '/-/d' \
+              | sed 's/^v//' \
+              | sort -V \
+              | tail -1
+          )"
+
+          if [ -z "$newest" ]; then
+            echo "No stable release tag exists yet, so this merge publishes the"
+            echo "first release."
+          else
+            previous="$(
+              git show "v$newest:pubspec.yaml" 2>/dev/null | read_version || true
+            )"
+
+            if [ -z "$previous" ] || [ "$previous" = "$current" ]; then
+              echo "::notice::v$newest already shipped $previous. Nothing to release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            prev_name="${previous%%+*}"
+            prev_build="${previous##*+}"
+            echo "v$newest shipped: $previous"
+
+            # Both halves have to move, and this is the check that stops a
+            # mistake becoming a broken update on somebody's phone:
+            #
+            #   versionName  the app only offers a release whose tag compares
+            #                greater than what is installed
+            #   versionCode  Android refuses to install an update whose code is
+            #                not higher than the installed one
+            #
+            # Bumping 1.0.9+7 to 1.0.10+1 looks like a normal bump and would
+            # silently produce an APK no user could install.
+            if [ "$build" -le "$prev_build" ]; then
+              echo "::error::versionCode $build must be greater than the released $prev_build"
+              echo "Android will refuse to install this update over the last release."
+              echo "Set 'version: $name+$((prev_build + 1))' in pubspec.yaml."
+              exit 1
+            fi
+
+            if [ "$(printf '%s\n%s\n' "$prev_name" "$name" | sort -V | tail -1)" != "$name" ]; then
+              echo "::error::versionName $name is not newer than the released $prev_name"
+              exit 1
+            fi
+
+            echo "Release ready: v$name ($current)"
+          fi
+
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=v$name" >> "$GITHUB_OUTPUT"
+          echo "version=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Push the tag
+        if: steps.decide.outputs.release == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.decide.outputs.tag }}"
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists locally. Refusing to move it."
+            exit 1
+          fi
+
+          # Annotated, so the tag records who released what and when, and so a
+          # release is recoverable from the tag alone rather than from a commit
+          # that may later be rebased away.
+          git tag -a "$tag" -m "Release ${{ steps.decide.outputs.version }}"
+
+          # Never force. A tag that already exists on the remote is a release
+          # someone is relying on, and rewriting it would change the APK a tag
+          # is supposed to identify.
+          git push origin "refs/tags/$tag"
+
+          echo "Pushed $tag. release.yml now builds and publishes it."
