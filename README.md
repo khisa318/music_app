@@ -115,7 +115,8 @@ version: 1.0.0+1   # versionName 1.0.0, versionCode 1
 Gradle reads both halves via `flutter.versionName` / `flutter.versionCode`, so
 there is no version number anywhere else to keep in sync.
 
-Releases are driven by git tags. See [Releasing](#releasing) below.
+Releasing is driven by a bump to this one line. Merging a bump to `main` creates
+the tag automatically. See [Releasing](#releasing) below.
 
 ## Branching and CI
 
@@ -125,8 +126,9 @@ Releases are driven by git tags. See [Releasing](#releasing) below.
 - Open a pull request. `.github/workflows/ci.yml` runs format, `flutter
   analyze`, `flutter test` and a debug build on every PR and on every push to
   `main`. Nothing merges without those checks passing.
-- Merging to `main` **does not** publish anything. Releases are a separate,
-  deliberate step.
+- Merging to `main` publishes nothing — unless that merge changed
+  `version:` in `pubspec.yaml`, which is how a release is triggered. See
+  [Releasing](#releasing).
 
 CI pins Flutter to the version in `.flutter-version` (currently `3.47.5`)
 rather than `latest`, so a Flutter release cannot change CI's behaviour
@@ -134,30 +136,59 @@ underneath you.
 
 ## Releasing
 
-A release is a tag, and only a tag:
+A release is one edited line and one merge:
 
 ```bash
-# 1. Bump the version in pubspec.yaml, e.g. to 1.1.0+2
-# 2. Merge that bump through a PR to main
-# 3. Tag the merge commit
-git tag v1.1.0
-git push origin v1.1.0
+# 1. Edit pubspec.yaml:
+#      version: 1.1.0+2
+# 2. Commit, PR, merge to main.
+# 3. Done.
 ```
 
-`.github/workflows/release.yml` then:
+Merging a version bump is the release. `.github/workflows/tag-release.yml`
+compares `version:` against the newest release tag and, when it is newer,
+creates and pushes the matching `v*` tag. `.github/workflows/release.yml` is
+listening for that tag and then:
 
-1. builds a release APK,
-2. verifies it is signed and contains `libmetadata_god.so`,
-3. renames it `musix-1.1.0.apk` and writes a `.sha256` companion,
-4. creates the GitHub Release with auto-generated notes and attaches both.
+1. verifies the keystore is usable,
+2. checks the tag still agrees with `pubspec.yaml`,
+3. runs `flutter analyze` and `flutter test`,
+4. builds a release APK,
+5. verifies it is signed and contains `libmetadata_god.so`,
+6. renames it `musix-1.1.0.apk` and writes a `.sha256` companion,
+7. creates the GitHub Release with auto-generated notes and attaches both.
 
-It refuses to run if the tag disagrees with `version:` in `pubspec.yaml`, so a
-release can never claim a version its APK does not have. Drafts and
-pre-releases are handled too: a `-` in the tag marks the GitHub Release as a
-pre-release.
+You never type `git tag`.
 
-Merging to `main` publishes nothing. Never delete or move a tag that has been
-released.
+### Both halves of the version have to move
+
+`version: 1.1.0+2` is two numbers, and both must increase:
+
+| Half | Read by | Consequence if it does not increase |
+| --- | --- | --- |
+| `1.1.0` | the in-app updater | users are never offered the release |
+| `+2` | Android (`versionCode`) | the APK is refused on install |
+
+Going from `1.0.9+7` to `1.0.10+1` looks like a normal bump and would publish an
+APK that cannot install over the last one. The workflow fails on it and tells
+you the next legal value instead.
+
+Merging to `main` without changing `version:` publishes nothing. Never delete or
+move a tag that has been released.
+
+### Pre-releases
+
+A pre-release version (`1.2.0-beta.1+4`) is not tagged automatically — ordering
+a beta against a stable version correctly is easy to get subtly wrong, and a
+wrong answer ships the wrong APK. Tag those by hand:
+
+```bash
+git tag -a v1.2.0-beta.1 -m "Release 1.2.0-beta.1"
+git push origin v1.2.0-beta.1
+```
+
+`release.yml` picks it up, builds it, and marks the GitHub Release as a
+pre-release. The app's beta update channel will then offer it.
 
 ### Release signing
 
@@ -165,20 +196,19 @@ Android only permits an update to install over an existing app if the APK is
 signed with the **same key**. Losing this key means users can never update
 in place — only uninstall and start over, losing their library.
 
-Generate the keystore once:
+The keystore for this project lives outside the repository, alongside a
+`README.txt` recording the certificate fingerprint. Check that fingerprint
+against a keystore before trusting it:
 
 ```bash
-keytool -genkeypair -v \
-  -keystore musix-release.jks \
-  -alias musix \
-  -keyalg RSA -keysize 4096 -validity 10000
+keytool -list -v -keystore musix-release.jks -storepass <password> -alias musix
 ```
 
-Back it up somewhere safe and permanently. For local builds, copy
-`android/key.properties.template` to `android/key.properties`, point `storeFile`
-at the keystore, and fill in the passwords. That file is gitignored.
+For local builds, copy `android/key.properties.template` to
+`android/key.properties`, point `storeFile` at the keystore, and fill in the
+passwords. That file is gitignored.
 
-For CI, add these repository secrets (`gh secret set NAME`):
+For CI, four repository secrets carry the same values (`gh secret set NAME`):
 
 | Secret | Contents |
 | --- | --- |

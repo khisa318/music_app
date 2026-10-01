@@ -1,4 +1,5 @@
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -19,6 +20,7 @@ import '../../../playlist_album_content/presentation/screens/playlist_album_cont
 import '../widgets/create_playlist_bottomsheet.dart';
 import 'playlists_detail_screen.dart';
 
+import '../../../../shared/components/app_empty_state.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 /// One row in the merged, dense playlist list.
@@ -463,8 +465,6 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   // ============================================================
 
   Widget _buildCreatedEmptyState(bool isDarkMode, Color accentColor) {
-    final textColor = MainScreenColors.getTextColor(isDarkMode);
-
     return RefreshIndicator(
       color: accentColor,
       onRefresh: _loadData,
@@ -473,72 +473,14 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
         children: [
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.58,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 88,
-                      height: 88,
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.queue_music_rounded,
-                        size: 40,
-                        color: accentColor,
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    Text(
-                      'No playlists yet',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Text(
-                      'Create your first playlist to organize the music you love.',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.caption(
-                        isDarkMode: isDarkMode,
-                        color: textColor.withValues(alpha: 0.58),
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    // --------------------------------------------------------
-                    // CREATE BUTTON
-                    // --------------------------------------------------------
-                    FilledButton.icon(
-                      onPressed: _createNewPlaylist,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accentColor,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add_rounded, size: 20),
-                      label: const Text(
-                        'Create playlist',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            child: AppEmptyState(
+              icon: Icons.queue_music_rounded,
+              title: 'no_playlists_yet'.tr(),
+              message: 'no_playlists_yet_desc'.tr(),
+              actionLabel: 'create_playlist'.tr(),
+              onAction: _createNewPlaylist,
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
             ),
           ),
         ],
@@ -1109,57 +1051,23 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   Widget _buildSavedEmptyState(bool isDarkMode, Color accentColor) {
     final isPlaylist = _savedContentFilter == 'Playlists';
 
-    final textColor = MainScreenColors.getTextColor(isDarkMode);
-
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.52,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(30),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 82,
-                    height: 82,
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.11),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isPlaylist
-                          ? Icons.bookmark_outline_rounded
-                          : Icons.album_outlined,
-                      size: 38,
-                      color: accentColor,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Text(
-                    isPlaylist ? 'No saved playlists' : 'No saved albums',
-                    style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    isPlaylist
-                        ? 'Save playlists you discover and they will appear here.'
-                        : 'Save albums you love and find them here anytime.',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.caption(
-                      isDarkMode: isDarkMode,
-                      color: textColor.withValues(alpha: 0.58),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          child: AppEmptyState(
+            icon: isPlaylist
+                ? Icons.bookmark_outline_rounded
+                : Icons.album_outlined,
+            title: isPlaylist
+                ? 'no_saved_playlists'.tr()
+                : 'no_saved_albums'.tr(),
+            message: isPlaylist
+                ? 'no_saved_playlists_desc'.tr()
+                : 'no_saved_albums_desc'.tr(),
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
           ),
         ),
       ],

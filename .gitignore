@@ -58,6 +58,14 @@ app.*.map.json
 key.properties
 keystore.properties
 
+# Passwords written to a file beside the keystore, and the base64 blob a
+# setup helper leaves behind when uploading MUSIX_KEYSTORE_BASE64. The
+# keystore itself is kept outside this tree entirely; these catch a copy that
+# wanders in, so a stray `pass.txt` cannot become a commit.
+pass.txt
+credentials.txt
+keystore.b64
+
 # Build output that must never be committed: the release workflow builds the
 # APK and attaches it to the GitHub Release instead.
 /*.apk

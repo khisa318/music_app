@@ -236,12 +236,15 @@ class _ArtistAvatarWithPlayButtonState
                   fit: BoxFit.cover,
                   placeholder: (context, url) =>
                       ShimmerLoading.buildShimmerRect(
+                        isDarkMode: widget.isDarkMode,
                         width: AppDimens.thumbnailLarge + AppDimens.spacingSm,
                         height: AppDimens.thumbnailLarge + AppDimens.spacingSm,
                         borderRadius: AppDimens.radiusAvatar,
                       ),
                   errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[850],
+                    color: widget.isDarkMode
+                        ? Colors.grey[850]
+                        : Colors.grey[300],
                     child: const Icon(Icons.person, color: Colors.white),
                   ),
                 ),

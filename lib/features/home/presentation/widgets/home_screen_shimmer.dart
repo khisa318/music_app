@@ -187,16 +187,17 @@ class ShimmerLoading {
   static Widget buildShimmerRect({
     required double width,
     required double height,
+    required bool isDarkMode,
     double borderRadius = AppDimens.radiusSm,
   }) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey[850]!,
-      highlightColor: Colors.grey[700]!,
+      baseColor: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+      highlightColor: isDarkMode ? Colors.grey[600]! : Colors.grey[100]!,
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
           borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),

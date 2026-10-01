@@ -138,7 +138,7 @@ class OTAProvider extends ChangeNotifier {
         if (showNoUpdateMessage) {
           _handleError(
             _mapReleaseFailure(outcome.failure),
-            outcome.message ?? 'Could not reach GitHub',
+            _releaseFailureMessage(outcome.failure),
           );
         } else {
           _setStatus(OTAStatus.idle);
@@ -359,9 +359,26 @@ class OTAProvider extends ChangeNotifier {
         return OTAError.networkError;
       case ReleaseCheckFailure.malformed:
         return OTAError.parseError;
-      case ReleaseCheckFailure.notFound:
       case ReleaseCheckFailure.unknown:
         return OTAError.unknownError;
+    }
+  }
+
+  /// Says what went wrong and what to do about it, rather than repeating the
+  /// HTTP status or the transport's exception wording at the user.
+  static String _releaseFailureMessage(ReleaseCheckFailure failure) {
+    switch (failure) {
+      case ReleaseCheckFailure.offline:
+      case ReleaseCheckFailure.timeout:
+        return 'No connection to GitHub. Check your network and try again.';
+      case ReleaseCheckFailure.rateLimited:
+        return 'Too many update checks right now. Try again in a few minutes.';
+      case ReleaseCheckFailure.serverError:
+        return 'GitHub is having trouble right now. Try again in a few minutes.';
+      case ReleaseCheckFailure.malformed:
+        return 'The update information could not be read.';
+      case ReleaseCheckFailure.unknown:
+        return 'Could not check for updates. Try again in a few minutes.';
     }
   }
 

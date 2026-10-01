@@ -129,9 +129,8 @@ class UpdateChecker {
       ReleaseCheckResult(failure: final failure?) => UpdateCheckResult.failed(
         installed: installed,
         failure: failure,
-        // Carried through, not dropped: the manual "check for updates" sheet
-        // shows *why* the check failed, so a silent generic error would hide a
-        // reachable problem such as "no releases yet" or "rate limited".
+        // Diagnostic only. The provider picks the wording shown to the user
+        // from the category, so raw transport detail never reaches the screen.
         message: result.message,
       ),
       _ => UpdateCheckResult.upToDate(installed),

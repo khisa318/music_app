@@ -104,11 +104,12 @@ class ContentCard extends StatelessWidget {
                 width: AppDimens.headerImageSm,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => ShimmerLoading.buildShimmerRect(
+                  isDarkMode: isDarkMode,
                   width: AppDimens.headerImageSm,
                   height: AppDimens.headerImageSm,
                 ),
                 errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[850],
+                  color: isDarkMode ? Colors.grey[850] : Colors.grey[300],
                   child: const Icon(Icons.error, color: Colors.white),
                 ),
               ),

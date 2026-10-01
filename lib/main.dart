@@ -127,6 +127,7 @@ Future<void> main() async {
         'video_info_cache',
         'playback_stats',
         'recent_playlists',
+        'covers_and_remixes_cache',
       ];
 
       await Hive.openBox<dynamic>('app_settings');
@@ -177,6 +178,11 @@ Future<void> main() async {
       // ------------------------------------------------------------
 
       FlutterError.onError = (FlutterErrorDetails details) {
+        debugPrint(
+          'FLUTTERERR_DETAIL>>> '
+          '${details.exceptionAsString()}\n'
+          '${details.context?.toDescription()}',
+        );
         talker.handle(
           details.exception,
           details.stack ?? StackTrace.current,
