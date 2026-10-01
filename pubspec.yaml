@@ -44,6 +44,7 @@ dependencies:
   http: ^1.6.0
   jiosaavn: ^0.1.1
   media_kit: ^1.2.6
+  media_kit_libs_video: ^1.0.7
   metadata_god: ^1.1.0
   mime: ^2.0.0
   package_info_plus: ^9.0.0
