@@ -185,6 +185,7 @@ class _LibraryFilterChip extends StatelessWidget {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
@@ -196,26 +197,30 @@ class _LibraryFilterChip extends StatelessWidget {
 
               const SizedBox(width: AppDimens.spacingXs),
 
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style:
-                      AppTextStyles.body2(
-                        isDarkMode: isDarkMode,
-                        color: isSelected
-                            ? Colors.black
-                            : textColor.withValues(
-                                alpha: AppDimens.opacityMuted,
-                              ),
-                      ).copyWith(
-                        fontWeight: isSelected
-                            ? AppTextStyles.weightBold
-                            : AppTextStyles.weightSemiBold,
-                      ),
-                ),
+              // Not a Flexible: this Row lives in a horizontal scroll view, so
+              // its width constraint is unbounded and any flexed child throws
+              // "non-zero flex but incoming width constraints are unbounded",
+              // which took the whole Library page down with it. The pill sizes
+              // to its label instead, and the row scrolls.
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                textAlign: TextAlign.center,
+                style:
+                    AppTextStyles.body2(
+                      isDarkMode: isDarkMode,
+                      color: isSelected
+                          ? Colors.black
+                          : textColor.withValues(
+                              alpha: AppDimens.opacityMuted,
+                            ),
+                    ).copyWith(
+                      fontWeight: isSelected
+                          ? AppTextStyles.weightBold
+                          : AppTextStyles.weightSemiBold,
+                    ),
               ),
             ],
           ),

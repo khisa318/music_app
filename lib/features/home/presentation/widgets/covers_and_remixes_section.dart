@@ -32,6 +32,15 @@ class CoversAndRemixesSection extends StatefulWidget {
 class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
   bool _loadScheduled = false;
 
+  /// Whether [CoversAndRemixesProvider.load] has already been called with a
+  /// non-empty history.
+  ///
+  /// Without this the build-phase retry below re-entered on every rebuild
+  /// whenever a lookup came back empty, so the section ping-ponged between
+  /// the shimmer and nothing while re-running the same searches forever. The
+  /// request is only repeated if the history was still empty at the time.
+  bool _requested = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +67,7 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
       final history = player.lastPlayedSongs;
       if (history.isEmpty) return;
 
+      _requested = true;
       context.read<CoversAndRemixesProvider>().load(history);
     });
   }
@@ -69,7 +79,8 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
     final player = context.watch<PlayerProvider>();
     final provider = context.watch<CoversAndRemixesProvider>();
 
-    if (provider.results.isEmpty &&
+    if (!_requested &&
+        provider.results.isEmpty &&
         !provider.isLoading &&
         !player.isLoadingLastPlayedSongs &&
         player.lastPlayedSongs.isNotEmpty) {
@@ -80,7 +91,7 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     if (provider.isLoading) {
-      return ShimmerLoading.buildShimmerList();
+      return const _CoversSkeleton();
     }
 
     if (provider.results.isEmpty) {
@@ -178,6 +189,82 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
       AppSnackBar.showError(context, 'failed_to_play_song_error'.tr());
       debugPrint('Covers/remixes playback failed: $e');
     }
+  }
+}
+
+class _CoversSkeleton extends StatelessWidget {
+  const _CoversSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.paddingLg,
+            AppDimens.paddingLg,
+            AppDimens.spacingSm,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShimmerLoading.buildShimmerRect(
+                width: 180,
+                height: AppDimens.iconLg,
+                borderRadius: AppDimens.radiusSm,
+              ),
+              const SizedBox(height: AppDimens.spacingXs),
+              ShimmerLoading.buildShimmerRect(
+                width: 240,
+                height: AppDimens.iconSm,
+                borderRadius: AppDimens.radiusXs,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+          child: Column(
+            children: List.generate(
+              3,
+              (_) => Padding(
+                padding: const EdgeInsets.only(bottom: AppDimens.spacingXs),
+                child: Row(
+                  children: [
+                    ShimmerLoading.buildShimmerRect(
+                      width: 64,
+                      height: 64,
+                      borderRadius: AppDimens.radiusSm,
+                    ),
+                    const SizedBox(width: AppDimens.spacingMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerLoading.buildShimmerRect(
+                            width: double.infinity,
+                            height: AppDimens.iconSm,
+                            borderRadius: AppDimens.radiusXs,
+                          ),
+                          const SizedBox(height: AppDimens.spacingXs),
+                          ShimmerLoading.buildShimmerRect(
+                            width: 120,
+                            height: AppDimens.iconXs,
+                            borderRadius: AppDimens.radiusXs,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -298,23 +385,19 @@ class _CoversTile extends StatelessWidget {
               width: 64,
               height: 64,
               child: thumbnailUrl.isEmpty
-                  ? Container(
-                      color: scheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.music_note_rounded,
-                        color: scheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    )
+                  ? _CoverFallback(scheme: scheme)
                   : CachedNetworkImage(
                       imageUrl: thumbnailUrl,
                       fit: BoxFit.cover,
-                      errorWidget: (context, url, error) => Container(
-                        color: scheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.broken_image_rounded,
-                          color: scheme.onSurface.withValues(alpha: 0.5),
-                        ),
-                      ),
+                      // Decoded at the size they are drawn at. Without this
+                      // every tile pulled a full-resolution cover and held it
+                      // in memory, which is what made the grid stutter and
+                      // flash while it scrolled.
+                      memCacheWidth: 64,
+                      memCacheHeight: 64,
+                      fadeInDuration: AppDimens.animFast,
+                      placeholder: (_, _) => _CoverFallback(scheme: scheme),
+                      errorWidget: (_, _, _) => _CoverFallback(scheme: scheme),
                     ),
             ),
           ),
@@ -361,6 +444,33 @@ class _CoversTile extends StatelessWidget {
             ),
           const SizedBox(width: AppDimens.spacingSm),
         ],
+      ),
+    );
+  }
+}
+
+/// Artwork placeholder for a cover tile.
+///
+/// One widget for the empty, loading and failed states: a distinct
+/// "broken image" glyph for every tile whose network fetch failed is what
+/// made the row look broken rather than merely unloaded.
+class _CoverFallback extends StatelessWidget {
+  final ColorScheme scheme;
+
+  const _CoverFallback({required this.scheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+      ),
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          size: AppDimens.iconMd,
+          color: scheme.onSurface.withValues(alpha: 0.45),
+        ),
       ),
     );
   }

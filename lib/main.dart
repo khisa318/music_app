@@ -177,6 +177,11 @@ Future<void> main() async {
       // ------------------------------------------------------------
 
       FlutterError.onError = (FlutterErrorDetails details) {
+        debugPrint(
+          'FLUTTERERR_DETAIL>>> '
+          '${details.exceptionAsString()}\n'
+          '${details.context?.toDescription()}',
+        );
         talker.handle(
           details.exception,
           details.stack ?? StackTrace.current,

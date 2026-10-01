@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:terminate_restart/terminate_restart.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../main_screen/router/display_route.dart';
 import 'theme_setup_screen.dart';
@@ -382,20 +379,20 @@ class _IntroScreenState extends State<IntroScreen>
     final box = await SettingsStorageService.getBox();
     await box.put('first_time', false);
 
+    // The chosen theme is already published by SettingsProvider, which
+    // MusiXApp watches for MaterialApp.themeMode, so the app picks it up on
+    // the next frame. Restarting the process to get there meant killing the
+    // running engine and re-running every startup step - Hive, providers,
+    // services - behind a black window for several seconds. Navigating
+    // instead applies the theme immediately and costs nothing.
     if (mounted) {
-      if (Platform.isAndroid) {
-        await TerminateRestart.instance.restartApp(
-          options: const TerminateRestartOptions(terminate: true),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                FadeTransition(opacity: animation, child: const MainScreen()),
-          ),
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              FadeTransition(opacity: animation, child: const MainScreen()),
+        ),
+      );
     }
   }
 

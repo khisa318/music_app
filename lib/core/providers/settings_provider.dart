@@ -336,10 +336,21 @@ class SettingsProvider with ChangeNotifier {
     _saveToPrefs(_languageKey, value);
 
     final locale = _getLocaleFromLanguage(value);
-    EasyLocalization.of(navigatorKey.currentContext!)?.setLocale(locale);
+
+    // EasyLocalization asserts that the locale is one of the ones the app
+    // declares, and the app only declares English: every other translation
+    // file is still an empty placeholder. Calling setLocale for an undeclared
+    // locale threw an uncaught assertion from the language picker, so the
+    // choice is recorded but not applied until the translation is there.
+    if (_supportedLocales.contains(locale.languageCode)) {
+      EasyLocalization.of(navigatorKey.currentContext!)?.setLocale(locale);
+    }
 
     notifyListeners();
   }
+
+  /// Locales the app actually ships. Mirrors `supportedLocales` in main.dart.
+  static const Set<String> _supportedLocales = {'en'};
 
   Locale _getLocaleFromLanguage(String language) {
     switch (language) {
