@@ -231,6 +231,7 @@ class StatsSection extends StatelessWidget {
                               ? AppDimens.thumbnailLarge
                               : AppDimens.thumbnailDefault,
                           accentColor,
+                          isDarkMode,
                         ),
                       ),
                     if (nextSong != null)
@@ -392,12 +393,21 @@ class StatsSection extends StatelessWidget {
   }
 }
 
-Widget _buildThumbnail(String url, double size, Color accentColor) {
+Widget _buildThumbnail(
+  String url,
+  double size,
+  Color accentColor,
+  bool isDarkMode,
+) {
+  // Matches the base the shimmer placeholders use elsewhere, so a track with no
+  // artwork left is the same grey the loading state was, in both themes.
+  final placeholder = isDarkMode ? Colors.grey[800]! : Colors.grey[300]!;
+
   if (url.isEmpty) {
     return Container(
       width: size,
       height: size,
-      color: Colors.grey[300],
+      color: placeholder,
       child: Icon(Icons.music_note, color: accentColor),
     );
   }
@@ -411,13 +421,13 @@ Widget _buildThumbnail(String url, double size, Color accentColor) {
       placeholder: (context, url) => Container(
         width: size,
         height: size,
-        color: Colors.grey[300],
+        color: placeholder,
         child: Icon(Icons.music_note, color: accentColor),
       ),
       errorWidget: (context, url, error) => Container(
         width: size,
         height: size,
-        color: Colors.grey[300],
+        color: placeholder,
         child: Icon(Icons.broken_image, color: accentColor),
       ),
     );
@@ -436,7 +446,7 @@ Widget _buildThumbnail(String url, double size, Color accentColor) {
         errorBuilder: (context, error, stackTrace) => Container(
           width: size,
           height: size,
-          color: Colors.grey[300],
+          color: placeholder,
           child: Icon(Icons.music_note, color: accentColor),
         ),
       );
@@ -446,7 +456,7 @@ Widget _buildThumbnail(String url, double size, Color accentColor) {
   return Container(
     width: size,
     height: size,
-    color: Colors.grey[300],
+    color: placeholder,
     child: Icon(Icons.music_note, color: accentColor),
   );
 }
