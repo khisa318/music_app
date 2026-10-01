@@ -13,8 +13,15 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+      # `*`, not `+`. GitHub's filter patterns are globs, and `+` is a literal
+      # plus in them, so `v[0-9]+.[0-9]+.[0-9]+` describes a tag spelled
+      # `v1+0+0` and never matches `v1.0.0` - which is why this workflow sat at
+      # zero runs after tag-release.yml had correctly pushed v1.0.0.
+      # This is also the pattern tag-release.yml lists tags with, so the
+      # workflow that creates a tag and the workflow that watches for one
+      # cannot disagree about what a tag looks like.
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*-*'
   workflow_dispatch:
     inputs:
       tag:
