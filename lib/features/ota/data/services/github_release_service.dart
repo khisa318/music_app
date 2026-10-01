@@ -16,9 +16,6 @@ enum ReleaseCheckFailure {
   /// GitHub returned 403/429 for the anonymous request quota.
   rateLimited,
 
-  /// 404 - the repository has no releases yet, or is private.
-  notFound,
-
   /// Any other non-2xx response, including a GitHub 5xx outage.
   serverError,
 
@@ -31,6 +28,10 @@ enum ReleaseCheckFailure {
   /// Anything unclassified.
   unknown,
 }
+
+/// "No published release" is the one status worth reading rather than
+/// throwing.
+bool _isNotFound(int? status) => status == 404;
 
 /// Result of [GitHubReleaseService.fetchLatestRelease].
 ///
@@ -46,6 +47,9 @@ class ReleaseCheckResult {
 
   final GitHubRelease? release;
   final ReleaseCheckFailure? failure;
+
+  /// Diagnostic detail for the log. Never shown to the user: the provider turns
+  /// [failure] into a short, actionable message of its own.
   final String? message;
 
   bool get isSuccess => release != null;
@@ -71,29 +75,38 @@ typedef HttpGet = Future<Response<dynamic>> Function(Uri url);
 /// Pre-releases are opt-in through [allowPreReleases], matching the existing
 /// "Update channel" setting in the app.
 class GitHubReleaseService {
+  /// Timeouts, headers and status handling for the GitHub API.
+  ///
+  /// Exposed so a test can assert the configuration that decides whether a 404
+  /// is a normal answer or an exception, instead of restating it and proving
+  /// only that Dio behaves as documented.
+  @visibleForTesting
+  static final BaseOptions baseOptions = BaseOptions(
+    connectTimeout: Duration(seconds: 15),
+    receiveTimeout: Duration(seconds: 15),
+    sendTimeout: Duration(seconds: 15),
+    responseType: ResponseType.json,
+    headers: <String, String>{
+      // The Releases API requires a User-Agent. Identifying the app
+      // also keeps the anonymous quota shared with other apps
+      // rather than looking like a generic script.
+      'User-Agent': 'MusiX-Android',
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    // GitHub answers `/releases/latest` with 404 for a project that has never
+    // published a release. That is a normal answer, not a transport fault, so
+    // it is handled below rather than thrown as an opaque DioException. Every
+    // other non-2xx still throws and is classified in the catch block.
+    validateStatus: _isNotFound,
+  );
+
   GitHubReleaseService({
     Dio? dio,
     AppRepository? repository,
     this.allowPreReleases = false,
   }) : repository = repository ?? AppRepository.current,
-       _dio =
-           dio ??
-           Dio(
-             BaseOptions(
-               connectTimeout: const Duration(seconds: 15),
-               receiveTimeout: const Duration(seconds: 15),
-               sendTimeout: const Duration(seconds: 15),
-               responseType: ResponseType.json,
-               headers: const {
-                 // The Releases API requires a User-Agent. Identifying the app
-                 // also keeps the anonymous quota shared with other apps
-                 // rather than looking like a generic script.
-                 'User-Agent': 'MusiX-Android',
-                 'Accept': 'application/vnd.github+json',
-                 'X-GitHub-Api-Version': '2022-11-28',
-               },
-             ),
-           );
+       _dio = dio ?? Dio(baseOptions);
 
   final Dio _dio;
   final AppRepository repository;
@@ -124,6 +137,14 @@ class GitHubReleaseService {
       );
 
       final status = response.statusCode ?? 0;
+
+      // "This project has no published release" is not an error - it is the
+      // answer. `/releases/latest` spells it as 404 while the list endpoint the
+      // beta channel uses spells it as 200 with an empty array, so both are
+      // normalised to empty here. Otherwise the two channels would disagree
+      // about a state that has nothing to do with the user.
+      if (status == 404) return const ReleaseCheckResult.empty();
+
       if (status < 200 || status >= 300) {
         return ReleaseCheckResult.failed(_classifyStatus(status));
       }
@@ -165,7 +186,14 @@ class GitHubReleaseService {
 
       return const ReleaseCheckResult.empty();
     } on DioException catch (error) {
-      return ReleaseCheckResult.failed(_classifyDio(error), error.message);
+      // The transport's own wording ("...validateStatus was configured to
+      // throw for this status code") is for the log, not for the user. The
+      // caller turns the classified failure into something actionable.
+      debugPrint(
+        '[Update] release lookup failed (${error.response?.statusCode}): '
+        '${error.message}',
+      );
+      return ReleaseCheckResult.failed(_classifyDio(error));
     } catch (error) {
       debugPrint('[Update] release lookup failed: $error');
       return const ReleaseCheckResult.failed(ReleaseCheckFailure.unknown);
@@ -174,7 +202,6 @@ class GitHubReleaseService {
 
   static ReleaseCheckFailure _classifyStatus(int status) {
     if (status == 403 || status == 429) return ReleaseCheckFailure.rateLimited;
-    if (status == 404) return ReleaseCheckFailure.notFound;
     if (status >= 500) return ReleaseCheckFailure.serverError;
     return ReleaseCheckFailure.unknown;
   }
