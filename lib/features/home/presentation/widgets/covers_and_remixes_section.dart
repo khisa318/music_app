@@ -80,17 +80,20 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
     final provider = context.watch<CoversAndRemixesProvider>();
 
     if (!_requested &&
-        provider.results.isEmpty &&
         !provider.isLoading &&
         !player.isLoadingLastPlayedSongs &&
-        player.lastPlayedSongs.isNotEmpty) {
+        player.lastPlayedSongs.isNotEmpty &&
+        (provider.results.isEmpty || provider.isFromCache)) {
       _scheduleLoad();
     }
 
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    if (provider.isLoading) {
+    // A cached shelf stays on screen while it is refreshed behind the scenes,
+    // so the shimmer is only for the very first load, when there is nothing
+    // cached to show yet.
+    if (provider.isLoading && provider.results.isEmpty) {
       return const _CoversSkeleton();
     }
 
