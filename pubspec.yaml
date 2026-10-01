@@ -85,6 +85,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   hive_ce_generator: ^1.9.3
   msix: ^3.16.12
+  # Used by tool/validate_workflows.dart to parse the CI workflow files.
+  # Already present transitively via Flutter tooling, so this adds no new
+  # package to the lock file.
+  yaml: ^3.1.3
 
 flutter:
   uses-material-design: true
