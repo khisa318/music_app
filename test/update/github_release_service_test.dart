@@ -1,6 +1,35 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_app/features/ota/data/services/github_release_service.dart';
+
+/// Answers every request with a fixed status and body, so a test can drive a
+/// real [Dio] - and therefore the real status validation - without a socket.
+class _StubAdapter implements HttpClientAdapter {
+  _StubAdapter(this.statusCode, this.body);
+
+  final int statusCode;
+  final String body;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      body,
+      statusCode,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 /// Builds a [Response] the way Dio would, without a network round trip.
 Response<dynamic> _response(int statusCode, Object? data) => Response<dynamic>(
@@ -237,13 +266,45 @@ void main() {
   });
 
   group('failures', () {
-    test('404 becomes notFound', () async {
+    test('404 from /releases/latest means "no releases yet"', () async {
+      // GitHub answers 404 for a project that has never published a release.
+      // The beta channel sees the same state as 200 with an empty array, so
+      // neither may be reported as a failure.
       final service = serviceWith((_) => _response(404, null));
 
       final result = await service.fetchLatestRelease();
 
-      expect(result.isEmpty, isFalse);
-      expect(result.failure, ReleaseCheckFailure.notFound);
+      expect(result.isEmpty, isTrue);
+      expect(result.failure, isNull);
+      expect(result.isSuccess, isFalse);
+    });
+
+    test('a real 404 response is not thrown by validateStatus', () async {
+      // The other tests in this group fake the transport, which skips Dio's own
+      // status handling. This one drives a real Dio built from the app's
+      // production options, so it covers the exact path that used to surface
+      // "validateStatus was configured to throw for this status code".
+      final service = GitHubReleaseService(
+        dio: Dio(GitHubReleaseService.baseOptions)
+          ..httpClientAdapter = _StubAdapter(404, ''),
+      );
+
+      final result = await service.fetchLatestRelease();
+
+      expect(result.isEmpty, isTrue);
+      expect(result.failure, isNull);
+    });
+
+    test('other non-2xx statuses still throw and are classified', () async {
+      for (final status in <int>[403, 500, 502]) {
+        final service = GitHubReleaseService(
+          dio: Dio(GitHubReleaseService.baseOptions)
+            ..httpClientAdapter = _StubAdapter(status, ''),
+        );
+
+        expect((await service.fetchLatestRelease()).failure, isNotNull,
+            reason: '$status');
+      }
     });
 
     test('403 and 429 become rateLimited', () async {

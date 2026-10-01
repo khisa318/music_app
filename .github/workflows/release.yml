@@ -1,11 +1,15 @@
 name: Release
 
-# Releasing is a deliberate, separate action from merging.
+# Builds and publishes the APK for a release tag.
 #
-#   merge PR into main  ->  nothing is published
-#   push tag v1.2.0      ->  APK built, GitHub Release created, APK attached
+#   PR bumps `version:`  ->  merged to main
+#                       ->  tag-release.yml pushes the matching `v*` tag
+#                       ->  this workflow runs
 #
-# Only a tag can publish. Merging to main never does.
+# Tags are created by tag-release.yml, not by hand, but a manually pushed
+# `v*` tag still works - that is what makes a pre-release and a re-run possible.
+# Merging to main on its own never reaches this workflow: nothing runs here
+# without a tag.
 on:
   push:
     tags:

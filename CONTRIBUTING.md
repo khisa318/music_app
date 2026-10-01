@@ -13,7 +13,8 @@ git push -u origin fix/player-seek-crash
 Open a PR. Get it reviewed, merge it, then delete the branch.
 
 Never commit directly to `main`, never force-push to `main`, and never tag
-anything to "test the release flow" — a pushed tag is a release.
+anything to "test the release flow" — a pushed tag is a release, and tags are
+never moved or deleted once published.
 
 ## Branch naming
 
@@ -96,11 +97,23 @@ Deleting the file in a follow-up commit does not remove it from history.
 
 ## Releasing
 
-Releasing is separate from merging and always goes through a PR for the version
-bump. Full procedure in the README: [Releasing](README.md#releasing).
+Bumping `version:` in `pubspec.yaml` **is** the release. Full procedure in the
+README: [Releasing](README.md#releasing).
 
-In short: bump `version:` in `pubspec.yaml`, merge, then push a matching `v*`
-tag. The tag is what triggers a GitHub Release.
+```bash
+# edit pubspec.yaml -> version: 1.1.0+2
+# commit, PR, merge to main. That is the whole release.
+```
+
+Merging a version bump to `main` makes CI push the matching tag, which builds,
+signs and publishes the APK. Never type `git tag` for a stable release.
+
+Raise **both** halves. `1.0.9+7` → `1.0.10+1` passes a glance but produces an
+APK Android refuses to install, because `versionCode` went backwards. CI fails
+this and tells you the next legal value.
+
+Pre-releases are tagged by hand; see
+[Pre-releases](README.md#pre-releases).
 
 ## Getting set up
 

@@ -16,14 +16,16 @@ import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart
 /// The single Library destination.
 ///
 /// Follows the reference design: a large page title with actions on the
-/// right, one scrollable row of filter chips, and a single flat list of dense
-/// rows (text on the left, square artwork on the right).
+/// right, the collection filters, and a single flat list of dense rows (text on
+/// the left, square artwork on the right).
 ///
-/// The chips are the library's collections, in reading order: All songs,
-/// Playlists, Recently played, Downloads, Favourites, Local music. Each one is
-/// its own tab, so the previous "Songs" chip that swapped collections through
-/// the filter sheet is gone; what remains in the sheet is the favourites
-/// songs/artists switch, sort order and appearance.
+/// The filters are the library's collections: All songs, Playlists, Recently
+/// played, Downloads, Favourites, Local music. Each one is its own tab, so the
+/// previous "Songs" chip that swapped collections through the filter sheet is
+/// gone; what remains in the sheet is the favourites songs/artists switch, sort
+/// order and appearance. All six are shown at once rather than in a scrolling
+/// row, because a filter that has to be scrolled to is a filter that gets
+/// missed.
 class LibraryHubScreen extends StatefulWidget {
   const LibraryHubScreen({super.key});
 
@@ -182,14 +184,6 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
                 'downloads'.tr(),
                 'favorites'.tr(),
                 'local_music'.tr(),
-              ],
-              icons: const [
-                Icons.library_music_rounded,
-                Icons.queue_music_rounded,
-                Icons.history_rounded,
-                Icons.download_rounded,
-                Icons.favorite_rounded,
-                Icons.folder_rounded,
               ],
               selectedIndex: _filterIndex,
               onSelected: _selectFilter,

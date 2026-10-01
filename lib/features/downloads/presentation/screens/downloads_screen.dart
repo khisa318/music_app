@@ -20,6 +20,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/services/content_details_service.dart';
+import '../../../../shared/components/app_empty_state.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 enum SortOption {
@@ -332,28 +333,16 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     );
   }
 
-  Widget _buildEmptyState(String message, {required bool isDarkMode}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimens.spacingXxxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_download_outlined,
-              size: AppDimens.iconSplash,
-              color: Colors.grey[600],
-            ),
-            const SizedBox(height: AppDimens.spacingLg),
-            Text(
-              message,
-              style: AppTextStyles.heading(
-                isDarkMode: isDarkMode,
-              ).copyWith(color: Colors.grey[400]),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildEmptyState(
+    String message, {
+    required bool isDarkMode,
+    required Color accentColor,
+  }) {
+    return AppEmptyState(
+      icon: Icons.cloud_download_outlined,
+      title: message,
+      isDarkMode: isDarkMode,
+      accentColor: accentColor,
     );
   }
 
@@ -367,6 +356,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
               ? _buildEmptyState(
                   'no_songs_in_queue'.tr(),
                   isDarkMode: isDarkMode,
+                  accentColor: accentColor,
                 )
               : ListView(
                   children: downloadProvider.downloadQueue
@@ -395,6 +385,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
               ? _buildEmptyState(
                   'no_songs_in_downloads'.tr(),
                   isDarkMode: isDarkMode,
+                  accentColor: accentColor,
                 )
               : ListView(
                   children: sorted
@@ -479,34 +470,34 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
-                          backgroundColor: isDarkMode
-                              ? MainScreenColors.darkSurfaceColor
-                              : Colors.white,
+                          backgroundColor: MainScreenColors.getSurfaceColor(
+                            isDarkMode,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusXxl,
+                            ),
                           ),
                           title: Text(
                             'delete_songs'.tr(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isDarkMode ? Colors.white : Colors.black,
+                            style: AppTextStyles.titleSm(
+                              isDarkMode: isDarkMode,
+                            ).copyWith(
+                              fontWeight: AppTextStyles.weightBold,
+                              color: MainScreenColors.getTextColor(isDarkMode),
                             ),
                           ),
                           content: Text(
                             'are_you_sure_you_want_to_delete_selected_songs'.tr(
                               args: [_selectedSongs.length.toString()],
                             ),
-                            style: TextStyle(
-                              color: isDarkMode
-                                  ? Colors.white70
-                                  : Colors.black87,
-                            ),
+                            style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
                           ),
                           actions: <Widget>[
                             TextButton(
                               child: Text(
                                 'cancel'.tr(),
-                                style: TextStyle(color: textColor),
+                                style: AppTextStyles.button(color: textColor),
                               ),
                               onPressed: () {
                                 Navigator.of(context).pop(false);
@@ -515,7 +506,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                             TextButton(
                               child: Text(
                                 'delete'.tr(),
-                                style: const TextStyle(color: Colors.red),
+                                style: AppTextStyles.button(
+                                  color: Colors.red,
+                                ),
                               ),
                               onPressed: () {
                                 Navigator.of(context).pop(true);
@@ -629,7 +622,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     controller: _tabController,
                     indicatorColor: accentColor,
                     labelColor: accentColor,
-                    unselectedLabelColor: Colors.grey,
+                    unselectedLabelColor: MainScreenColors.getTextColor(
+                      isDarkMode,
+                    ).withValues(alpha: 0.7),
                     labelStyle: AppTextStyles.subtitle(isDarkMode: isDarkMode),
                     tabs: [
                       Tab(text: 'queue'.tr()),
