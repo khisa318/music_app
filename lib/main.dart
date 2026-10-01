@@ -127,6 +127,7 @@ Future<void> main() async {
         'video_info_cache',
         'playback_stats',
         'recent_playlists',
+        'covers_and_remixes_cache',
       ];
 
       await Hive.openBox<dynamic>('app_settings');
