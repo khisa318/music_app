@@ -444,6 +444,13 @@
 	"light_mode": "Light",
 	"dark_mode": "Dark",
 
+	"no_playlists_yet": "No playlists yet",
+	"no_playlists_yet_desc": "Create your first playlist to organize the music you love.",
+	"no_saved_playlists": "No saved playlists",
+	"no_saved_playlists_desc": "Save playlists you discover and they will appear here.",
+	"no_saved_albums": "No saved albums",
+	"no_saved_albums_desc": "Save albums you love and find them here anytime.",
+
 	"Gemini": "Gemini",
 	"OpenAI": "OpenAI"
 }
