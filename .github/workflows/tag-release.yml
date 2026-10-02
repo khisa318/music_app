@@ -20,9 +20,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Writing a tag is the whole job, and it is the one permission it needs.
+# `contents: write` writes the tag; `actions: write` starts release.yml - see
+# the dispatch step below for why the tag push alone cannot do that.
 permissions:
   contents: write
+  actions: write
 
 # Queue rather than cancel. Two version bumps arriving together must each get
 # their own tag; cancelling would silently drop one of them.
@@ -176,4 +178,36 @@ jobs:
           # is supposed to identify.
           git push origin "refs/tags/$tag"
 
-          echo "Pushed $tag. release.yml now builds and publishes it."
+          echo "Pushed $tag. Starting release.yml for it."
+
+      # release.yml also listens for `push: tags:`, and that filter is correct -
+      # but it never fires. GitHub does not start workflow runs for events
+      # created by the default GITHUB_TOKEN (the token actions/checkout pushes
+      # with, which is what wrote the tag above), as a guard against a workflow
+      # triggering itself. The symptom is quiet and looks like a broken filter:
+      # the tag exists, release.yml has run zero times for that ref, and the app
+      # finds no release to offer.
+      #
+      # `workflow_dispatch` is one of the two event types that *is* exempt from
+      # that rule, so starting release.yml explicitly is what turns the tag into
+      # a release. This is the whole reason the earlier `v1.0.0` run was started
+      # by hand from the Actions tab - same repair, just manual.
+      #
+      # The alternative is a personal access token stored as a Secret so the tag
+      # push is attributed to a user instead of to GITHUB_TOKEN. That works too
+      # and needs no dispatch, but it hands a long-lived credential to every
+      # merge to main; a dispatch needs only the short-lived token already here.
+      #
+      # The tag is passed explicitly rather than relying on `github.ref_name`,
+      # which is `main` for this push, and it is passed rather than assumed so a
+      # re-run of an existing tag rebuilds the tag's tree rather than main's.
+      - name: Start the release build
+        if: steps.decide.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.decide.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run .github/workflows/release.yml -f "tag=$TAG"
+          echo "Dispatched release.yml for $TAG."
