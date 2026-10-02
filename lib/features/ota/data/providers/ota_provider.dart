@@ -117,8 +117,18 @@ class OTAProvider extends ChangeNotifier {
           return;
         }
 
-        // A version the user explicitly skipped stays skipped.
-        if (await _isSkipped(info.latestVersion)) {
+        // A version the user explicitly skipped stays skipped - but only for
+        // the automatic prompt that fires on launch. `showNoUpdateMessage` is
+        // set exclusively by an explicit "Check for updates" tap, and the
+        // answer to *that* is never "no update available": it is a direct
+        // answer to a direct question, and reporting "you are on the latest
+        // version" for a release the app just advertised is simply a lie that
+        // leaves the user with no way to update from inside the app.
+        //
+        // The stored skip is left in place, so the launch prompt stays quiet
+        // for this version. It is the nagging that was declined, not the
+        // knowledge that an update exists.
+        if (!showNoUpdateMessage && await _isSkipped(info.latestVersion)) {
           _finishNoUpdate(showNoUpdateMessage);
           return;
         }

@@ -376,6 +376,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: isChecking
                   ? null
                   : () {
+                      // The row is labelled "Check for updates", so it has to
+                      // check. Pushing the screen on its own rendered whatever
+                      // the last startup check happened to decide, so a user
+                      // who had skipped a version was told "you are on the
+                      // latest version" seconds after the app itself had
+                      // advertised an update - the app contradicting itself.
+                      // The check runs before the push so the screen opens on
+                      // a spinner and lands on the real answer.
+                      context.read<OTAProvider>().checkForUpdates(
+                        showNoUpdateMessage: true,
+                      );
                       Navigator.push(
                         context,
                         MaterialPageRoute(
