@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -293,6 +294,51 @@ void main() {
 
       expect(result.isEmpty, isTrue);
       expect(result.failure, isNull);
+    });
+
+    test('a real 200 response is not thrown by validateStatus', () async {
+      // The regression test for the check that never worked.
+      //
+      // Every other test here fakes the transport with `overrideHttpGet`,
+      // which replaces `_dio.get` outright - so `validateStatus` is never
+      // called and a broken predicate is invisible. This one drives a real Dio
+      // built from the production options.
+      //
+      // `validateStatus` answers "is this an error?", so it must return true
+      // for 2xx. Spelling it as `status == 404` instead - true only for the
+      // status that must *not* throw - inverts the question: Dio then throws on
+      // the successful response the check exists to read, and the app shows
+      // "Could not check for updates" while GitHub answered 200 with a valid
+      // release. The unit tests stayed green because none of them combined a
+      // real Dio with a 2xx.
+      final service = GitHubReleaseService(
+        dio: Dio(GitHubReleaseService.baseOptions)
+          ..httpClientAdapter = _StubAdapter(200, jsonEncode(_releaseJson())),
+      );
+
+      final result = await service.fetchLatestRelease();
+
+      expect(result.failure, isNull);
+      expect(result.isSuccess, isTrue);
+      expect(result.release?.tagName, 'v1.2.0');
+    });
+
+    test('a real 200 with a list payload is not thrown either', () async {
+      // The beta channel reads the list endpoint, so the same 200 has to pass
+      // validation with a JSON array body as well as an object.
+      final service = GitHubReleaseService(
+        dio: Dio(GitHubReleaseService.baseOptions)
+          ..httpClientAdapter = _StubAdapter(
+            200,
+            jsonEncode(<Map<String, dynamic>>[_releaseJson()]),
+          ),
+        allowPreReleases: true,
+      );
+
+      final result = await service.fetchLatestRelease();
+
+      expect(result.failure, isNull);
+      expect(result.release?.tagName, 'v1.2.0');
     });
 
     test('other non-2xx statuses still throw and are classified', () async {

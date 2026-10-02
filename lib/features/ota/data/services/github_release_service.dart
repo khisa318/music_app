@@ -29,9 +29,23 @@ enum ReleaseCheckFailure {
   unknown,
 }
 
-/// "No published release" is the one status worth reading rather than
-/// throwing.
-bool _isNotFound(int? status) => status == 404;
+/// Whether Dio may hand this status back as a successful response.
+///
+/// `validateStatus` answers "is this an error?", so it must return true for
+/// every status that is *not* an error. GitHub answers `/releases/latest` with
+/// 404 for a project that has never published a release, which is a normal
+/// answer rather than a transport fault, so 404 is accepted here and turned
+/// into [ReleaseCheckResult.empty] by the caller. Every other non-2xx falls
+/// through to false, is thrown by Dio, and is classified in the catch block.
+///
+/// This is deliberately spelled as an allow-list rather than `status == 404`:
+/// that inverts the question, so `false` for 200 makes Dio throw on the very
+/// response the check exists to read, and the app reports "Could not check for
+/// updates" against a perfectly good 200. The unit tests faked the transport
+/// for every 2xx, which bypasses this callback entirely, so nothing caught it -
+/// see `github_release_service_test.dart` for the tests that drive a real Dio.
+bool _isAcceptableStatus(int? status) =>
+    status == 404 || (status != null && status >= 200 && status < 300);
 
 /// Result of [GitHubReleaseService.fetchLatestRelease].
 ///
@@ -94,11 +108,9 @@ class GitHubReleaseService {
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     },
-    // GitHub answers `/releases/latest` with 404 for a project that has never
-    // published a release. That is a normal answer, not a transport fault, so
-    // it is handled below rather than thrown as an opaque DioException. Every
-    // other non-2xx still throws and is classified in the catch block.
-    validateStatus: _isNotFound,
+    // See [_isAcceptableStatus]: 404 and 2xx come back as responses, everything
+    // else is thrown and classified by the catch block below.
+    validateStatus: _isAcceptableStatus,
   );
 
   GitHubReleaseService({
