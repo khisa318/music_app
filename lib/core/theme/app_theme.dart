@@ -2,50 +2,91 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
 
+/// The accent the reader picked, carried on the [ThemeData] itself.
+///
+/// The accent used to reach a widget only as a hand-passed
+/// `SettingsProvider.accentColor` argument, so anything that resolved its
+/// colour from `Theme.of(context)` fell back to [MainScreenColors.skyBlue] and
+/// ignored the choice that had been made.
+@immutable
+class MusiXAccent extends ThemeExtension<MusiXAccent> {
+  const MusiXAccent(this.color);
+
+  final Color color;
+
+  @override
+  MusiXAccent copyWith({Color? color}) => MusiXAccent(color ?? this.color);
+
+  @override
+  MusiXAccent lerp(ThemeExtension<MusiXAccent>? other, double t) {
+    if (other is! MusiXAccent) {
+      return this;
+    }
+
+    return MusiXAccent(Color.lerp(color, other.color, t) ?? color);
+  }
+}
+
+extension MusiXThemeContext on BuildContext {
+  /// The accent in force, falling back to the app default when the theme was
+  /// built without one.
+  Color get accentColor =>
+      Theme.of(this).extension<MusiXAccent>()?.color ??
+      MainScreenColors.skyBlue;
+}
+
 class AppTheme {
-  static final ThemeData lightTheme = ThemeData.light().copyWith(
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {TargetPlatform.android: FadeForwardsPageTransitionsBuilder()},
-    ),
-    primaryColor: MainScreenColors.skyBlue,
-    scaffoldBackgroundColor: MainScreenColors.lightBackgroundColor,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: MainScreenColors.lightSurfaceColor,
-      elevation: 0,
-      titleTextStyle: TextStyle(
-        color: MainScreenColors.lightTextColor,
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-      ),
-      iconTheme: IconThemeData(color: MainScreenColors.lightTextColor),
-    ),
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: MainScreenColors.lightTextColor),
-      bodyMedium: TextStyle(color: MainScreenColors.lightTextColor),
-    ),
+  static ThemeData lightTheme(Color accentColor) => _build(
+    ThemeData.light(),
+    accentColor,
+    background: MainScreenColors.lightBackgroundColor,
+    surface: MainScreenColors.lightSurfaceColor,
+    text: MainScreenColors.lightTextColor,
   );
 
-  static final ThemeData darkTheme = ThemeData.dark().copyWith(
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {TargetPlatform.android: FadeForwardsPageTransitionsBuilder()},
-    ),
-    primaryColor: MainScreenColors.skyBlue,
-    scaffoldBackgroundColor: MainScreenColors.darkBackgroundColor,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: MainScreenColors.darkSurfaceColor,
-      elevation: 0,
-      titleTextStyle: TextStyle(
-        color: MainScreenColors.darkTextColor,
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-      ),
-      iconTheme: IconThemeData(color: MainScreenColors.darkTextColor),
-    ),
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: MainScreenColors.darkTextColor),
-      bodyMedium: TextStyle(color: MainScreenColors.darkTextColor),
-    ),
+  static ThemeData darkTheme(Color accentColor) => _build(
+    ThemeData.dark(),
+    accentColor,
+    background: MainScreenColors.darkBackgroundColor,
+    surface: MainScreenColors.darkSurfaceColor,
+    text: MainScreenColors.darkTextColor,
   );
+
+  static ThemeData _build(
+    ThemeData base,
+    Color accentColor, {
+    required Color background,
+    required Color surface,
+    required Color text,
+  }) {
+    return base.copyWith(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
+      primaryColor: accentColor,
+      scaffoldBackgroundColor: background,
+      appBarTheme: AppBarTheme(
+        backgroundColor: surface,
+        elevation: 0,
+        titleTextStyle: TextStyle(
+          color: text,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+        iconTheme: IconThemeData(color: text),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: text),
+        bodyMedium: TextStyle(color: text),
+      ),
+      // Both of these, because widgets reach for either one and only
+      // colorScheme.primary used to stay sky-blue after the accent changed.
+      colorScheme: base.colorScheme.copyWith(primary: accentColor),
+      extensions: <ThemeExtension<dynamic>>[MusiXAccent(accentColor)],
+    );
+  }
 }
 
 class FadeForwardsPageTransitionsBuilder extends PageTransitionsBuilder {

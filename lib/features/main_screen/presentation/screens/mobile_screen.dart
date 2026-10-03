@@ -86,8 +86,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
             final accentColor = settingsProvider.accentColor;
 
             final theme = settingsProvider.themeMode == ThemeMode.dark
-                ? AppTheme.darkTheme
-                : AppTheme.lightTheme;
+                ? AppTheme.darkTheme(accentColor)
+                : AppTheme.lightTheme(accentColor);
 
             final mq = MediaQuery.of(context);
 
@@ -497,7 +497,6 @@ class _TabWrapper extends StatelessWidget {
     );
   }
 }
-
 
 // =============================================================================
 // FULL PLAYER RESPONSIVE WRAPPER

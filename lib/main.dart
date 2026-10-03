@@ -557,9 +557,9 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
 
       title: 'MusiX',
 
-      theme: AppTheme.lightTheme,
+      theme: AppTheme.lightTheme(settingsProvider.accentColor),
 
-      darkTheme: AppTheme.darkTheme,
+      darkTheme: AppTheme.darkTheme(settingsProvider.accentColor),
 
       themeMode: settingsProvider.themeMode,
 
