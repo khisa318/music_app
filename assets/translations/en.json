@@ -465,5 +465,6 @@
 	"no_internet_setup_blocked": "Connect to the internet to finish setting up MusiX.",
 
 	"Gemini": "Gemini",
-	"OpenAI": "OpenAI"
+	"OpenAI": "OpenAI",
+	"application_legalese_noize": "MusiX is free and open source software, distributed under the terms of the licenses listed below."
 }

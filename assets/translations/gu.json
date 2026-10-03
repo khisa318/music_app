@@ -11,5 +11,6 @@
 	"connection_restored": "ફરી ઓનલાઇન",
 	"check_your_connection_and_retry": "તમારું કનેક્શન તપાસીને ફરી પ્રયાસ કરો.",
 	"no_cached_data": "હજી કંઈ સાચવ્યું નથી. નવીનતમ લોડ કરવા ઇન્ટરનેટ કનેક્શન કરો.",
-	"no_internet_setup_blocked": "MusiX સેટઅપ પૂરો કરવા ઇન્ટરનેટ કનેક્શન કરો."
+	"no_internet_setup_blocked": "MusiX સેટઅપ પૂરો કરવા ઇન્ટરનેટ કનેક્શન કરો.",
+	"application_legalese_noize": "MusiX મુક્ત અને ઓપન સોર્સ સોફ્ટવેર છે, જે નીચે દર્શાવેલ લાઇસન્સની શરતો પ્રમાણે વહેંચાય છે."
 }

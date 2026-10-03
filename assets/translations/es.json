@@ -11,5 +11,6 @@
 	"connection_restored": "De nuevo en línea",
 	"check_your_connection_and_retry": "Comprueba tu conexión e inténtalo de nuevo.",
 	"no_cached_data": "Todavía no hay nada guardado. Conéctate a internet para cargar lo más reciente.",
-	"no_internet_setup_blocked": "Conéctate a internet para terminar de configurar MusiX."
+	"no_internet_setup_blocked": "Conéctate a internet para terminar de configurar MusiX.",
+	"application_legalese_noize": "MusiX es software libre y de código abierto, distribuida bajo los términos de las licencias que se indican a continuación."
 }

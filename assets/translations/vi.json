@@ -11,5 +11,6 @@
 	"connection_restored": "Đã kết nối lại",
 	"check_your_connection_and_retry": "Hãy kiểm tra kết nối của bạn và thử lại.",
 	"no_cached_data": "Chưa có gì được lưu. Hãy kết nối internet để tải nội dung mới nhất.",
-	"no_internet_setup_blocked": "Hãy kết nối internet để hoàn tất thiết lập MusiX."
+	"no_internet_setup_blocked": "Hãy kết nối internet để hoàn tất thiết lập MusiX.",
+	"application_legalese_noize": "MusiX là phần mềm mã nguồn mở và tự do, được phân phối theo các điều khoản của giấy phép được liệt kê bên dưới."
 }

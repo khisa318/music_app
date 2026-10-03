@@ -11,5 +11,6 @@
 	"connection_restored": "Kembali online",
 	"check_your_connection_and_retry": "Periksa koneksi Anda lalu coba lagi.",
 	"no_cached_data": "Belum ada yang tersimpan. Hubungkan ke internet untuk memuat yang terbaru.",
-	"no_internet_setup_blocked": "Hubungkan ke internet untuk menyelesaikan pengaturan MusiX."
+	"no_internet_setup_blocked": "Hubungkan ke internet untuk menyelesaikan pengaturan MusiX.",
+	"application_legalese_noize": "MusiX adalah perangkat lunak bebas dan sumber terbuka, yang didistribusikan berdasarkan ketentuan lisensi yang tercantum di bawah ini."
 }
