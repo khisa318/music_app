@@ -11,5 +11,6 @@
 	"connection_restored": "已恢复联网",
 	"check_your_connection_and_retry": "请检查您的连接后重试。",
 	"no_cached_data": "尚未保存任何内容。连接网络即可加载最新内容。",
-	"no_internet_setup_blocked": "请连接网络以完成 MusiX 的设置。"
+	"no_internet_setup_blocked": "请连接网络以完成 MusiX 的设置。",
+	"application_legalese_noize": "MusiX 是一款自由开源软件，依据下列列出的许可证条款分发。"
 }

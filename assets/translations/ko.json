@@ -11,5 +11,6 @@
 	"connection_restored": "다시 온라인",
 	"check_your_connection_and_retry": "연결을 확인한 후 다시 시도하세요.",
 	"no_cached_data": "아직 저장된 항목이 없습니다. 인터넷에 연결하면 최신 내용을 불러옵니다.",
-	"no_internet_setup_blocked": "MusiX 설정을 완료하려면 인터넷에 연결하세요."
+	"no_internet_setup_blocked": "MusiX 설정을 완료하려면 인터넷에 연결하세요.",
+	"application_legalese_noize": "MusiX는 자유开源 소프트웨어로, 아래에 나열된 라이선스 조건에 따라 배포됩니다."
 }
