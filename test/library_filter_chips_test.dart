@@ -109,6 +109,12 @@ Color _chipColor(WidgetTester tester, String label) {
 double _pageCenterX(WidgetTester tester, int index) =>
     tester.getCenter(find.byKey(ValueKey('page-$index'))).dx;
 
+bool _isOnScreen(WidgetTester tester, String label) {
+  final rect = tester.getRect(find.text(label));
+
+  return rect.left >= 0 && rect.right <= _screenWidth(tester);
+}
+
 void _expectShows(WidgetTester tester, int index) {
   expect(_state(tester).filterIndex, index);
   expect(_state(tester).controller.index, index);
@@ -121,34 +127,88 @@ void _expectShows(WidgetTester tester, int index) {
   expect(tester.takeException(), isNull);
 }
 
+/// Scrolls the pill row until [label] sits fully inside the viewport.
+Future<void> _revealChip(WidgetTester tester, String label) async {
+  for (var attempt = 0; attempt < 6; attempt++) {
+    if (_isOnScreen(tester, label)) {
+      return;
+    }
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(-140, 0),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  expect(
+    _isOnScreen(tester, label),
+    isTrue,
+    reason: 'could not scroll "$label" into view',
+  );
+}
+
 Future<void> _tapChip(WidgetTester tester, String label) async {
+  await _revealChip(tester, label);
   await tester.tap(find.text(label));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('every filter is on screen without scrolling', (tester) async {
+  testWidgets('the filters sit on a single row', (tester) async {
     _usePhoneSurface(tester);
 
     await tester.pumpWidget(const MaterialApp(home: _HubHarness()));
     await tester.pumpAndSettle();
 
-    final screenWidth = _screenWidth(tester);
+    final scroller = tester.widget<SingleChildScrollView>(
+      find.byType(SingleChildScrollView),
+    );
+
+    expect(scroller.scrollDirection, Axis.horizontal);
+
+    final firstCenterY = tester
+        .getCenter(find.text(_HubHarnessState._labels[0]))
+        .dy;
 
     for (final label in _HubHarnessState._labels) {
-      final rect = tester.getRect(find.text(label));
-
       expect(
-        rect.left,
-        greaterThanOrEqualTo(0),
-        reason: '"$label" starts off screen',
-      );
-      expect(
-        rect.right,
-        lessThanOrEqualTo(screenWidth),
-        reason: '"$label" runs off the right edge',
+        tester.getCenter(find.text(label)).dy,
+        closeTo(firstCenterY, 1.0),
+        reason: '"$label" is not on the same row as the first filter',
       );
     }
+  });
+
+  testWidgets('the row scrolls because the pills do not all fit', (
+    tester,
+  ) async {
+    _usePhoneSurface(tester);
+
+    await tester.pumpWidget(const MaterialApp(home: _HubHarness()));
+    await tester.pumpAndSettle();
+
+    expect(
+      _HubHarnessState._labels.any((label) => !_isOnScreen(tester, label)),
+      isTrue,
+      reason: 'the pills are expected to overflow a 360dp screen',
+    );
+  });
+
+  testWidgets('the selected pill is scrolled back into view', (tester) async {
+    _usePhoneSurface(tester);
+
+    await tester.pumpWidget(const MaterialApp(home: _HubHarness()));
+    await tester.pumpAndSettle();
+
+    expect(_isOnScreen(tester, 'Songs'), isTrue);
+    expect(_isOnScreen(tester, 'Local music'), isFalse);
+
+    _state(tester).selectFilter(5);
+    await tester.pumpAndSettle();
+
+    expect(_isOnScreen(tester, 'Local music'), isTrue);
+    expect(_chipColor(tester, 'Local music'), _accent);
   });
 
   testWidgets('tapping a chip selects it, repaints it and shows its page', (
