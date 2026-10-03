@@ -130,18 +130,23 @@ class SettingsProvider with ChangeNotifier {
   bool get wifiOnlyDownloads => _wifiOnlyDownloads;
   bool get audioCacheEnabled => _audioCacheEnabled;
 
+  /// The mode the app is actually rendered in, always resolved to light or
+  /// dark.
+  ///
+  /// Nothing here ever hands back [ThemeMode.system]: the widgets across the
+  /// app ask `themeMode == ThemeMode.dark` to pick their surfaces, and if this
+  /// could answer `system` they would be guessing while [MaterialApp] followed
+  /// the platform, and the two would disagree about how dark the app is.
   ThemeMode get themeMode {
     switch (_theme) {
       case 'Light':
         return ThemeMode.light;
       case 'Dark':
         return ThemeMode.dark;
-      case 'System Default':
-        final brightness = WidgetsBinding.instance.platformDispatcher
-            .platformBrightness;
-        return brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light;
       default:
-        return ThemeMode.system;
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        return brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light;
     }
   }
 
