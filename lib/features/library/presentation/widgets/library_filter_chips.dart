@@ -6,16 +6,13 @@ import '../../../../core/constants/app_text_styles.dart';
 
 /// The Library's collection filters.
 ///
-/// Every collection is laid out at once, wrapped onto as many rows as it needs,
-/// so no filter is ever hidden behind a horizontal scroll. Scrolling was tried
-/// first and it was a dead end on a phone: the six pills are wider than a
-/// 360dp screen, and a tap that lands on the part of a pill sitting outside the
-/// viewport is dropped before it reaches the pill, so the row looked inert.
-/// Two rows also match the pill style used in Settings and About.
+/// Every collection sits on one horizontally scrolling row. The six pills are
+/// wider than a 360dp screen, so the row scrolls rather than wrapping; wrapping
+/// stacked them one per line and read as a list instead of a tab bar.
 ///
-/// Wrapping instead of scrolling also means the selected filter is always on
-/// screen, so it never has to be scrolled into view after the fact.
-class LibraryFilterChips extends StatelessWidget {
+/// Whichever pill is selected is scrolled back into view whenever the selection
+/// changes, whether it came from a tap or from a swipe on the pages below.
+class LibraryFilterChips extends StatefulWidget {
   final List<String> labels;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -37,8 +34,39 @@ class LibraryFilterChips extends StatelessWidget {
   });
 
   @override
+  State<LibraryFilterChips> createState() => _LibraryFilterChipsState();
+}
+
+class _LibraryFilterChipsState extends State<LibraryFilterChips> {
+  final Map<int, GlobalKey> _chipKeys = {};
+
+  @override
+  void didUpdateWidget(LibraryFilterChips oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _revealSelected();
+    }
+  }
+
+  void _revealSelected() {
+    final chipContext = _chipKeys[widget.selectedIndex]?.currentContext;
+
+    if (chipContext == null) {
+      return;
+    }
+
+    Scrollable.ensureVisible(
+      chipContext,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final textColor = MainScreenColors.getTextColor(isDarkMode);
+    final textColor = MainScreenColors.getTextColor(widget.isDarkMode);
 
     return Padding(
       padding: const EdgeInsets.only(
@@ -47,23 +75,28 @@ class LibraryFilterChips extends StatelessWidget {
         top: AppDimens.spacingXs,
         bottom: AppDimens.spacingMd,
       ),
-      child: Wrap(
-        spacing: AppDimens.spacingSm,
-        runSpacing: AppDimens.spacingSm,
-        children: [
-          for (var index = 0; index < labels.length; index++)
-            ConstrainedBox(
-              constraints: BoxConstraints(minWidth: minChipWidth),
-              child: _LibraryFilterChip(
-                label: labels[index],
-                isSelected: index == selectedIndex,
-                isDarkMode: isDarkMode,
-                accentColor: accentColor,
-                textColor: textColor,
-                onTap: () => onSelected(index),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < widget.labels.length; index++) ...[
+              if (index > 0) const SizedBox(width: AppDimens.spacingSm),
+              ConstrainedBox(
+                key: _chipKeys.putIfAbsent(index, GlobalKey.new),
+                constraints: BoxConstraints(minWidth: widget.minChipWidth),
+                child: _LibraryFilterChip(
+                  label: widget.labels[index],
+                  isSelected: index == widget.selectedIndex,
+                  isDarkMode: widget.isDarkMode,
+                  accentColor: widget.accentColor,
+                  textColor: textColor,
+                  onTap: () => widget.onSelected(index),
+                ),
               ),
-            ),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }

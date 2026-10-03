@@ -23,9 +23,8 @@ import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart
 /// played, Downloads, Favourites, Local music. Each one is its own tab, so the
 /// previous "Songs" chip that swapped collections through the filter sheet is
 /// gone; what remains in the sheet is the favourites songs/artists switch, sort
-/// order and appearance. All six are shown at once rather than in a scrolling
-/// row, because a filter that has to be scrolled to is a filter that gets
-/// missed.
+/// order and appearance. All six sit on one row that scrolls sideways, and the
+/// selected pill is brought back into view when it changes.
 class LibraryHubScreen extends StatefulWidget {
   const LibraryHubScreen({super.key});
 
@@ -107,28 +106,33 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
     );
   }
 
-  void _openFilterSheet(bool isDarkMode, Color accentColor) {
+  void _openFilterSheet() {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _LibraryFilterSheet(
-        isDarkMode: isDarkMode,
-        accentColor: accentColor,
-        favoritesView: _favoritesView,
-        sortBy: _sortBy,
-        sortAscending: _sortAscending,
-        isDarkTheme: isDarkMode,
-        onFavoritesViewChanged: (view) {
-          setState(() => _favoritesView = view);
-          _selectFilter(_favoritesFilter);
-        },
-        onSortByChanged: (value) => setState(() => _sortBy = value),
-        onSortAscendingChanged: (value) =>
-            setState(() => _sortAscending = value),
-        onThemeChanged: () {
-          Provider.of<SettingsProvider>(context, listen: false).toggleTheme();
-        },
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => _LibraryFilterSheet(
+          favoritesView: _favoritesView,
+          sortBy: _sortBy,
+          sortAscending: _sortAscending,
+          onFavoritesViewChanged: (view) {
+            setSheetState(() => _favoritesView = view);
+            setState(() => _favoritesView = view);
+            _selectFilter(_favoritesFilter);
+          },
+          onSortByChanged: (value) {
+            setSheetState(() => _sortBy = value);
+            setState(() => _sortBy = value);
+          },
+          onSortAscendingChanged: (value) {
+            setSheetState(() => _sortAscending = value);
+            setState(() => _sortAscending = value);
+          },
+          onThemeChanged: () {
+            Provider.of<SettingsProvider>(context, listen: false).toggleTheme();
+          },
+        ),
       ),
     );
   }
@@ -172,7 +176,7 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
               isDarkMode: isDarkMode,
               showCreateAction: _filterIndex == _playlistsFilter,
               onSearchTap: _openSongSearch,
-              onFilterTap: () => _openFilterSheet(isDarkMode, accentColor),
+              onFilterTap: _openFilterSheet,
               onCreateTap: _createPlaylist,
             ),
 
@@ -321,24 +325,18 @@ class _HeaderIconButton extends StatelessWidget {
 ///
 /// The song collections are not here any more; each is a chip on the page.
 class _LibraryFilterSheet extends StatelessWidget {
-  final bool isDarkMode;
-  final Color accentColor;
   final LibraryFavoritesView favoritesView;
   final String sortBy;
   final bool sortAscending;
-  final bool isDarkTheme;
   final ValueChanged<LibraryFavoritesView> onFavoritesViewChanged;
   final ValueChanged<String> onSortByChanged;
   final ValueChanged<bool> onSortAscendingChanged;
   final VoidCallback onThemeChanged;
 
   const _LibraryFilterSheet({
-    required this.isDarkMode,
-    required this.accentColor,
     required this.favoritesView,
     required this.sortBy,
     required this.sortAscending,
-    required this.isDarkTheme,
     required this.onFavoritesViewChanged,
     required this.onSortByChanged,
     required this.onSortAscendingChanged,
@@ -347,6 +345,9 @@ class _LibraryFilterSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = context.watch<SettingsProvider>();
+    final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
+    final accentColor = settingsProvider.accentColor;
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
     return SafeArea(
@@ -498,13 +499,13 @@ class _LibraryFilterSheet extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        isDarkTheme ? 'dark_mode'.tr() : 'light_mode'.tr(),
+                        isDarkMode ? 'dark_mode'.tr() : 'light_mode'.tr(),
                         style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
                       ),
                     ),
 
                     Switch(
-                      value: isDarkTheme,
+                      value: isDarkMode,
                       onChanged: (_) => onThemeChanged(),
                       activeThumbColor: Colors.black,
                       activeTrackColor: accentColor,
