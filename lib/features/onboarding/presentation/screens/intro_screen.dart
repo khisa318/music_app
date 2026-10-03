@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../main_screen/router/display_route.dart';
@@ -350,10 +351,7 @@ class _IntroScreenState extends State<IntroScreen>
     );
 
     if (!connectivityProvider.hasInternet) {
-      AppSnackBar.showError(
-        context,
-        'No internet connection. Please connect to the internet to continue setup.',
-      );
+      AppSnackBar.showError(context, 'no_internet_setup_blocked'.tr());
       return;
     }
 
@@ -362,9 +360,7 @@ class _IntroScreenState extends State<IntroScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
           opacity: animation,
-          child: ThemeSetupScreen(
-            onNext: _completeSetup,
-          ),
+          child: ThemeSetupScreen(onNext: _completeSetup),
         ),
       ),
     );

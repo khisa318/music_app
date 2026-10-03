@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:get_it/get_it.dart';
@@ -211,7 +212,7 @@ class HomeScreenProvider with ChangeNotifier {
         await _fetchHomeSectionsFromAPI(notify: false);
       } else if (_homeSections.isEmpty) {
         _isOfflineMode = true;
-        _error = 'No cached data available. Please connect to internet.';
+        _error = 'no_cached_data'.tr();
         debugPrint('No cached data and no internet connection');
       } else {
         _isOfflineMode =
