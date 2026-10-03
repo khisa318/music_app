@@ -18,6 +18,7 @@ import 'package:talker_flutter/talker_flutter.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
+import 'core/constants/app_locales.dart';
 import 'core/constants/app_text_styles.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/download_provider.dart';
@@ -456,7 +457,7 @@ Future<void> main() async {
             // LOCALIZATION
             // ----------------------------------------------------
             child: EasyLocalization(
-              supportedLocales: const [Locale('en')],
+              supportedLocales: AppLocales.supported,
 
               path: 'assets/translations',
 
@@ -552,8 +553,6 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
       localizationsDelegates: context.localizationDelegates,
 
       supportedLocales: context.supportedLocales,
-
-      locale: const Locale('en'),
 
       title: 'MusiX',
 

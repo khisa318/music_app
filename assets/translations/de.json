@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "Keine Internetverbindung. Prüfe dein Netzwerk und versuche es erneut.",
+	"error_request_timed_out": "Die Verbindung hat zu lange gedauert. Bitte versuche es erneut.",
+	"error_server_unavailable": "Der Server hat Probleme. Bitte versuche es gleich noch einmal.",
+	"error_request_rejected": "Diese Anfrage konnte nicht abgeschlossen werden.",
+	"error_unexpected": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+	"retry": "Erneut versuchen",
+	"no_internet_connection": "Keine Internetverbindung",
+	"offline_mode_notice": "Keine Internetverbindung. Angezeigt wird, was bereits gespeichert wurde.",
+	"connection_restored": "Wieder online",
+	"check_your_connection_and_retry": "Prüfe deine Verbindung und versuche es erneut.",
+	"no_cached_data": "Noch nichts gespeichert. Verbinde dich mit dem Internet, um das Neueste zu laden.",
+	"no_internet_setup_blocked": "Verbinde dich mit dem Internet, um MusiX fertig einzurichten."
+}

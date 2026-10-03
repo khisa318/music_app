@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "Tidak ada koneksi internet. Periksa jaringan Anda lalu coba lagi.",
+	"error_request_timed_out": "Koneksi timed out. Silakan coba lagi.",
+	"error_server_unavailable": "Server sedang mengalami masalah. Silakan coba lagi sebentar lagi.",
+	"error_request_rejected": "Permintaan tersebut tidak dapat diselesaikan.",
+	"error_unexpected": "Terjadi kesalahan. Silakan coba lagi.",
+	"retry": "Coba lagi",
+	"no_internet_connection": "Tidak ada koneksi internet",
+	"offline_mode_notice": "Tidak ada koneksi internet. Menampilkan yang sudah tersimpan.",
+	"connection_restored": "Kembali online",
+	"check_your_connection_and_retry": "Periksa koneksi Anda lalu coba lagi.",
+	"no_cached_data": "Belum ada yang tersimpan. Hubungkan ke internet untuk memuat yang terbaru.",
+	"no_internet_setup_blocked": "Hubungkan ke internet untuk menyelesaikan pengaturan MusiX."
+}

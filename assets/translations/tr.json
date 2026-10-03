@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "İnternet bağlantısı yok. Ağınızı kontrol edip tekrar deneyin.",
+	"error_request_timed_out": "Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.",
+	"error_server_unavailable": "Sunucuda sorun var. Lütfen birazdan tekrar deneyin.",
+	"error_request_rejected": "Bu istek tamamlanamadı.",
+	"error_unexpected": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+	"retry": "Tekrar dene",
+	"no_internet_connection": "İnternet bağlantısı yok",
+	"offline_mode_notice": "İnternet bağlantısı yok. Daha önce kaydedilenler gösteriliyor.",
+	"connection_restored": "Yeniden çevrimiçi",
+	"check_your_connection_and_retry": "Bağlantınızı kontrol edip tekrar deneyin.",
+	"no_cached_data": "Henüz hiçbir şey kaydedilmedi. En güncel içeriği yüklemek için internete bağlanın.",
+	"no_internet_setup_blocked": "MusiX kurulumunu tamamlamak için internete bağlanın."
+}
