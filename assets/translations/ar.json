@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى.",
+	"error_request_timed_out": "انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى.",
+	"error_server_unavailable": "تواجه الخادم مشكلة. يرجى المحاولة مرة أخرى بعد قليل.",
+	"error_request_rejected": "تعذر إكمال الطلب.",
+	"error_unexpected": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+	"retry": "إعادة المحاولة",
+	"no_internet_connection": "لا يوجد اتصال بالإنترنت",
+	"offline_mode_notice": "لا يوجد اتصال بالإنترنت. يتم عرض ما تم حفظه.",
+	"connection_restored": "عاد الاتصال",
+	"check_your_connection_and_retry": "تحقق من اتصالك وحاول مرة أخرى.",
+	"no_cached_data": "لم يتم حفظ أي شيء بعد. اتصل بالإنترنت لتحميل الأحدث.",
+	"no_internet_setup_blocked": "اتصل بالإنترنت لإكمال إعداد MusiX."
+}

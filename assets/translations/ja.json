@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "インターネットに接続されていません。ネットワークを確認して再試行してください。",
+	"error_request_timed_out": "接続がタイムアウトしました。もう一度お試しください。",
+	"error_server_unavailable": "サーバーで問題が発生しています。しばらくしてからもう一度お試しください。",
+	"error_request_rejected": "そのリクエストを完了できませんでした。",
+	"error_unexpected": "問題が発生しました。もう一度お試しください。",
+	"retry": "再試行",
+	"no_internet_connection": "インターネットに接続されていません",
+	"offline_mode_notice": "インターネットに接続されていません。保存済みの内容を表示しています。",
+	"connection_restored": "オンラインに復帰しました",
+	"check_your_connection_and_retry": "接続を確認して再試行してください。",
+	"no_cached_data": "まだ何も保存されていません。インターネットに接続すると最新の内容を読み込めます。",
+	"no_internet_setup_blocked": "MusiX のセットアップを完了するにはインターネットに接続してください。"
+}

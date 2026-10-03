@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "Không có kết nối internet. Hãy kiểm tra mạng của bạn và thử lại.",
+	"error_request_timed_out": "Kết nối đã hết thời gian chờ. Vui lòng thử lại.",
+	"error_server_unavailable": "Máy chủ đang gặp sự cố. Vui lòng thử lại sau ít phút.",
+	"error_request_rejected": "Không thể hoàn tất yêu cầu đó.",
+	"error_unexpected": "Đã xảy ra lỗi. Vui lòng thử lại.",
+	"retry": "Thử lại",
+	"no_internet_connection": "Không có kết nối internet",
+	"offline_mode_notice": "Không có kết nối internet. Đang hiển thị những gì đã lưu.",
+	"connection_restored": "Đã kết nối lại",
+	"check_your_connection_and_retry": "Hãy kiểm tra kết nối của bạn và thử lại.",
+	"no_cached_data": "Chưa có gì được lưu. Hãy kết nối internet để tải nội dung mới nhất.",
+	"no_internet_setup_blocked": "Hãy kết nối internet để hoàn tất thiết lập MusiX."
+}

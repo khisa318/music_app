@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_locales.dart';
 import '../services/settings_storage_service.dart';
 import '../../features/search/data/search_screen_services.dart';
 
@@ -343,19 +344,13 @@ class SettingsProvider with ChangeNotifier {
     final locale = _getLocaleFromLanguage(value);
 
     // EasyLocalization asserts that the locale is one of the ones the app
-    // declares, and the app only declares English: every other translation
-    // file is still an empty placeholder. Calling setLocale for an undeclared
-    // locale threw an uncaught assertion from the language picker, so the
-    // choice is recorded but not applied until the translation is there.
-    if (_supportedLocales.contains(locale.languageCode)) {
+    // declares, so an undeclared locale would throw here rather than fall back.
+    if (AppLocales.codes.contains(locale.languageCode)) {
       EasyLocalization.of(navigatorKey.currentContext!)?.setLocale(locale);
     }
 
     notifyListeners();
   }
-
-  /// Locales the app actually ships. Mirrors `supportedLocales` in main.dart.
-  static const Set<String> _supportedLocales = {'en'};
 
   Locale _getLocaleFromLanguage(String language) {
     switch (language) {

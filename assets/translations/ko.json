@@ -1,1 +1,15 @@
-{}
+{
+
+	"error_no_internet": "인터넷에 연결되어 있지 않습니다. 네트워크를 확인한 후 다시 시도하세요.",
+	"error_request_timed_out": "연결 시간이 초과되었습니다. 다시 시도해 주세요.",
+	"error_server_unavailable": "서버에 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+	"error_request_rejected": "요청을 완료하지 못했습니다.",
+	"error_unexpected": "문제가 발생했습니다. 다시 시도해 주세요.",
+	"retry": "다시 시도",
+	"no_internet_connection": "인터넷에 연결되어 있지 않습니다",
+	"offline_mode_notice": "인터넷에 연결되어 있지 않습니다. 이미 저장된 내용을 표시합니다.",
+	"connection_restored": "다시 온라인",
+	"check_your_connection_and_retry": "연결을 확인한 후 다시 시도하세요.",
+	"no_cached_data": "아직 저장된 항목이 없습니다. 인터넷에 연결하면 최신 내용을 불러옵니다.",
+	"no_internet_setup_blocked": "MusiX 설정을 완료하려면 인터넷에 연결하세요."
+}
