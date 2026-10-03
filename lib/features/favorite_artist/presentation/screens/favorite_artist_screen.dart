@@ -518,23 +518,19 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
                   AppSnackBar.showInfo(
                     context,
                     'Removed ${removed['name']}',
-                    action: SnackBarAction(
-                      label: 'Undo',
-                      onPressed: () async {
-                        final favoritesBox = Hive.box<String>(
-                          'favorite_artists',
-                        );
-                        final key = removed['artistId']?.toString();
-                        if (key != null && key.isNotEmpty) {
-                          await favoritesBox.put(key, jsonEncode(removed));
-                        }
-                        if (!context.mounted) return;
-                        await Provider.of<FavoriteArtistProvider>(
-                          context,
-                          listen: false,
-                        ).loadFavoriteArtists();
-                      },
-                    ),
+                    actionLabel: 'Undo',
+                    onAction: () async {
+                      final favoritesBox = Hive.box<String>('favorite_artists');
+                      final key = removed['artistId']?.toString();
+                      if (key != null && key.isNotEmpty) {
+                        await favoritesBox.put(key, jsonEncode(removed));
+                      }
+                      if (!context.mounted) return;
+                      await Provider.of<FavoriteArtistProvider>(
+                        context,
+                        listen: false,
+                      ).loadFavoriteArtists();
+                    },
                   );
                 },
                 child: ListTile(

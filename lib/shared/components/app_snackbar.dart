@@ -7,6 +7,44 @@ import '../../core/errors/network_failure.dart';
 
 enum AppSnackBarType { info, success, error, warning }
 
+/// The retry button inside a snackbar.
+///
+/// SnackBar's own `action` slot is laid out with an unbounded width, so a
+/// translated label as long as "إعادة المحاولة" claims the whole bar and leaves
+/// the message a few pixels. Being a child of the content row instead means the
+/// label gets a cap and the message keeps the rest.
+class _SnackBarActionButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  /// Wide enough for most one-word labels, narrow enough that the message
+  /// beside it stays readable on a small screen.
+  static const double _maxLabelWidth = 128;
+
+  const _SnackBarActionButton({required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: _maxLabelWidth),
+    child: TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: AppDimens.spacingSm),
+        minimumSize: const Size(0, 0),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.end,
+        style: AppTextStyles.actionLabel().copyWith(color: Colors.white),
+      ),
+    ),
+  );
+}
+
 class AppSnackBar {
   AppSnackBar._();
 
@@ -42,7 +80,8 @@ class AppSnackBar {
     AppSnackBarType type = AppSnackBarType.info,
     Color? accentColor,
     Duration? duration,
-    SnackBarAction? action,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     final bg = _bgColor(type, accentColor: accentColor);
     final effectiveDuration =
@@ -70,6 +109,8 @@ class AppSnackBar {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (onAction != null && actionLabel != null)
+                _SnackBarActionButton(label: actionLabel, onPressed: onAction),
             ],
           ),
           backgroundColor: bg,
@@ -80,7 +121,6 @@ class AppSnackBar {
             borderRadius: BorderRadius.circular(AppDimens.radiusLg),
           ),
           elevation: AppDimens.elevationMedium,
-          action: action,
         ),
       );
   }
@@ -90,40 +130,49 @@ class AppSnackBar {
     String message, {
     Color? accentColor,
     Duration? duration,
-    SnackBarAction? action,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => show(
     context,
     message,
     type: AppSnackBarType.success,
     accentColor: accentColor,
     duration: duration,
-    action: action,
+    actionLabel: actionLabel,
+
+    onAction: onAction,
   );
 
   static void showError(
     BuildContext context,
     String message, {
     Duration? duration,
-    SnackBarAction? action,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => show(
     context,
     message,
     type: AppSnackBarType.error,
     duration: duration,
-    action: action,
+    actionLabel: actionLabel,
+
+    onAction: onAction,
   );
 
   static void showWarning(
     BuildContext context,
     String message, {
     Duration? duration,
-    SnackBarAction? action,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => show(
     context,
     message,
     type: AppSnackBarType.warning,
     duration: duration,
-    action: action,
+    actionLabel: actionLabel,
+
+    onAction: onAction,
   );
 
   static void showInfo(
@@ -131,14 +180,17 @@ class AppSnackBar {
     String message, {
     Color? accentColor,
     Duration? duration,
-    SnackBarAction? action,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => show(
     context,
     message,
     type: AppSnackBarType.info,
     accentColor: accentColor,
     duration: duration,
-    action: action,
+    actionLabel: actionLabel,
+
+    onAction: onAction,
   );
 
   /// Reports a failed request in the reader's terms rather than the
@@ -159,9 +211,8 @@ class AppSnackBar {
       failure.messageKey.tr(),
       type: AppSnackBarType.error,
       duration: duration,
-      action: onRetry != null && failure.canRetry
-          ? SnackBarAction(label: 'retry'.tr(), onPressed: onRetry)
-          : null,
+      actionLabel: 'retry'.tr(),
+      onAction: onRetry != null && failure.canRetry ? onRetry : null,
     );
   }
 }

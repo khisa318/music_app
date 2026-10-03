@@ -96,18 +96,13 @@ class GeneralSettingsSection extends StatelessWidget {
                           context,
                           'notification_permission_required_to_enable_notifications'
                               .tr(),
-                          action: SnackBarAction(
-                            label: 'settings'.tr(),
-                            textColor: accentColor,
-                            onPressed: openAppSettings,
-                          ),
+                          actionLabel: 'settings'.tr(),
+                          onAction: openAppSettings,
                         );
                       }
                     }
                   } on MissingPluginException catch (e) {
-                    debugPrint(
-                      'Notification permission API not available: $e',
-                    );
+                    debugPrint('Notification permission API not available: $e');
                     settingsProvider.notificationsEnabled = true;
                   } catch (e) {
                     debugPrint(
@@ -211,7 +206,9 @@ class GeneralSettingsSection extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ManageDataScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ManageDataScreen(),
+                  ),
                 );
               },
               isDarkMode: isDarkMode,
