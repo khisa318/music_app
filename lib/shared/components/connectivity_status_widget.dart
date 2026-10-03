@@ -43,15 +43,18 @@ class ConnectivityStatusWidget extends StatelessWidget {
       ),
       color: Colors.orange.shade700,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.wifi_off, color: Colors.white, size: AppDimens.iconXs),
           SizedBox(width: AppDimens.spacingSm),
-          Text(
-            'offline_mode_notice'.tr(),
-            style: AppTextStyles.caption().copyWith(
-              color: Colors.white,
-              fontWeight: AppTextStyles.weightMedium,
+          Expanded(
+            child: Text(
+              'offline_mode_notice'.tr(),
+              style: AppTextStyles.caption().copyWith(
+                color: Colors.white,
+                fontWeight: AppTextStyles.weightMedium,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -74,11 +77,15 @@ class ConnectivitySnackBar {
               size: AppDimens.iconMd,
             ),
             SizedBox(width: AppDimens.spacingMd),
-            Text(
-              isConnected
-                  ? 'connection_restored'.tr()
-                  : 'offline_mode_notice'.tr(),
-              style: AppTextStyles.bodyMd().copyWith(color: Colors.white),
+            Expanded(
+              child: Text(
+                isConnected
+                    ? 'connection_restored'.tr()
+                    : 'offline_mode_notice'.tr(),
+                style: AppTextStyles.bodyMd().copyWith(color: Colors.white),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
