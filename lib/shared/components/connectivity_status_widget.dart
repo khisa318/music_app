@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_dimens.dart';
@@ -47,7 +48,7 @@ class ConnectivityStatusWidget extends StatelessWidget {
           Icon(Icons.wifi_off, color: Colors.white, size: AppDimens.iconXs),
           SizedBox(width: AppDimens.spacingSm),
           Text(
-            'No internet connection - Offline mode',
+            'offline_mode_notice'.tr(),
             style: AppTextStyles.caption().copyWith(
               color: Colors.white,
               fontWeight: AppTextStyles.weightMedium,
@@ -75,8 +76,8 @@ class ConnectivitySnackBar {
             SizedBox(width: AppDimens.spacingMd),
             Text(
               isConnected
-                  ? 'Internet connection restored'
-                  : 'No internet connection - Using offline mode',
+                  ? 'connection_restored'.tr()
+                  : 'offline_mode_notice'.tr(),
               style: AppTextStyles.bodyMd().copyWith(color: Colors.white),
             ),
           ],
@@ -128,7 +129,7 @@ class ConnectivityRetryWidget extends StatelessWidget {
               ),
               SizedBox(height: AppDimens.spacingMd),
               Text(
-                message ?? 'No internet connection',
+                message ?? 'no_internet_connection'.tr(),
                 style: AppTextStyles.subtitle().copyWith(
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
@@ -136,7 +137,7 @@ class ConnectivityRetryWidget extends StatelessWidget {
               ),
               SizedBox(height: AppDimens.spacingSm),
               Text(
-                'Please check your internet connection and try again.',
+                'check_your_connection_and_retry'.tr(),
                 style: AppTextStyles.bodyMd().copyWith(
                   color: Theme.of(context).textTheme.bodyMedium?.color,
                 ),
@@ -152,7 +153,7 @@ class ConnectivityRetryWidget extends StatelessWidget {
                     }
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  label: Text('retry'.tr()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange.shade600,
                     foregroundColor: Colors.white,

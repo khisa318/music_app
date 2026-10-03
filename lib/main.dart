@@ -44,6 +44,8 @@ import 'features/playlists/data/providers/playlist_album_library_provider.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
 import 'features/trending/data/provider/trending_provider.dart';
 
+import 'shared/components/connectivity_listener.dart';
+
 Future<void> main() async {
   final talker = TalkerFlutter.init();
 
@@ -277,9 +279,9 @@ Future<void> main() async {
           // before runApp(): a platform channel that never answers would freeze
           // the app on the launch screen with no way to recover. Losing the
           // channels costs progress notifications, which is not worth a hang.
-          await notificationService
-              .initialize()
-              .timeout(const Duration(seconds: 5));
+          await notificationService.initialize().timeout(
+            const Duration(seconds: 5),
+          );
 
           talker.info('Download notifications initialized');
         } catch (e, st) {
@@ -561,7 +563,10 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
 
       themeMode: settingsProvider.themeMode,
 
-      builder: AppTextStyles.appBuilder,
+      builder: (context, child) => AppTextStyles.appBuilder(
+        context,
+        ConnectivityListener(child: child ?? const SizedBox.shrink()),
+      ),
 
       home: const SplashScreen(),
     );

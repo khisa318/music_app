@@ -1,7 +1,9 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_dimens.dart';
 import '../../core/constants/app_text_styles.dart';
+import '../../core/errors/network_failure.dart';
 
 enum AppSnackBarType { info, success, error, warning }
 
@@ -138,4 +140,28 @@ class AppSnackBar {
     duration: duration,
     action: action,
   );
+
+  /// Reports a failed request in the reader's terms rather than the
+  /// transport's.
+  ///
+  /// [onRetry] is offered only when [NetworkFailure.canRetry] allows it, so a
+  /// rejected request never shows a retry button that cannot help.
+  static void showNetworkError(
+    BuildContext context,
+    Object error, {
+    VoidCallback? onRetry,
+    Duration? duration,
+  }) {
+    final failure = NetworkFailure.classify(error);
+
+    show(
+      context,
+      failure.messageKey.tr(),
+      type: AppSnackBarType.error,
+      duration: duration,
+      action: onRetry != null && failure.canRetry
+          ? SnackBarAction(label: 'retry'.tr(), onPressed: onRetry)
+          : null,
+    );
+  }
 }

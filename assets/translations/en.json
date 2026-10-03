@@ -451,6 +451,19 @@
 	"no_saved_albums": "No saved albums",
 	"no_saved_albums_desc": "Save albums you love and find them here anytime.",
 
+	"error_no_internet": "No internet connection. Check your network and try again.",
+	"error_request_timed_out": "The connection timed out. Please try again.",
+	"error_server_unavailable": "The server is having trouble. Please try again in a moment.",
+	"error_request_rejected": "That request could not be completed.",
+	"error_unexpected": "Something went wrong. Please try again.",
+	"retry": "Retry",
+	"no_internet_connection": "No internet connection",
+	"offline_mode_notice": "No internet connection. Showing what was already saved.",
+	"connection_restored": "Back online",
+	"check_your_connection_and_retry": "Check your connection and try again.",
+	"no_cached_data": "Nothing saved yet. Connect to the internet to load the latest.",
+	"no_internet_setup_blocked": "Connect to the internet to finish setting up MusiX.",
+
 	"Gemini": "Gemini",
 	"OpenAI": "OpenAI"
 }
