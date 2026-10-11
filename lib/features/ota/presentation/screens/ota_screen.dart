@@ -112,6 +112,13 @@ class _OTAScreenState extends State<OTAScreen>
         );
       case OTAStatus.downloading:
         return _buildDownloading(otaProvider, isDarkMode, accentColor);
+      case OTAStatus.paused:
+        return _buildDownloadProgress(
+          otaProvider,
+          isDarkMode,
+          accentColor,
+          isPaused: true,
+        );
       case OTAStatus.downloaded:
         return _buildReadyToInstall(
           context,
@@ -549,6 +556,25 @@ class _OTAScreenState extends State<OTAScreen>
     bool isDarkMode,
     Color accentColor,
   ) {
+    return _buildDownloadProgress(
+      otaProvider,
+      isDarkMode,
+      accentColor,
+      isPaused: false,
+    );
+  }
+
+  /// Shared body for the in-flight and paused download states.
+  ///
+  /// The two are the same screen on purpose: the percentage, byte counts and
+  /// circle all carry over, so pausing reads as "held here" rather than as
+  /// losing your place and starting over.
+  Widget _buildDownloadProgress(
+    OTAProvider otaProvider,
+    bool isDarkMode,
+    Color accentColor, {
+    required bool isPaused,
+  }) {
     final progress = otaProvider.downloadProgress;
     return SingleChildScrollView(
       child: Center(
@@ -564,7 +590,9 @@ class _OTAScreenState extends State<OTAScreen>
                   return Transform.scale(
                     scale: 1 + (1 - value) * 0.1,
                     child: Icon(
-                      Icons.cloud_download_rounded,
+                      isPaused
+                          ? Icons.pause_circle_filled_rounded
+                          : Icons.cloud_download_rounded,
                       color: accentColor,
                       size: AppDimens.iconHuge,
                     ),
@@ -580,6 +608,9 @@ class _OTAScreenState extends State<OTAScreen>
                   alignment: Alignment.center,
                   children: [
                     CircularProgressIndicator(
+                      // A paused download is not moving, so the spinner has to
+                      // stop too. Leaving it animating would claim work that
+                      // is not happening.
                       value: progress != null ? progress.percentage / 100 : 0,
                       strokeWidth: AppDimens.progressStrokeLg,
                       color: accentColor,
@@ -612,36 +643,100 @@ class _OTAScreenState extends State<OTAScreen>
               const SizedBox(height: AppDimens.spacingXxxl),
 
               Text(
-                'ota_downloading_update'.tr(),
+                isPaused
+                    ? 'ota_download_paused'.tr()
+                    : 'ota_downloading_update'.tr(),
                 style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
               ),
 
               const SizedBox(height: AppDimens.buttonHeightMedium),
 
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: OutlinedButton.icon(
-                  onPressed: () => otaProvider.cancelDownload(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(
-                      color: Colors.red,
-                      width: AppDimens.borderWidthThick,
+              // Pause / Resume and Cancel sit side by side. Cancel stays
+              // destructive-looking in both states because it throws the saved
+              // bytes away, while Resume is the accent-coloured primary action.
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: isPaused
+                          ? FilledButton.icon(
+                              onPressed: () => otaProvider.resumeDownload(),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: accentColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppDimens.radiusXl,
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: AppDimens.iconMd,
+                              ),
+                              label: Text(
+                                'ota_resume_download'.tr(),
+                                style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
+                              ),
+                            )
+                          : OutlinedButton.icon(
+                              onPressed: () => otaProvider.pauseDownload(),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: accentColor,
+                                side: BorderSide(
+                                  color: accentColor,
+                                  width: AppDimens.borderWidthThick,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppDimens.radiusXl,
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.pause_rounded,
+                                size: AppDimens.iconMd,
+                              ),
+                              label: Text(
+                                'ota_pause_download'.tr(),
+                                style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
+                              ),
+                            ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                  ),
+                  const SizedBox(width: AppDimens.spacingMd),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () => otaProvider.cancelDownload(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(
+                            color: Colors.red,
+                            width: AppDimens.borderWidthThick,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: AppDimens.iconMd,
+                        ),
+                        label: Text(
+                          isPaused
+                              ? 'ota_discard_download'.tr()
+                              : 'ota_cancel_download'.tr(),
+                          style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
                   ),
-                  icon: const Icon(
-                    Icons.cancel_outlined,
-                    size: AppDimens.iconMd,
-                  ),
-                  label: Text(
-                    'ota_cancel_download'.tr(),
-                    style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
-                  ),
-                ),
+                ],
               ),
             ],
           ),

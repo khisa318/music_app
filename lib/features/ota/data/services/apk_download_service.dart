@@ -11,7 +11,12 @@ import '../models/github_release.dart';
 
 /// Why a download did not complete.
 enum DownloadFailure {
+  /// The user paused. The partial file is kept so the next attempt continues.
+  paused,
+
+  /// The user gave up. The partial file is deleted.
   cancelled,
+
   offline,
   timeout,
   notEnoughSpace,
@@ -67,19 +72,39 @@ class ApkDownloadService {
 
   CancelToken? _cancelToken;
   bool _cancelled = false;
+  bool _paused = false;
 
+  /// Whether the last call to [download] was stopped by [pause].
+  bool get isPaused => _paused;
+
+  bool get isCancelled => _cancelled;
+
+  /// Stops the download but keeps the bytes already received.
+  ///
+  /// Calling [download] again picks up where this left off, because the partial
+  /// file is left on disk and the next request asks for the remaining range.
+  void pause() {
+    _paused = true;
+    _cancelToken?.cancel('paused by user');
+  }
+
+  /// Gives up on the download entirely and throws the partial file away.
   void cancel() {
     _cancelled = true;
     _cancelToken?.cancel('cancelled by user');
   }
-
-  bool get isCancelled => _cancelled;
 
   /// Runs [onProgress] with 0..1 plus byte counts while downloading.
   ///
   /// Takes the resolved assets rather than a whole release so a download can
   /// proceed from the description the user is already looking at, without a
   /// second network round trip that could fail and strand them mid-flow.
+  ///
+  /// Bytes are streamed into `<name>.apk.part` and only promoted to
+  /// `<name>.apk` once every byte has arrived and verified. Keeping the partial
+  /// file is what makes [pause] cheap: the next call sends
+  /// `Range: bytes=<already on disk>-` and appends, instead of re-fetching the
+  /// whole APK over a connection the user just decided was too slow.
   Future<DownloadResult> download({
     required ReleaseAsset apk,
     ReleaseAsset? checksumAsset,
@@ -95,62 +120,152 @@ class ApkDownloadService {
     }
 
     _cancelled = false;
+    _paused = false;
     _cancelToken = CancelToken();
 
+    File? partial;
     File? destination;
 
     try {
       final directory = await _resolveTargetDirectory();
       destination = File(p.join(directory.path, apk.name));
+      partial = File('${destination.path}.part');
 
-      // Remove any partial file from a previous attempt before resuming from
-      // scratch. A truncated APK is not a valid APK and the installer would
-      // reject it with an opaque error.
+      // A finished file is stale the moment a download is requested again: the
+      // caller either installs it immediately or wants a fresh copy.
       if (await destination.exists()) {
         await destination.delete();
       }
 
+      var alreadyHave = 0;
+      if (await partial.exists()) {
+        alreadyHave = await partial.length();
+        // Zero bytes, or a partial already at or past the published size, is
+        // not a valid resume point. Start over rather than corrupt the file.
+        if (alreadyHave <= 0 ||
+            (apk.sizeBytes > 0 && alreadyHave >= apk.sizeBytes)) {
+          await _deleteQuietly(partial);
+          alreadyHave = 0;
+        }
+      }
+
       var lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
       final startedAt = DateTime.now();
+      var fetchedThisRun = 0;
 
-      await _dio.download(
-        apk.downloadUrl.toString(),
-        destination.path,
-        cancelToken: _cancelToken,
-        onReceiveProgress: (received, total) {
-          // Throttle to ~10 updates/sec; the UI does not need more and each
-          // one crosses a platform channel.
-          final now = DateTime.now();
-          if (now.difference(lastEmit).inMilliseconds < 100) return;
+      void emit(int received, int total) {
+        // Throttle to ~10 updates/sec; the UI does not need more and each one
+        // crosses a platform channel.
+        final now = DateTime.now();
+        if (now.difference(lastEmit).inMilliseconds < 100) return;
+        lastEmit = now;
 
-          final elapsedMs = now.difference(startedAt).inMilliseconds;
-          final bytesPerSecond = elapsedMs > 0
-              ? (received / elapsedMs) * 1000
-              : 0.0;
+        final elapsedMs = now.difference(startedAt).inMilliseconds;
+        // Speed is measured over this attempt only. Including bytes fetched by
+        // an earlier attempt would inflate it by however long the user spent
+        // paused and make the remaining time look far shorter than it is.
+        final bytesPerSecond = elapsedMs > 0
+            ? (fetchedThisRun / elapsedMs) * 1000
+            : 0.0;
 
-          lastEmit = now;
-
-          onProgress?.call(
-            OTADownloadProgress(
-              downloaded: received,
-              total: total > 0 ? total : apk.sizeBytes,
-              percentage: total > 0 ? (received / total) * 100 : 0,
-              downloadSpeed: _formatSpeed(bytesPerSecond),
-              eta: _formatEta(
-                total > 0 && bytesPerSecond > 0
-                    ? ((total - received) / bytesPerSecond).round()
-                    : null,
-              ),
+        onProgress?.call(
+          OTADownloadProgress(
+            downloaded: received,
+            total: total > 0 ? total : apk.sizeBytes,
+            percentage: total > 0 ? (received / total) * 100 : 0,
+            downloadSpeed: _formatSpeed(bytesPerSecond),
+            eta: _formatEta(
+              total > 0 && bytesPerSecond > 0
+                  ? ((total - received) / bytesPerSecond).round()
+                  : null,
             ),
-          );
-        },
+          ),
+        );
+      }
+
+      // Show the resumed position straight away instead of sitting at 0% while
+      // the range request is still in flight.
+      if (alreadyHave > 0) {
+        emit(alreadyHave, apk.sizeBytes);
+      }
+
+      final response = await _dio.get<ResponseBody>(
+        apk.downloadUrl.toString(),
+        options: Options(
+          responseType: ResponseType.stream,
+          // Asking for only the remainder is the entire point of pausing.
+          headers: alreadyHave > 0 ? {'Range': 'bytes=$alreadyHave-'} : null,
+          followRedirects: true,
+        ),
+        cancelToken: _cancelToken,
       );
 
+      // 206 is the only status that means "here is the rest of the file".
+      final partialAccepted = (response.statusCode ?? 0) == 206;
+
+      // A server that ignores Range replies 200 with the whole file again. The
+      // bytes already on disk would then be the first half of a duplicate, so
+      // they have to go before writing, otherwise the APK silently doubles and
+      // the checksum catches it as a mystery integrity failure.
+      if (alreadyHave > 0 && !partialAccepted) {
+        debugPrint('[Update] server ignored Range; restarting download');
+        await _deleteQuietly(partial);
+        alreadyHave = 0;
+      }
+
+      final total = _expectedTotal(response, apk.sizeBytes, alreadyHave);
+      final body = response.data;
+      if (body == null) {
+        await _deleteQuietly(partial);
+        return const DownloadResult.failed(
+          DownloadFailure.server,
+          'Empty response body',
+        );
+      }
+
+      var received = alreadyHave;
+      IOSink? sink;
+      try {
+        sink = partial.openWrite(
+          mode: partialAccepted ? FileMode.append : FileMode.write,
+        );
+
+        await for (final chunk in body.stream) {
+          received += chunk.length;
+          fetchedThisRun += chunk.length;
+          sink.add(chunk);
+          emit(received, total);
+        }
+
+        await sink.flush();
+      } finally {
+        // Closed even when the stream throws, otherwise the last chunk can be
+        // left unwritten and the resume point moves backwards.
+        await sink?.close();
+      }
+
+      if (_paused) {
+        // No cleanup on purpose: the bytes on disk are the resume point.
+        return const DownloadResult.failed(DownloadFailure.paused);
+      }
+
       if (_cancelled) {
+        await _deleteQuietly(partial);
         return const DownloadResult.failed(DownloadFailure.cancelled);
       }
 
-      if (!await destination.exists() || await destination.length() == 0) {
+      // A stream that ends early (dropped connection, truncated response) is
+      // not a completed download. Refusing here is what keeps a half APK away
+      // from the installer, where it would fail with an opaque parse error.
+      if (total > 0 && received != total) {
+        debugPrint('[Update] truncated: got $received of $total bytes');
+        return DownloadResult.failed(
+          DownloadFailure.server,
+          'Download ended early',
+        );
+      }
+
+      if (received <= 0) {
         return const DownloadResult.failed(
           DownloadFailure.integrity,
           'Downloaded file is empty',
@@ -159,13 +274,13 @@ class ApkDownloadService {
 
       // A PKZip-based APK always starts with "PK\x03\x04". Cheap guard against
       // an HTML error page being saved as .apk.
-      final header = await _readHeader(destination, 4);
+      final header = await _readHeader(partial, 4);
       if (header.length < 4 ||
           header[0] != 0x50 ||
           header[1] != 0x4B ||
           header[2] != 0x03 ||
           header[3] != 0x04) {
-        await _deleteQuietly(destination);
+        await _deleteQuietly(partial);
         return const DownloadResult.failed(
           DownloadFailure.integrity,
           'Downloaded file is not a valid APK',
@@ -177,12 +292,13 @@ class ApkDownloadService {
         // No checksum published for this release. The APK is still a valid
         // archive and will still be signature-checked by Android, but flag it
         // as unverified so the UI can be honest about it.
+        await partial.rename(destination.path);
         return DownloadResult.success(destination.path, verified: false);
       }
 
-      final actual = await _sha256Of(destination);
+      final actual = await _sha256Of(partial);
       if (actual != expected) {
-        await _deleteQuietly(destination);
+        await _deleteQuietly(partial);
         debugPrint(
           '[Update] checksum mismatch: expected $expected got $actual',
         );
@@ -192,17 +308,29 @@ class ApkDownloadService {
         );
       }
 
+      // Verified, so the download is finished. Promote the partial so the
+      // installer never sees a file that could still be appended to.
+      await partial.rename(destination.path);
       return DownloadResult.success(destination.path, verified: true);
     } on DioException catch (error) {
-      if (_cancelled || error.type == DioExceptionType.cancel) {
-        await _deleteQuietly(destination);
+      // 416 means the server considered our offset past the end of the file,
+      // so the partial cannot be trusted. Throw it away and let the user retry
+      // from zero rather than looping on the same bad offset.
+      if (error.response?.statusCode == 416) {
+        debugPrint('[Update] range rejected (416); discarding partial');
+        await _deleteQuietly(partial);
+      } else if (_paused) {
+        return const DownloadResult.failed(DownloadFailure.paused);
+      } else if (_cancelled || error.type == DioExceptionType.cancel) {
+        await _deleteQuietly(partial);
         return const DownloadResult.failed(DownloadFailure.cancelled);
+      } else {
+        await _deleteQuietly(partial);
       }
-      await _deleteQuietly(destination);
       return DownloadResult.failed(_classify(error), error.message);
     } on FileSystemException catch (error) {
       // ENOSPC surfaces here as "No space left on device".
-      await _deleteQuietly(destination);
+      await _deleteQuietly(partial);
       final text = '${error.osError?.message ?? ''} ${error.message}'
           .toLowerCase();
       return DownloadResult.failed(
@@ -212,7 +340,10 @@ class ApkDownloadService {
         error.message,
       );
     } catch (error) {
-      await _deleteQuietly(destination);
+      if (_paused) {
+        return const DownloadResult.failed(DownloadFailure.paused);
+      }
+      await _deleteQuietly(partial);
       debugPrint('[Update] download failed: $error');
       return const DownloadResult.failed(DownloadFailure.unknown);
     } finally {
@@ -222,7 +353,54 @@ class ApkDownloadService {
 
   /// Deletes a downloaded APK. Called after a successful install, or when the
   /// user skips an update that was already on disk.
-  Future<void> deleteDownloadedFile(String path) => _deleteQuietly(File(path));
+  Future<void> deleteDownloadedFile(String path) async {
+    await _deleteQuietly(File(path));
+    // Clear a leftover partial too, otherwise the next update for the same
+    // asset would try to resume from a file the user already discarded.
+    await _deleteQuietly(File('$path.part'));
+  }
+
+  /// Total size of the asset, preferring what the server reports.
+  ///
+  /// Falls back to the size GitHub published on the release asset, which is
+  /// what a range response would otherwise leave us guessing at.
+  static int _expectedTotal(
+    Response<dynamic> response,
+    int publishedSize,
+    int received,
+  ) {
+    final contentRange = response.headers.value('content-range');
+    if (contentRange != null) {
+      // `bytes 1234-5678/9012`: the part after `/` is the full size.
+      final total = int.tryParse(contentRange.split('/').last.trim());
+      if (total != null && total > 0) return total;
+    }
+
+    final contentLength =
+        int.tryParse(response.headers.value('content-length') ?? '');
+    if (contentLength != null && contentLength > 0) {
+      // A 206 reports only the length of the range, so the full asset is the
+      // range plus what we already had.
+      return response.statusCode == 206
+          ? contentLength + received
+          : contentLength;
+    }
+
+    return publishedSize;
+  }
+
+  /// Throws away a paused partial file so the next attempt starts from zero.
+  ///
+  /// Used when the user cancels rather than resumes, or when a paused file is
+  /// for a version that is no longer being offered.
+  Future<void> discardPartial(String apkName) async {
+    try {
+      final directory = await _resolveTargetDirectory();
+      await _deleteQuietly(File(p.join(directory.path, '$apkName.part')));
+    } catch (error) {
+      debugPrint('[Update] could not discard partial: $error');
+    }
+  }
 
   /// Internal storage under the app's own directory.
   ///

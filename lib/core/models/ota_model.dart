@@ -166,6 +166,10 @@ enum OTAStatus {
   checking,
   updateAvailable,
   downloading,
+
+  /// Download stopped part way on purpose. The bytes already received are kept
+  /// on disk, so [resume] continues rather than starting over.
+  paused,
   downloaded,
   installing,
   installed,
@@ -186,6 +190,9 @@ enum OTAError {
   storageError,
   checksumError,
   cancelled,
+
+  /// The user paused the download, so the bytes on disk are kept.
+  paused,
   unknownError,
 }
 
