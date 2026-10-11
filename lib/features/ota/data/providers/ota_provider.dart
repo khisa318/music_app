@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,7 +63,8 @@ class OTAProvider extends ChangeNotifier {
   bool get hasUpdate =>
       _status == OTAStatus.updateAvailable ||
       _status == OTAStatus.downloaded ||
-      _status == OTAStatus.downloading;
+      _status == OTAStatus.downloading ||
+      _status == OTAStatus.paused;
   bool get isUpdateUIShown => _isUpdateUIShown;
   bool get isOTAScreenActive => _isOTAScreenActive;
 
@@ -185,9 +188,8 @@ class OTAProvider extends ChangeNotifier {
       },
     );
 
-    _downloadProgress = null;
-
     if (result.isSuccess) {
+      _downloadProgress = null;
       _downloadedFilePath = result.filePath;
       _checksumVerified = result.verified;
       _setStatus(OTAStatus.downloaded);
@@ -199,14 +201,21 @@ class OTAProvider extends ChangeNotifier {
     }
 
     switch (result.failure) {
+      case DownloadFailure.paused:
+        // The progress is deliberately left in place: it is how the UI shows
+        // where the user stopped and what resuming will pick up from.
+        _setStatus(OTAStatus.paused);
       case DownloadFailure.cancelled:
+        _downloadProgress = null;
         _setStatus(OTAStatus.updateAvailable);
       case DownloadFailure.integrity:
+        _downloadProgress = null;
         _handleError(
           OTAError.checksumError,
           'The download did not pass verification and was discarded',
         );
       case DownloadFailure.notEnoughSpace:
+        _downloadProgress = null;
         _handleError(
           OTAError.storageError,
           'Not enough free storage to download the update',
@@ -214,15 +223,42 @@ class OTAProvider extends ChangeNotifier {
       case DownloadFailure.offline:
       case DownloadFailure.timeout:
       case DownloadFailure.server:
+        // Progress is kept so a later Resume still knows how far it got.
         _handleError(
           OTAError.downloadError,
           'Download failed. Check your connection and try again.',
         );
       case DownloadFailure.unknown:
       case null:
+        _downloadProgress = null;
         _handleError(OTAError.downloadError, 'Download failed');
     }
   }
+
+  /// Stops the download where it is, keeping what has already been received.
+  ///
+  /// The status only changes to [OTAStatus.paused] once the service has
+  /// finished unwinding the socket, which happens inside [downloadUpdate].
+  void pauseDownload() {
+    if (_status != OTAStatus.downloading) return;
+    _downloadService.pause();
+  }
+
+  /// Picks up a paused download from the bytes already on disk.
+  Future<void> resumeDownload() async {
+    if (_status != OTAStatus.paused) return;
+    await downloadUpdate();
+  }
+
+  /// Whether the download can currently be paused.
+  bool get isDownloadPausable => _status == OTAStatus.downloading;
+
+  /// Whether the download can currently be continued.
+  bool get isDownloadResumable => _status == OTAStatus.paused;
+
+  /// The furthest point the download reached, kept after a pause so the UI can
+  /// report "paused at 42%".
+  double get pausedPercentage => _downloadProgress?.percentage ?? 0;
 
   /// Hands the verified APK to Android's own installer.
   ///
@@ -276,10 +312,24 @@ class OTAProvider extends ChangeNotifier {
   }
 
   void cancelDownload() {
-    if (_status != OTAStatus.downloading) return;
-    _downloadService.cancel();
-    _downloadProgress = null;
-    _setStatus(OTAStatus.updateAvailable);
+    if (_status == OTAStatus.downloading) {
+      _downloadService.cancel();
+      _downloadProgress = null;
+      _setStatus(OTAStatus.updateAvailable);
+      return;
+    }
+
+    if (_status == OTAStatus.paused) {
+      // Nothing is in flight, so cancelling has to actively throw the saved
+      // bytes away - otherwise the next attempt would silently resume them and
+      // the user would have no way back to a clean download.
+      final info = _updateInfo;
+      _downloadProgress = null;
+      _setStatus(OTAStatus.updateAvailable);
+      if (info != null) {
+        unawaited(_downloadService.discardPartial(info.apkAssetName));
+      }
+    }
   }
 
   /// Remembers that the user does not want to hear about this version again.
