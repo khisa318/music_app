@@ -137,7 +137,13 @@ class PlayerProvider extends ChangeNotifier {
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.anand.noize',
           androidNotificationChannelName: 'Noize Playback',
-          androidStopForegroundOnPause: true,
+          // Keep the service in the foreground while paused. With `true`,
+          // pausing calls stopForeground() and resuming calls
+          // startForeground() again, which Android 13+ rejects (killing the
+          // process) once the user has turned notifications off. audio_service
+          // 0.18.x does not catch that native exception, so avoiding the
+          // restart is the fix.
+          androidStopForegroundOnPause: false,
           androidShowNotificationBadge: true,
           androidNotificationOngoing: false,
           androidNotificationIcon: 'mipmap/ic_launcher',
