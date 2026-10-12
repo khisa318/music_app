@@ -6,6 +6,7 @@ import '../widgets/favorite_artists_section.dart';
 import '../widgets/home_sections.dart';
 import '../widgets/speed_dial_section.dart';
 import '../widgets/covers_and_remixes_section.dart';
+import '../widgets/download_tracker_banner.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
@@ -417,6 +418,8 @@ class _HomeScreenState extends State<HomeScreen> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
+          const SliverToBoxAdapter(child: DownloadTrackerBanner()),
+
           SliverToBoxAdapter(child: _buildTabs(context)),
 
           if (_selectedIndex == 0) ...[

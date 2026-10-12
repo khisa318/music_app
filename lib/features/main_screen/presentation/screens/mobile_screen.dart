@@ -12,7 +12,7 @@ import '../../../../core/theme/app_theme.dart';
 
 import '../../../home/presentation/screens/home_screen.dart';
 import '../../../ota/data/providers/ota_provider.dart';
-import '../../../ota/presentation/widgets/ota_bottomsheet.dart';
+import '../../../ota/presentation/widgets/ota_dialog.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
@@ -77,7 +77,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
 
             otaProvider.setUpdateUIShown(true);
 
-            _showOTABottomSheet(context, otaProvider.updateInfo!);
+            _showOTADialog(context, otaProvider.updateInfo!);
           });
         }
 
@@ -290,15 +290,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   // OTA
   // ---------------------------------------------------------------------------
 
-  void _showOTABottomSheet(BuildContext context, OTAUpdateInfo updateInfo) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return OTABottomSheet(updateInfo: updateInfo);
-      },
-    );
+  void _showOTADialog(BuildContext context, OTAUpdateInfo updateInfo) {
+    OTADialog.show(context, updateInfo);
   }
 
   // ---------------------------------------------------------------------------

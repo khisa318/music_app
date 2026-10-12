@@ -8,11 +8,9 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../shared/components/app_snackbar.dart';
-import '../../../ota/data/providers/ota_provider.dart';
 import '../screens/crash_logs_screen.dart';
 
 import '../screens/manage_data_screen.dart';
-import 'custom_dropdown.dart';
 import 'settings_item.dart';
 import 'settings_surface.dart';
 
@@ -129,52 +127,6 @@ class GeneralSettingsSection extends StatelessWidget {
                 accentColor: accentColor,
                 onOpenSettings: _openDisableRestrictionsSettings,
               ),
-
-            Consumer<SettingsProvider>(
-              builder: (context, settingsProvider, child) {
-                return SettingsToggleItem(
-                  icon: Icons.system_update_rounded,
-                  title: 'automatic_update_checks'.tr(),
-                  value: settingsProvider.updateCheckEnabled,
-                  onChanged: (value) {
-                    settingsProvider.updateCheckEnabled = value;
-                  },
-                  isDarkMode: isDarkMode,
-                  accentColor: accentColor,
-                );
-              },
-            ),
-
-            Consumer<SettingsProvider>(
-              builder: (context, settingsProvider, child) {
-                return SettingsItem(
-                  icon: Icons.alt_route_rounded,
-                  title: 'update_channel'.tr(),
-                  showChevron: false,
-                  trailing: CustomDropdown<String>(
-                    value: settingsProvider.updateChannel,
-                    items: const ['stable', 'beta'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        settingsProvider.updateChannel = value;
-                        final otaProvider = Provider.of<OTAProvider>(
-                          context,
-                          listen: false,
-                        );
-                        otaProvider.setUpdateChannel(value);
-                        if (settingsProvider.updateCheckEnabled) {
-                          otaProvider.checkForUpdates();
-                        }
-                      }
-                    },
-                    isDarkMode: isDarkMode,
-                    accentColor: accentColor,
-                  ),
-                  isDarkMode: isDarkMode,
-                  accentColor: accentColor,
-                );
-              },
-            ),
 
             SettingsItem(
               icon: Icons.storage_rounded,

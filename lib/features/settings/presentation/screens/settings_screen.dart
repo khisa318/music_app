@@ -13,6 +13,7 @@ import '../../../ota/data/providers/ota_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../widgets/appearance_settings_section.dart';
 import '../widgets/audio_settings_section.dart';
+import '../widgets/custom_dropdown.dart';
 import '../widgets/general_settings_section.dart';
 import '../widgets/settings_item.dart';
 import '../widgets/settings_surface.dart';
@@ -111,27 +112,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Consumer<OTAProvider>(
-                                builder: (context, otaProvider, child) {
-                                  if (!otaProvider.hasUpdate ||
-                                      otaProvider.updateInfo == null) {
-                                    return const SizedBox.shrink();
-                                  }
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppDimens.spacingXs,
-                                    ),
-                                    child: _buildUpdateBanner(
-                                      context,
-                                      otaProvider,
-                                      isDarkMode,
-                                      accentColor,
-                                    ),
-                                  );
-                                },
-                              ),
-
                               Wrap(
                                 spacing: spacing,
                                 runSpacing: AppDimens.spacingSm,
@@ -250,98 +230,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildUpdateBanner(
-    BuildContext context,
-    OTAProvider otaProvider,
-    bool isDarkMode,
-    Color accentColor,
-  ) {
-    final updateInfo = otaProvider.updateInfo!;
-
-    return SettingsSurface(
-      isDarkMode: isDarkMode,
-      accentColor: accentColor,
-      padding: const EdgeInsets.all(AppDimens.paddingLg),
-      color: accentColor.withValues(alpha: isDarkMode ? 0.10 : 0.06),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppDimens.paddingSm),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                ),
-                child: Icon(
-                  Icons.system_update_rounded,
-                  color: accentColor,
-                  size: AppDimens.iconMd,
-                ),
-              ),
-              const SizedBox(width: AppDimens.spacingMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ota_update_available'.tr(),
-                      style: AppTextStyles.subtitle(
-                        isDarkMode: isDarkMode,
-                      ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
-                    ),
-                    Text(
-                      'ota_version_and_size'.tr(
-                        args: [updateInfo.latestVersion, updateInfo.size],
-                      ),
-                      style: AppTextStyles.caption(isDarkMode: isDarkMode)
-                          .copyWith(
-                            color: MainScreenColors.getTextColor(
-                              isDarkMode,
-                            ).withValues(alpha: AppDimens.opacityMuted),
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppDimens.spacingSm),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const OTAScreen()),
-                  );
-                },
-                child: Text(
-                  'view_button'.tr(),
-                  style: AppTextStyles.bodyMd(
-                    isDarkMode: isDarkMode,
-                    color: accentColor,
-                  ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
-                ),
-              ),
-            ],
-          ),
-          if (updateInfo.updateLog.isNotEmpty) ...[
-            const SizedBox(height: AppDimens.spacingMd),
-            Text(
-              updateInfo.updateLog.first,
-              style: AppTextStyles.body2(isDarkMode: isDarkMode).copyWith(
-                color: MainScreenColors.getTextColor(
-                  isDarkMode,
-                ).withValues(alpha: AppDimens.opacityFaded),
-                height: AppTextStyles.lineHeightBody,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
+  /// The single home for everything update-related.
+  ///
+  /// This used to be split: a floating banner above the grid and this group
+  /// both announced the same version, and the automatic-check toggle plus the
+  /// channel picker lived over in General Settings. Everything now sits in one
+  /// themed card and the update story is told exactly once.
   Widget _buildAppUpdatesGroup(bool isDarkMode, Color accentColor) {
     return SettingsGroup(
       title: 'app_updates'.tr(),
@@ -351,17 +245,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Consumer<OTAProvider>(
           builder: (context, otaProvider, child) {
+            final info = otaProvider.updateInfo;
+            if (!otaProvider.hasUpdate || info == null) {
+              return const SizedBox.shrink();
+            }
+            return _buildUpdateHeroTile(info, isDarkMode, accentColor);
+          },
+        ),
+        Consumer<OTAProvider>(
+          builder: (context, otaProvider, child) {
             final isChecking = otaProvider.status == OTAStatus.checking;
 
             return SettingsItem(
               icon: isChecking
                   ? Icons.sync_rounded
                   : Icons.system_update_alt_rounded,
-              title: otaProvider.status == OTAStatus.updateAvailable
-                  ? 'update_available_item_title'.tr(
-                      args: [otaProvider.updateInfo?.latestVersion ?? ''],
-                    )
-                  : 'ota_check_for_updates'.tr(),
+              title: 'ota_check_for_updates'.tr(),
               showChevron: !isChecking,
               trailing: isChecking
                   ? SizedBox(
@@ -373,33 +272,143 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     )
                   : null,
-              onTap: isChecking
-                  ? null
-                  : () {
-                      // The row is labelled "Check for updates", so it has to
-                      // check. Pushing the screen on its own rendered whatever
-                      // the last startup check happened to decide, so a user
-                      // who had skipped a version was told "you are on the
-                      // latest version" seconds after the app itself had
-                      // advertised an update - the app contradicting itself.
-                      // The check runs before the push so the screen opens on
-                      // a spinner and lands on the real answer.
-                      context.read<OTAProvider>().checkForUpdates(
-                        showNoUpdateMessage: true,
-                      );
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const OTAScreen(),
-                        ),
-                      );
-                    },
+              onTap: isChecking ? null : _openUpdateScreen,
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
+            );
+          },
+        ),
+        Consumer<SettingsProvider>(
+          builder: (context, settingsProvider, child) {
+            return SettingsToggleItem(
+              icon: Icons.schedule_rounded,
+              title: 'automatic_update_checks'.tr(),
+              value: settingsProvider.updateCheckEnabled,
+              onChanged: (value) {
+                settingsProvider.updateCheckEnabled = value;
+              },
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
+            );
+          },
+        ),
+        Consumer<SettingsProvider>(
+          builder: (context, settingsProvider, child) {
+            return SettingsItem(
+              icon: Icons.alt_route_rounded,
+              title: 'update_channel'.tr(),
+              showChevron: false,
+              trailing: CustomDropdown<String>(
+                value: settingsProvider.updateChannel,
+                items: const ['stable', 'beta'],
+                onChanged: (value) {
+                  if (value == null) return;
+                  settingsProvider.updateChannel = value;
+                  final otaProvider = context.read<OTAProvider>();
+                  otaProvider.setUpdateChannel(value);
+                  if (settingsProvider.updateCheckEnabled) {
+                    otaProvider.checkForUpdates();
+                  }
+                },
+                isDarkMode: isDarkMode,
+                accentColor: accentColor,
+              ),
               isDarkMode: isDarkMode,
               accentColor: accentColor,
             );
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildUpdateHeroTile(
+    OTAUpdateInfo info,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openUpdateScreen,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        splashColor: accentColor.withValues(alpha: 0.08),
+        highlightColor: accentColor.withValues(alpha: 0.05),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimens.paddingLg,
+            vertical: AppDimens.paddingMd,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: AppDimens.buttonSizeLg,
+                height: AppDimens.buttonSizeLg,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      accentColor,
+                      accentColor.withValues(alpha: 0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                ),
+                child: const Icon(
+                  Icons.system_update_rounded,
+                  color: Colors.white,
+                  size: AppDimens.iconMd,
+                ),
+              ),
+              const SizedBox(width: AppDimens.spacingMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'update_available_item_title'.tr(
+                        args: [info.latestVersion],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyLg(
+                        isDarkMode: isDarkMode,
+                      ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
+                    ),
+                    const SizedBox(height: AppDimens.spacingXxs),
+                    Text(
+                      'ota_update_size'.tr(args: [info.size]),
+                      style: AppTextStyles.caption(
+                        isDarkMode: isDarkMode,
+                      ).copyWith(
+                        color: MainScreenColors.getTextColor(
+                          isDarkMode,
+                        ).withValues(alpha: AppDimens.opacityMuted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppDimens.spacingSm),
+              SettingsChevron(
+                isDarkMode: isDarkMode,
+                accentColor: accentColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Runs an explicit check, then opens the update screen so it lands on the
+  /// real answer rather than whatever the last startup check decided.
+  void _openUpdateScreen() {
+    context.read<OTAProvider>().checkForUpdates(showNoUpdateMessage: true);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const OTAScreen()),
     );
   }
 }
