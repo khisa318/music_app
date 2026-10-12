@@ -24,7 +24,9 @@ class HomeSections extends StatelessWidget {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final provider = context.watch<HomeScreenProvider>();
 
-    if (provider.isHomeSectionsLoading) {
+    // Keep the cached carousels visible while a refresh runs behind the
+    // scenes; the shimmer is reserved for the very first load.
+    if (provider.isHomeSectionsLoading && provider.homeSections.isEmpty) {
       return ShimmerLoading.buildShimmerList();
     }
 

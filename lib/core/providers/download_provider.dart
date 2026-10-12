@@ -13,6 +13,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import '../services/audio_url_isolate.dart';
+import '../services/local_songs_service.dart';
 
 import 'connectivity_provider.dart';
 import 'settings_provider.dart';
@@ -631,45 +632,51 @@ class DownloadProvider with ChangeNotifier {
         _preparing.remove(videoId);
 
         try {
-          await _writeMetadataToFile(song, filePath, downloadDir);
-        } catch (e) {
-          debugPrint(
-            'Metadata writing failed for $videoId, but download succeeded: $e',
-          );
-        }
-
-        await _updateDownloadQueueStatus(
-          song.videoId,
-          'completed',
-          additionalData: {
-            'filePath': filePath,
-            'localPath': filePath,
-            'title': song.name,
-            'duration': song.duration.inSeconds > 0
-                ? song.duration.inSeconds
-                : (streamDurationMs != null && streamDurationMs > 0
-                      ? (streamDurationMs / 1000).round()
-                      : 0),
-            'isDownloaded': true,
-            'downloadedAt': DateTime.now().millisecondsSinceEpoch,
-          },
+        await _writeMetadataToFile(song, filePath, downloadDir);
+      } catch (e) {
+        debugPrint(
+          'Metadata writing failed for $videoId, but download succeeded: $e',
         );
+      }
 
-        removeProgress(song.videoId);
-        _downloadCancelTokens.remove(song.videoId);
+      try {
+        await LocalSongsService().scanMedia(filePath);
+      } catch (e) {
+        debugPrint('Media scan failed for $filePath: $e');
+      }
 
-        if (shouldShowNotifications) {
-          final notificationId = _getNotificationId(videoId);
-          await DownloadNotificationService().showDownloadComplete(
-            notificationId: notificationId,
-            title: song.name,
-            artist: song.artists.isNotEmpty
-                ? song.artists[0].name
-                : 'Unknown Artist',
-          );
-        }
+      await _updateDownloadQueueStatus(
+        song.videoId,
+        'completed',
+        additionalData: {
+          'filePath': filePath,
+          'localPath': filePath,
+          'title': song.name,
+          'duration': song.duration.inSeconds > 0
+              ? song.duration.inSeconds
+              : (streamDurationMs != null && streamDurationMs > 0
+                    ? (streamDurationMs / 1000).round()
+                    : 0),
+          'isDownloaded': true,
+          'downloadedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
 
-        debugPrint('Updated queue status to "completed" for videoId: $videoId');
+      removeProgress(song.videoId);
+      _downloadCancelTokens.remove(song.videoId);
+
+      if (shouldShowNotifications) {
+        final notificationId = _getNotificationId(videoId);
+        await DownloadNotificationService().showDownloadComplete(
+          notificationId: notificationId,
+          title: song.name,
+          artist: song.artists.isNotEmpty
+              ? song.artists[0].name
+              : 'Unknown Artist',
+        );
+      }
+
+      debugPrint('Updated queue status to "completed" for videoId: $videoId');
       } catch (e) {
         debugPrint('Download failed for videoId: $videoId. Exception: $e');
         _preparing.remove(videoId);

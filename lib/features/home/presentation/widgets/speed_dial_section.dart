@@ -39,7 +39,9 @@ class SpeedDialSection extends StatelessWidget {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    if (provider.isHomeSectionsLoading) {
+    // The shimmer is only for the very first load. While a refresh runs the
+    // cached shelf stays on screen, so the section never flashes empty.
+    if (provider.isHomeSectionsLoading && provider.homeSections.isEmpty) {
       return ShimmerLoading.buildShimmerList();
     }
 
@@ -187,16 +189,23 @@ class _SpeedDialAction extends StatelessWidget {
   }
 }
 
-/// Responsive grid: the column count follows the available width instead of
-/// being pinned to 3, so the row stays usable from a 360dp phone up to a
-/// desktop window.
+/// Responsive grid: the column count follows the available width, so the row
+/// stays usable from a 360dp phone (3 compact tiles) up to a desktop window.
 class _SpeedDialGrid extends StatelessWidget {
   final List<SongInfo> songs;
   final bool isDarkMode;
 
   const _SpeedDialGrid({required this.songs, required this.isDarkMode});
 
-  static const double _maxTileWidth = 200.0;
+  /// Preferred tile width. Tiles pack as many of these per row as the width
+  /// allows, so the strip stays compact instead of stretching a couple of
+  /// oversized covers across a phone screen.
+  static const double _targetTileWidth = 130.0;
+
+  /// Never fewer than this many per row (phones) or more than this many (wide
+  /// desktop windows), which keeps the covers legible at both extremes.
+  static const int _minColumns = 3;
+  static const int _maxColumns = 6;
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +215,13 @@ class _SpeedDialGrid extends StatelessWidget {
           constraints.maxWidth - AppDimens.paddingLg * 2,
           AppDimens.maxContentWidth - AppDimens.paddingLg * 2,
         );
-        final columns = math.max(2, (available / _maxTileWidth).floor());
+        final columns = math.min(
+          _maxColumns,
+          math.max(
+            _minColumns,
+            (available / _targetTileWidth).round(),
+          ),
+        );
         // The grid also spends `crossAxisSpacing` between tiles, so the real
         // tile width is narrower than the raw share. Using the raw share made
         // every tile taller than it was wide and stretched the covers.
