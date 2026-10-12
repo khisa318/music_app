@@ -168,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                                         icon: Icons.telegram,
                                         label: 'Telegram',
                                         onTap: () => _launchUrl(
-                                          'https://t.me/NoizeUpdates',
+                                          'https://t.me/MusixUpdates',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -180,7 +180,7 @@ class ProfileScreen extends StatelessWidget {
                                         icon: Icons.code_rounded,
                                         label: 'GitHub',
                                         onTap: () => _launchUrl(
-                                          'https://github.com/anandssm/noize',
+                                          'https://github.com/khisa318/music_app',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -192,7 +192,7 @@ class ProfileScreen extends StatelessWidget {
                                         icon: Icons.language_rounded,
                                         label: 'Website',
                                         onTap: () => _launchUrl(
-                                          'https://noizeapp.netlify.app/',
+                                          'https://musix-website.vercel.app/',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -382,7 +382,7 @@ class ProfileScreen extends StatelessWidget {
     await SharePlus.instance.share(
       ShareParams(
         text:
-            'Check out MusiX - Your personal music companion!\nhttps://noizeapp.netlify.app/',
+             'Check out MusiX - Your personal music companion!\nhttps://musix-website.vercel.app/',
         subject: 'MusiX App',
       ),
     );

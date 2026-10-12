@@ -3,6 +3,8 @@ import 'dart:io';
 import '../../../../core/providers/queued_provider.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:flutter/foundation.dart';
+
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Thumbnail;
@@ -77,9 +79,35 @@ class IntentService {
   }
 
   Future<void> _handleAudioFile(String path) async {
+    String resolvedPath = path;
+    try {
+      if (path.startsWith('content://')) {
+        final uri = Uri.parse(path);
+        final tmpDir = await getTemporaryDirectory();
+        final ext = p.extension(uri.path).isNotEmpty
+            ? p.extension(uri.path)
+            : '.mp3';
+        final name = p.basenameWithoutExtension(uri.path.isNotEmpty
+            ? uri.path
+            : 'audio');
+        final tmpFile = File('${tmpDir.path}/intent_$name$ext');
+        if (await tmpFile.exists()) {
+          try {
+            await tmpFile.delete();
+          } catch (_) {}
+        }
+        final bytes = await File.fromUri(uri).readAsBytes();
+        await tmpFile.writeAsBytes(bytes);
+        resolvedPath = tmpFile.path;
+      }
+    } catch (e) {
+      debugPrint('Failed to resolve content URI: $e');
+      resolvedPath = path;
+    }
+
     Map<String, dynamic> songData;
     try {
-      final metadata = await MetadataGod.readMetadata(file: path);
+      final metadata = await MetadataGod.readMetadata(file: resolvedPath);
       Uint8List? artwork;
       final picData = metadata.picture?.data;
       if (picData != null) {
@@ -90,7 +118,7 @@ class IntentService {
       if (artwork != null) {
         try {
           final tempDir = await getTemporaryDirectory();
-          final hash = path.hashCode.toRadixString(16);
+          final hash = resolvedPath.hashCode.toRadixString(16);
           final artFile = File('${tempDir.path}/artwork_$hash.jpg');
           if (!await artFile.exists()) {
             await artFile.writeAsBytes(artwork);
@@ -101,55 +129,57 @@ class IntentService {
         }
       }
 
-      final rawDuration =
-          metadata.durationMs ??
-          (metadata.duration?.inMilliseconds);
+      final dynamic rawDuration = metadata.durationMs ?? metadata.duration?.inMilliseconds;
       int? durationMsInt;
-      if (rawDuration is double) {
+      if (rawDuration is num) {
         durationMsInt = rawDuration.toInt();
-      } else if (rawDuration is int) {
-        durationMsInt = rawDuration;
       } else if (rawDuration is String) {
-        final rawStr = rawDuration as String;
-        durationMsInt = int.tryParse(rawStr);
+        durationMsInt = int.tryParse(rawDuration);
       } else {
         durationMsInt = null;
       }
 
+      final title = metadata.title?.trim().isNotEmpty == true
+          ? metadata.title!
+          : (path.startsWith('content://')
+              ? p.basenameWithoutExtension(Uri.parse(path).path)
+              : p.basenameWithoutExtension(resolvedPath));
+      final artist = metadata.artist?.trim().isNotEmpty == true
+          ? metadata.artist!
+          : 'Unknown Artist';
+      final album = metadata.album?.trim().isNotEmpty == true
+          ? metadata.album!
+          : 'Unknown Album';
+
       songData = {
-        'id': path,
-        'title': metadata.title ?? 'Unknown Title',
-        'artist': metadata.artist ?? 'Unknown Artist',
-        'album': metadata.album ?? 'Unknown Album',
+        'id': resolvedPath,
+        'title': title,
+        'artist': artist,
+        'album': album,
         'duration': durationMsInt,
         'thumbnail': thumbnailUri,
-        'localPath': path,
-        'isLocal': true,
-      };
-    } on Exception catch (e) {
-      if (kDebugMode) {
-        debugPrint('Metadata read error for $path: $e');
-      }
-      songData = {
-        'id': path,
-        'title': path.split('/').last,
-        'artist': 'Unknown Artist',
-        'album': 'Unknown Album',
-        'duration': null,
-        'thumbnail': null,
-        'localPath': path,
+        'localPath': resolvedPath,
         'isLocal': true,
       };
     } catch (e) {
-      debugPrint('Error reading metadata for $path: $e');
+      if (kDebugMode) {
+        debugPrint('Metadata read error for $resolvedPath: $e');
+      }
+      String fallbackTitle;
+      if (path.startsWith('content://')) {
+        fallbackTitle = p.basenameWithoutExtension(Uri.parse(path).path);
+      } else {
+        final base = resolvedPath.isNotEmpty ? resolvedPath : path;
+        fallbackTitle = p.basenameWithoutExtension(base);
+      }
       songData = {
-        'id': path,
-        'title': path.split('/').last,
+        'id': resolvedPath,
+        'title': fallbackTitle.isNotEmpty ? fallbackTitle : 'Unknown Title',
         'artist': 'Unknown Artist',
         'album': 'Unknown Album',
         'duration': null,
         'thumbnail': null,
-        'localPath': path,
+        'localPath': resolvedPath,
         'isLocal': true,
       };
     }
@@ -158,7 +188,7 @@ class IntentService {
 
     try {
       await _playerProvider.playerService.playLocalAudioWithQueue(
-        path,
+        resolvedPath,
         songData,
         songQueue,
         currentIndex,

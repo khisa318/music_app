@@ -10,7 +10,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../../ota/data/providers/ota_provider.dart';
 import '../screens/crash_logs_screen.dart';
-import '../screens/language_selection_screen.dart';
+
 import '../screens/manage_data_screen.dart';
 import 'custom_dropdown.dart';
 import 'settings_item.dart';
@@ -129,30 +129,6 @@ class GeneralSettingsSection extends StatelessWidget {
                 accentColor: accentColor,
                 onOpenSettings: _openDisableRestrictionsSettings,
               ),
-
-            Consumer<SettingsProvider>(
-              builder: (context, settingsProvider, child) {
-                return SettingsItem(
-                  icon: Icons.language_rounded,
-                  title: 'language_card_title'.tr(),
-                  subtitle: settingsProvider.language,
-                  trailing: SettingsChevron(
-                    isDarkMode: isDarkMode,
-                    accentColor: accentColor,
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LanguageSelectionScreen(),
-                      ),
-                    );
-                  },
-                  isDarkMode: isDarkMode,
-                  accentColor: accentColor,
-                );
-              },
-            ),
 
             Consumer<SettingsProvider>(
               builder: (context, settingsProvider, child) {
