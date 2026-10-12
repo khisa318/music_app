@@ -72,7 +72,7 @@ class OTAProvider extends ChangeNotifier {
   bool get isChecksumVerified => _checksumVerified;
 
   /// Where the "Open website" option sends the user.
-  String get releasesUrl => _repository.releasesPage.toString();
+  String get releasesUrl => 'https://musix-website.vercel.app/';
 
   /// Asks GitHub for the newest release and decides whether it is newer than
   /// what is installed.
@@ -349,9 +349,9 @@ class OTAProvider extends ChangeNotifier {
     _setStatus(OTAStatus.idle);
   }
 
-  /// Opens the GitHub release page in the device browser.
+  /// Opens the app website in the device browser.
   Future<void> openReleasePage() async {
-    final url = _updateInfo?.releaseUrl ?? releasesUrl;
+    final url = releasesUrl;
     final uri = Uri.tryParse(url);
     if (uri == null || !await canLaunchUrl(uri)) return;
 
