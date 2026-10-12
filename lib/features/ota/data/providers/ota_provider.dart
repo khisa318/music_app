@@ -54,12 +54,20 @@ class OTAProvider extends ChangeNotifier {
   bool _isUpdateUIShown = false;
   bool _isOTAScreenActive = false;
   String _updateChannel = 'stable';
+  final List<OTAUpdateInfo> _releaseHistory = <OTAUpdateInfo>[];
+  bool _isLoadingHistory = false;
 
   OTAStatus get status => _status;
   OTAUpdateInfo? get updateInfo => _updateInfo;
   OTADownloadProgress? get downloadProgress => _downloadProgress;
   OTAError? get error => _error;
   String? get errorMessage => _errorMessage;
+
+  /// Recent installable releases, newest first, for the version picker. Empty
+  /// until [loadReleaseHistory] runs.
+  List<OTAUpdateInfo> get releaseHistory =>
+      List<OTAUpdateInfo>.unmodifiable(_releaseHistory);
+  bool get isLoadingHistory => _isLoadingHistory;
   bool get hasUpdate =>
       _status == OTAStatus.updateAvailable ||
       _status == OTAStatus.downloaded ||
@@ -164,6 +172,44 @@ class OTAProvider extends ChangeNotifier {
 
   void _finishNoUpdate(bool showNoUpdateMessage) {
     _setStatus(showNoUpdateMessage ? OTAStatus.noUpdate : OTAStatus.idle);
+  }
+
+  /// Loads the recent release list so the update screen can offer a version
+  /// picker. Silent on failure: browsing history is a convenience, never a
+  /// requirement, and the screen still works from [updateInfo] alone.
+  Future<void> loadReleaseHistory({bool force = false}) async {
+    if (_isLoadingHistory) return;
+    if (!force && _releaseHistory.isNotEmpty) return;
+
+    _isLoadingHistory = true;
+    notifyListeners();
+
+    try {
+      final installed = await _readInstalledVersion();
+      if (installed != null) {
+        _releaseService.allowPreReleases = _updateChannel == 'beta';
+        final releases = await _releaseService.fetchReleases();
+
+        final history = <OTAUpdateInfo>[];
+        for (final release in releases) {
+          final info = OTAUpdateInfo.fromRelease(
+            release: release,
+            installed: installed,
+            fallbackUrl: _repository.releasePage(release.tagName).toString(),
+          );
+          if (info != null) history.add(info);
+        }
+
+        _releaseHistory
+          ..clear()
+          ..addAll(history);
+      }
+    } catch (error) {
+      debugPrint('[Update] could not load release history: $error');
+    } finally {
+      _isLoadingHistory = false;
+      notifyListeners();
+    }
   }
 
   /// Downloads the APK for the current update, verifies it, and stages it for
@@ -350,8 +396,11 @@ class OTAProvider extends ChangeNotifier {
   }
 
   /// Opens the app website in the device browser.
-  Future<void> openReleasePage() async {
-    final url = releasesUrl;
+  Future<void> openReleasePage() => openExternal(releasesUrl);
+
+  /// Opens an arbitrary verified https link in the device browser. Used for
+  /// the per-release "View on GitHub" action.
+  Future<void> openExternal(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !await canLaunchUrl(uri)) return;
 
@@ -384,6 +433,7 @@ class OTAProvider extends ChangeNotifier {
     _downloadedFilePath = null;
     _checksumVerified = false;
     _isUpdateUIShown = false;
+    _releaseHistory.clear();
     notifyListeners();
   }
 

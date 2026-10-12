@@ -80,6 +80,35 @@ class OTAUpdateInfo {
   /// Verified HTTPS URL on the app's own GitHub repository.
   String get apkDownloadUrl => apkAsset.downloadUrl.toString();
 
+  /// The "What's New" list: the release's features when a `### Features`
+  /// heading split them out, otherwise every change that does not read like a
+  /// fix. GitHub's generated notes are a flat list, so the second path is the
+  /// normal one.
+  List<String> get whatsNewItems {
+    if (features.isNotEmpty) return features;
+    return updateLog.where((item) => !_readsLikeFix(item)).toList();
+  }
+
+  /// The "Fixed" list: an explicit `### Fixes` section when present, otherwise
+  /// the changes whose wording points at a repair.
+  List<String> get fixedItems {
+    if (bugFixes.isNotEmpty) return bugFixes;
+    return updateLog.where(_readsLikeFix).toList();
+  }
+
+  /// Whether the UI has anything to show in the two changelog sections.
+  bool get hasChangelogSections =>
+      whatsNewItems.isNotEmpty || fixedItems.isNotEmpty;
+
+  static bool _readsLikeFix(String item) {
+    final text = item.toLowerCase();
+    return text.contains('fix') ||
+        text.contains('bug') ||
+        text.contains('crash') ||
+        text.contains('resolve') ||
+        text.contains('patch');
+  }
+
   bool get hasChecksum => checksumAsset != null;
 
   /// `1.1.0 (11)` -> `1.2.0`, the one-line version bump shown in the dialog.

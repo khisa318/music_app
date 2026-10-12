@@ -1,6 +1,7 @@
 ﻿import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
@@ -11,10 +12,23 @@ import '../screens/ota_screen.dart';
 import 'update_method_dialog.dart';
 import 'update_summary.dart';
 
+/// The update prompt shown over the app when a new release is found.
+///
+/// A plain [AlertDialog] rather than a bottom sheet: the sheet could slide up
+/// behind the mini player and the navigation bar on small screens, leaving the
+/// buttons half-covered. A centred dialog is always fully reachable.
 class OTADialog extends StatelessWidget {
   final OTAUpdateInfo updateInfo;
 
   const OTADialog({super.key, required this.updateInfo});
+
+  static Future<void> show(BuildContext context, OTAUpdateInfo updateInfo) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => OTADialog(updateInfo: updateInfo),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,147 +36,171 @@ class OTADialog extends StatelessWidget {
     final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
     final accentColor = settingsProvider.accentColor;
     final otaProvider = Provider.of<OTAProvider>(context);
+    final textColor = MainScreenColors.getTextColor(isDarkMode);
 
-    return PopScope(
-      canPop: true,
-      child: AlertDialog(
-        backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
+    return AlertDialog(
+      backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppDimens.paddingXxl,
+        vertical: AppDimens.paddingXxl,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
+      ),
+      titlePadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.fromLTRB(
+        AppDimens.paddingXxl,
+        0,
+        AppDimens.paddingXxl,
+        AppDimens.paddingXxl,
+      ),
+      title: Container(
+        padding: const EdgeInsets.fromLTRB(
+          AppDimens.paddingXxl,
+          AppDimens.paddingLg,
+          AppDimens.paddingMd,
+          AppDimens.paddingLg,
         ),
-        titlePadding: EdgeInsets.zero,
-        contentPadding: const EdgeInsets.fromLTRB(
-          AppDimens.paddingXxl,
-          0,
-          AppDimens.paddingXxl,
-          AppDimens.paddingXxl,
-        ),
-        title: Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimens.paddingXl,
-            horizontal: AppDimens.paddingXxl,
-          ),
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.1),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(AppDimens.radiusXxl),
-              topRight: Radius.circular(AppDimens.radiusXxl),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.system_update_alt,
-                color: accentColor,
-                size: AppDimens.iconXxl,
-              ),
-              const SizedBox(width: AppDimens.spacingMd),
-              Expanded(
-                child: Text(
-                  'new_update_available'.tr(),
-                  style: AppTextStyles.titleLg(
-                    isDarkMode: isDarkMode,
-                  ).copyWith(color: accentColor),
-                ),
-              ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accentColor.withValues(alpha: isDarkMode ? 0.22 : 0.14),
+              accentColor.withValues(alpha: isDarkMode ? 0.08 : 0.04),
             ],
           ),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(AppDimens.radiusXxl),
+            topRight: Radius.circular(AppDimens.radiusXxl),
+          ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            const SizedBox(height: AppDimens.spacingXl),
-            UpdateVersionRow(
-              updateInfo: updateInfo,
-              isDarkMode: isDarkMode,
-              accentColor: accentColor,
+            Icon(
+              Icons.system_update_alt_rounded,
+              color: accentColor,
+              size: AppDimens.iconXl,
             ),
-            const SizedBox(height: AppDimens.spacingLg),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: SingleChildScrollView(
-                child: UpdateNoteList(
-                  updateInfo: updateInfo,
-                  isDarkMode: isDarkMode,
-                  maxItems: 6,
-                ),
+            const SizedBox(width: AppDimens.spacingMd),
+            Expanded(
+              child: Text(
+                'new_update_available'.tr(),
+                style: AppTextStyles.titleLg(isDarkMode: isDarkMode),
               ),
             ),
-            const SizedBox(height: AppDimens.spacingXxl),
-            SizedBox(
-              width: double.infinity,
-              height: AppDimens.buttonHeightLarge,
-              child: ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final choice = await UpdateMethodDialog.show(
-                    context,
-                    updateInfo,
-                  );
-                  if (!context.mounted) return;
-
-                  switch (choice) {
-                    case UpdateChoice.downloadInApp:
-                      otaProvider.setOTAScreenActive(true);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const OTAScreen(),
-                          ),
-                        ).then((_) {
-                          otaProvider.setOTAScreenActive(false);
-                          otaProvider.setUpdateUIShown(false);
-                        });
-                      });
-                    case UpdateChoice.openWebsite:
-                      await otaProvider.openReleasePage();
-                    case null:
-                      break;
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                  ),
-                ),
-                child: Text(
-                  'update_now'.tr(),
-                  style: AppTextStyles.subtitle(
-                    isDarkMode: isDarkMode,
-                  ).copyWith(fontWeight: AppTextStyles.weightBold),
-                ),
+            IconButton(
+              tooltip: 'ota_update_later'.tr(),
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.close_rounded,
+                color: textColor.withValues(alpha: AppDimens.opacityMuted),
+                size: AppDimens.iconLg,
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: AppDimens.spacingSm),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () {
-                    otaProvider.skipVersion();
-                    Navigator.pop(context);
-                    otaProvider.setUpdateUIShown(false);
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: MainScreenColors.getTextColor(
-                      isDarkMode,
-                    ).withValues(alpha: 0.7),
-                  ),
-                  child: Text(
-                    'skip_this_version',
-                    style: AppTextStyles.bodyMd(
-                      isDarkMode: isDarkMode,
-                    ).copyWith(fontWeight: AppTextStyles.weightMedium),
-                  ),
-                ),
-              ),
+              onPressed: () {
+                Navigator.pop(context);
+                otaProvider.setUpdateUIShown(true);
+              },
             ),
           ],
         ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: AppDimens.spacingXl),
+          UpdateVersionRow(
+            updateInfo: updateInfo,
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+          ),
+          const SizedBox(height: AppDimens.spacingLg),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: SingleChildScrollView(
+              child: UpdateNoteList(
+                updateInfo: updateInfo,
+                isDarkMode: isDarkMode,
+                maxItems: 6,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingXxl),
+          SizedBox(
+            width: double.infinity,
+            height: AppDimens.buttonHeightLarge,
+            child: ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final choice = await UpdateMethodDialog.show(
+                  context,
+                  updateInfo,
+                );
+                if (!context.mounted) return;
+
+                switch (choice) {
+                  case UpdateChoice.downloadInApp:
+                    otaProvider.setOTAScreenActive(true);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const OTAScreen(),
+                        ),
+                      ).then((_) {
+                        otaProvider.setOTAScreenActive(false);
+                        otaProvider.setUpdateUIShown(false);
+                      });
+                    });
+                  case UpdateChoice.openWebsite:
+                    await otaProvider.openReleasePage();
+                  case null:
+                    break;
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                ),
+              ),
+              child: Text(
+                'update_now'.tr(),
+                style: AppTextStyles.subtitle(
+                  isDarkMode: isDarkMode,
+                ).copyWith(fontWeight: AppTextStyles.weightBold),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingXs),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () {
+                otaProvider.skipVersion();
+                Navigator.pop(context);
+                otaProvider.setUpdateUIShown(false);
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: textColor.withValues(
+                  alpha: AppDimens.opacityMuted,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                ),
+              ),
+              child: Text(
+                'skip_this_version'.tr(),
+                style: AppTextStyles.bodyMd(
+                  isDarkMode: isDarkMode,
+                ).copyWith(fontWeight: AppTextStyles.weightMedium),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

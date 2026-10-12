@@ -175,19 +175,9 @@ class GitHubReleaseService {
         );
       }
 
-      final releases = <GitHubRelease>[];
-      for (final entry in candidates) {
-        if (entry is! Map) continue;
-        try {
-          releases.add(GitHubRelease.fromJson(entry.cast<String, dynamic>()));
-        } catch (_) {
-          // A single malformed entry must not discard the whole response.
-        }
-      }
+      final releases = _parseReleases(candidates);
 
       if (releases.isEmpty) return const ReleaseCheckResult.empty();
-
-      releases.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 
       for (final release in releases) {
         if (release.isDraft) continue;
@@ -210,6 +200,53 @@ class GitHubReleaseService {
       debugPrint('[Update] release lookup failed: $error');
       return const ReleaseCheckResult.failed(ReleaseCheckFailure.unknown);
     }
+  }
+
+  /// Every installable release the channel should be allowed to show, newest
+  /// first. Drafts are dropped, and pre-releases only when the beta channel is
+  /// enabled. Returns an empty list on any failure: browsing old versions is a
+  /// convenience and must never surface an error of its own.
+  Future<List<GitHubRelease>> fetchReleases() async {
+    try {
+      final response = await _get(repository.releasesApi);
+      final status = response.statusCode ?? 0;
+      if (status < 200 || status >= 300) return const <GitHubRelease>[];
+
+      final data = response.data;
+      final List<dynamic> candidates;
+      if (data is List) {
+        candidates = data;
+      } else if (data is Map) {
+        candidates = [data];
+      } else {
+        return const <GitHubRelease>[];
+      }
+
+      return _parseReleases(candidates)
+          .where((release) => !release.isDraft)
+          .where((release) => allowPreReleases || !release.isPrerelease)
+          .where((release) => release.isInstallable(host: repository.host))
+          .toList(growable: false);
+    } catch (error) {
+      debugPrint('[Update] release history lookup failed: $error');
+      return const <GitHubRelease>[];
+    }
+  }
+
+  /// Parses release payload entries, dropping malformed ones and sorting the
+  /// result newest first so both call sites agree on ordering.
+  List<GitHubRelease> _parseReleases(List<dynamic> candidates) {
+    final releases = <GitHubRelease>[];
+    for (final entry in candidates) {
+      if (entry is! Map) continue;
+      try {
+        releases.add(GitHubRelease.fromJson(entry.cast<String, dynamic>()));
+      } catch (_) {
+        // A single malformed entry must not discard the whole response.
+      }
+    }
+    releases.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    return releases;
   }
 
   static ReleaseCheckFailure _classifyStatus(int status) {

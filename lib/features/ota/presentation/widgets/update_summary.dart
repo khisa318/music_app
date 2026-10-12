@@ -8,8 +8,8 @@ import '../../../../core/models/ota_model.dart';
 
 /// `1.1.0  ->  1.2.0`, with the release date and download size underneath.
 ///
-/// Used by the update bottom sheet, the dialog and the update screen so the
-/// version story reads identically wherever the prompt appears.
+/// Used by the update dialog and the update screen so the version story reads
+/// identically wherever the prompt appears.
 class UpdateVersionRow extends StatelessWidget {
   const UpdateVersionRow({
     super.key,
