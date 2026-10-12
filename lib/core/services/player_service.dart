@@ -17,6 +17,7 @@ import '../utils/palette_generator.dart';
 import 'audio_url_isolate.dart';
 import 'audio_url_service.dart';
 import 'media_kit_player_adapter.dart';
+import 'queue_storage_service.dart';
 import 'settings_storage_service.dart';
 import 'temp_audio_cache_service.dart';
 
@@ -149,6 +150,10 @@ class PlayerService {
   AudioSession? _audioSession;
 
   Timer? _progressSyncTimer;
+
+  Timer? _positionSaveTimer;
+
+  static const Duration _positionSaveInterval = Duration(seconds: 10);
 
   StreamSubscription<bool>? _playingSubscription;
 
@@ -421,6 +426,39 @@ class PlayerService {
   }
 
   // ===========================================================================
+  // PLAYBACK POSITION PERSISTENCE
+  // ===========================================================================
+
+  void _startPositionSaveTimer() {
+    _positionSaveTimer ??= Timer.periodic(_positionSaveInterval, (_) {
+      if (!_isPlaying) return;
+
+      unawaited(_persistCurrentPosition());
+    });
+  }
+
+  Future<void> _persistCurrentPosition() async {
+    final song = playerProvider.currentSong;
+
+    if (song == null || playerProvider.currentLocalSong != null) return;
+
+    if (_position <= Duration.zero) return;
+
+    await QueueStorage.savePosition(
+      song.videoId,
+      _position.inMilliseconds,
+    );
+  }
+
+  Future<void> _stopPositionSaveTimer() async {
+    _positionSaveTimer?.cancel();
+
+    _positionSaveTimer = null;
+
+    await _persistCurrentPosition();
+  }
+
+  // ===========================================================================
   // PLAY / PAUSE / STOP
   // ===========================================================================
 
@@ -432,6 +470,8 @@ class PlayerService {
     await _mediaKitAdapter.play();
 
     _processingState = ProcessingState.ready;
+
+    _startPositionSaveTimer();
 
     _emitState();
   }
@@ -449,6 +489,8 @@ class PlayerService {
 
     _processingState = ProcessingState.ready;
 
+    await _stopPositionSaveTimer();
+
     _emitState();
   }
 
@@ -456,6 +498,8 @@ class PlayerService {
     debugPrint('[PlayerService] stop() requested');
 
     await _recordCurrentPlaybackEnd();
+
+    await _stopPositionSaveTimer();
 
     await _mediaKitAdapter.stop();
 
@@ -506,6 +550,10 @@ class PlayerService {
 
     if (playWhenReady) {
       await _setAudioSessionActive(true);
+
+      // A fresh manual (or auto-next) start begins at position 0, so any
+      // previously saved position for this song is stale.
+      await QueueStorage.clearPosition();
     }
 
     try {
@@ -1316,6 +1364,8 @@ class PlayerService {
 
             _prebufferedSong = null;
 
+            await QueueStorage.clearPosition();
+
             isExplicitlySettingSong = false;
 
             return;
@@ -1512,6 +1562,8 @@ class PlayerService {
 
   Future<void> dispose() async {
     await _recordCurrentPlaybackEnd();
+
+    await _stopPositionSaveTimer();
 
     await _setAudioSessionActive(false);
 

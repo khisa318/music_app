@@ -121,6 +121,22 @@ class AppearanceSettingsSection extends StatelessWidget {
               isDarkMode: isDarkMode,
               accentColor: accentColor,
             ),
+
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, child) {
+                return SettingsToggleItem(
+                  icon: Icons.blur_off_rounded,
+                  title: 'reduce_effects'.tr(),
+                  subtitle: 'reduce_effects_subtitle'.tr(),
+                  value: settingsProvider.reduceEffectsEnabled,
+                  onChanged: (value) {
+                    settingsProvider.reduceEffectsEnabled = value;
+                  },
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                );
+              },
+            ),
           ],
         );
       },

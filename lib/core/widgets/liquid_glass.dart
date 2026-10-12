@@ -1,6 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/settings_provider.dart';
 
 /// A frosted, translucent "liquid glass" surface.
 ///
@@ -74,52 +77,65 @@ class LiquidGlass extends StatelessWidget {
 
     final BorderRadius radius = borderRadius;
 
+    final bool reduceEffects = _reduceEffectsEnabled(context);
+
+    final double renderOpacity = reduceEffects
+        ? (opacity * 2.5).clamp(0.25, 0.95).toDouble()
+        : opacity;
+
+    final Widget glassContent = Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  tint.withValues(alpha: (renderOpacity * 1.5).clamp(0.0, 1.0)),
+                  tint.withValues(alpha: renderOpacity),
+                  tint.withValues(alpha: renderOpacity * 0.7),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Padding(padding: padding, child: child),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(color: rim, width: borderWidth),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Padding(
       padding: margin,
       child: DecoratedBox(
         decoration: BoxDecoration(borderRadius: radius, boxShadow: boxShadow),
         child: ClipRRect(
           borderRadius: radius,
-          child: BackdropFilter(
-            filter: filter,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: radius,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          tint.withValues(
-                            alpha: (opacity * 1.5).clamp(0.0, 1.0),
-                          ),
-                          tint.withValues(alpha: opacity),
-                          tint.withValues(alpha: opacity * 0.7),
-                        ],
-                        stops: const [0.0, 0.5, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(padding: padding, child: child),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: radius,
-                        border: Border.all(color: rim, width: borderWidth),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: reduceEffects
+              ? glassContent
+              : BackdropFilter(filter: filter, child: glassContent),
         ),
       ),
     );
+  }
+
+  bool _reduceEffectsEnabled(BuildContext context) {
+    try {
+      return Provider.of<SettingsProvider>(context).reduceEffectsEnabled;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
