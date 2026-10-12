@@ -218,7 +218,7 @@ class ProfileScreen extends StatelessWidget {
                             accentColor: accentColor,
                           ),
 
-                          const SizedBox(height: AppDimens.paddingXl),
+const SizedBox(height: AppDimens.bottomDockClearance),
                         ],
                       ),
                     ),

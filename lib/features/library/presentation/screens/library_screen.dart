@@ -640,7 +640,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         },
         child: ListView.builder(
           scrollCacheExtent: ScrollCacheExtent.pixels(0),
-          padding: const EdgeInsets.only(bottom: AppDimens.miniPlayerHeight),
+          padding: const EdgeInsets.only(bottom: AppDimens.bottomDockClearance),
           itemCount: displayedSongs.length,
           itemBuilder: (context, index) {
             final song = displayedSongs[index];
@@ -837,7 +837,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           onRefresh: favoriteArtistProvider.loadFavoriteArtists,
           color: accentColor,
           child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: AppDimens.miniPlayerHeight),
+            padding: const EdgeInsets.only(bottom: AppDimens.bottomDockClearance),
             itemCount: artists.length,
             itemBuilder: (context, index) {
               final artist = artists[index];

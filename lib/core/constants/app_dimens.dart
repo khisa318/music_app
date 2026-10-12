@@ -53,6 +53,7 @@ class AppDimens {
   static const double radiusXxxl = 24.0;
   static const double radiusAvatar = 28.0;
   static const double radiusFull = 30.0;
+  static const double radiusPill = 40.0;
   static const double elevationNone = 0.0;
   static const double elevationLow = 2.0;
   static const double elevationMedium = 4.0;
@@ -71,6 +72,11 @@ class AppDimens {
   static const double miniPlayerHeightCompact = 60.0;
   static const double miniPlayerHeight = 75.0;
   static const double miniPlayerHeightWide = 80.0;
+
+  // Vertical space a scrollable must clear at the bottom of the screen so its
+  // last items are not hidden behind the floating liquid-glass dock (mini
+  // player + nav bar + inset).
+  static const double bottomDockClearance = 200.0;
   static const double thumbnailMini = 40.0;
   static const double thumbnailDefault = 50.0;
   static const double thumbnailLarge = 60.0;
