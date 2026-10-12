@@ -33,7 +33,7 @@ class ProfileScreen extends StatelessWidget {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
     final accentColor = settingsProvider.accentColor;
-    final backgroundColor = MainScreenColors.getBackgroundColor(isDarkMode);
+    const backgroundColor = Colors.transparent;
 
     return LayoutBuilder(
       builder: (context, constraints) {

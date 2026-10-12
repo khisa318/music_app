@@ -47,7 +47,7 @@ class SearchBarWidget extends StatelessWidget {
         vertical: AppDimens.paddingLg,
       ),
       decoration: BoxDecoration(
-        color: MainScreenColors.getBackgroundColor(isDarkMode),
+        color: Colors.transparent,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),

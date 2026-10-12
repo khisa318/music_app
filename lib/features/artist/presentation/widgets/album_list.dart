@@ -24,9 +24,7 @@ class AlbumListScreen extends StatelessWidget {
     return Theme(
       data: ThemeData(
         brightness: isDarkMode ? Brightness.dark : Brightness.light,
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: AppBarTheme(
           backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
           elevation: AppDimens.elevationNone,

@@ -39,7 +39,6 @@ class AppTheme {
   static ThemeData lightTheme(Color accentColor) => _build(
     ThemeData.light(),
     accentColor,
-    background: MainScreenColors.lightBackgroundColor,
     surface: MainScreenColors.lightSurfaceColor,
     text: MainScreenColors.lightTextColor,
   );
@@ -47,7 +46,6 @@ class AppTheme {
   static ThemeData darkTheme(Color accentColor) => _build(
     ThemeData.dark(),
     accentColor,
-    background: MainScreenColors.darkBackgroundColor,
     surface: MainScreenColors.darkSurfaceColor,
     text: MainScreenColors.darkTextColor,
   );
@@ -55,7 +53,6 @@ class AppTheme {
   static ThemeData _build(
     ThemeData base,
     Color accentColor, {
-    required Color background,
     required Color surface,
     required Color text,
   }) {
@@ -66,7 +63,11 @@ class AppTheme {
         },
       ),
       primaryColor: accentColor,
-      scaffoldBackgroundColor: background,
+      // Transparent on purpose: the app-wide AnimatedAppBackground is painted
+      // behind the navigator, and every Scaffold reveals it by leaving its own
+      // background unset. A screen that wants a solid surface should set one
+      // explicitly rather than relying on the scaffold colour.
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: AppBarTheme(
         backgroundColor: surface,
         elevation: 0,

@@ -49,9 +49,7 @@ class _OTAScreenState extends State<OTAScreen>
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: isDarkMode
-            ? MainScreenColors.darkBackgroundColor
-            : MainScreenColors.lightBackgroundColor,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: isDarkMode
               ? Colors.transparent

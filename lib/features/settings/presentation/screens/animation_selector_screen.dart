@@ -72,9 +72,7 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
         return SafeArea(
           top: false,
           child: Scaffold(
-            backgroundColor: themeData.isDarkMode
-                ? MainScreenColors.darkBackgroundColor
-                : MainScreenColors.lightBackgroundColor,
+            backgroundColor: Colors.transparent,
             appBar: SettingsAppBar(
               title: 'animations'.tr(),
               icon: Icons.movie_rounded,

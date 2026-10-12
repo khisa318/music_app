@@ -152,9 +152,7 @@ class AboutSettingsScreen extends StatelessWidget {
         return SafeArea(
           top: false,
           child: Scaffold(
-            backgroundColor: isDarkMode
-                ? MainScreenColors.darkBackgroundColor
-                : MainScreenColors.lightBackgroundColor,
+            backgroundColor: Colors.transparent,
             body: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
@@ -162,9 +160,7 @@ class AboutSettingsScreen extends StatelessWidget {
                   expandedHeight: expandedHeight,
                   floating: false,
                   pinned: true,
-                  backgroundColor: isDarkMode
-                      ? MainScreenColors.darkBackgroundColor
-                      : MainScreenColors.lightBackgroundColor,
+                  backgroundColor: Colors.transparent,
                   leading: IconButton(
                     icon: Icon(
                       Icons.arrow_back_ios_new_rounded,
@@ -183,9 +179,7 @@ class AboutSettingsScreen extends StatelessWidget {
                             accentColor.withValues(
                               alpha: AppDimens.opacityMedium,
                             ),
-                            isDarkMode
-                                ? MainScreenColors.darkBackgroundColor
-                                : MainScreenColors.lightBackgroundColor,
+                            Colors.transparent,
                           ],
                         ),
                       ),

@@ -217,7 +217,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
             ? MainScreenColors.primaryPurple.withValues(alpha: 0.2)
             : (isPlaying
                   ? MainScreenColors.primaryPurple.withValues(alpha: 0.12)
-                  : MainScreenColors.getBackgroundColor(isDarkMode)),
+                  : Colors.transparent),
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
       ),
       child: SongListTile(
@@ -419,7 +419,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
       child: SafeArea(
         top: false,
         child: Scaffold(
-          backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
             title: Text(
               _isSelectionMode
@@ -427,7 +427,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   : 'downloads'.tr(),
               style: AppTextStyles.appBarTitle(isDarkMode: isDarkMode),
             ),
-            backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+            backgroundColor: Colors.transparent,
             elevation: 0,
             iconTheme: IconThemeData(
               color: MainScreenColors.getTextColor(isDarkMode),

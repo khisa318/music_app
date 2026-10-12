@@ -136,7 +136,7 @@ class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,

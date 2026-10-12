@@ -29,9 +29,7 @@ class SongListScreen extends StatelessWidget {
 
     return Theme(
       data: ThemeData(
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: AppBarTheme(
           backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
           elevation: AppDimens.elevationNone,

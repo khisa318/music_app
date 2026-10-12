@@ -214,7 +214,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     // is hosted inside PersistentTabView.
 
     return Scaffold(
-      backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
         child: isDesktopLayout

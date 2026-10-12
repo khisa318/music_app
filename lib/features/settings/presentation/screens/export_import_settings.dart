@@ -96,7 +96,7 @@ class _ExportImportSettingsScreenState
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+        backgroundColor: Colors.transparent,
         appBar: SettingsAppBar(
           title: 'export_import_settings_title'.tr(),
           icon: Icons.swap_horiz_rounded,

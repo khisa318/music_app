@@ -63,7 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final accentColor = themeData.accentColor;
 
         return Scaffold(
-          backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+          backgroundColor: Colors.transparent,
           appBar: SettingsAppBar(
             title: 'settings'.tr(),
             subtitle: 'app_tagline'.tr(),
