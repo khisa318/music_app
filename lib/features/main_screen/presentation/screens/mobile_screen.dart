@@ -430,18 +430,28 @@ class _TabWrapper extends StatelessWidget {
 
                     GestureDetector(
                       onTap: onProfileTap,
-                      child: CircleAvatar(
-                        radius: 17 * appBarIconScale,
-                        backgroundColor: accentColor.withValues(alpha: 0.22),
-                        child: Text(
-                          'A',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).textTheme.titleLarge?.color,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18 * appBarIconScale,
+                      child: Container(
+                        width: 36 * appBarIconScale,
+                        height: 36 * appBarIconScale,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            AppDimens.radiusMd * appBarIconScale,
                           ),
+                          border: Border.all(
+                            color: accentColor.withValues(alpha: 0.35),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.16),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/app_icon.png',
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
