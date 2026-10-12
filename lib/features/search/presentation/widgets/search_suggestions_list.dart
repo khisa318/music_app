@@ -72,6 +72,9 @@ class SearchSuggestionsList extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: ListView.builder(
+              padding: const EdgeInsets.only(
+                bottom: AppDimens.bottomDockClearance,
+              ),
               itemCount: searchHistory.length,
               itemBuilder: (context, index) {
                 return ListTile(
@@ -132,6 +135,9 @@ class SearchSuggestionsList extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: ListView(
+                  padding: const EdgeInsets.only(
+                    bottom: AppDimens.bottomDockClearance,
+                  ),
                   children: [
                     ...searchSuggestions.map(
                       (suggestion) => ListTile(

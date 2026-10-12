@@ -68,9 +68,11 @@ class SearchResultsView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: ListView.builder(
-          padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? AppDimens.paddingXxl : 0,
-            vertical: AppDimens.spacingSm,
+          padding: EdgeInsets.only(
+            left: isDesktop ? AppDimens.paddingXxl : 0,
+            right: isDesktop ? AppDimens.paddingXxl : 0,
+            top: AppDimens.spacingSm,
+            bottom: AppDimens.bottomDockClearance,
           ),
           itemCount: songs.length,
           itemBuilder: (context, index) {
@@ -136,9 +138,11 @@ class SearchResultsView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: ListView.builder(
-          padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? AppDimens.paddingXxl : 0,
-            vertical: AppDimens.spacingSm,
+          padding: EdgeInsets.only(
+            left: isDesktop ? AppDimens.paddingXxl : 0,
+            right: isDesktop ? AppDimens.paddingXxl : 0,
+            top: AppDimens.spacingSm,
+            bottom: AppDimens.bottomDockClearance,
           ),
           itemCount: videos.length,
           itemBuilder: (context, index) {
@@ -219,7 +223,10 @@ class SearchResultsView extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: ListView.builder(
-            padding: const EdgeInsets.only(top: AppDimens.spacingSm),
+            padding: EdgeInsets.only(
+              top: AppDimens.spacingSm,
+              bottom: AppDimens.bottomDockClearance,
+            ),
             itemCount: items.length,
             itemBuilder: (context, index) {
               return _buildContentListItem(items[index], type, context);
@@ -233,8 +240,11 @@ class SearchResultsView extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: GridView.builder(
-          padding: EdgeInsets.all(
+          padding: EdgeInsets.fromLTRB(
             isDesktop ? AppDimens.paddingXxl : AppDimens.paddingLg,
+            isDesktop ? AppDimens.paddingXxl : AppDimens.paddingLg,
+            isDesktop ? AppDimens.paddingXxl : AppDimens.paddingLg,
+            AppDimens.bottomDockClearance,
           ),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,

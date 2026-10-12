@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart' hide RepeatMode;
 
 import 'package:provider/provider.dart';
@@ -9,6 +9,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/utils/content_router.dart';
 import '../../../../shared/components/player_more_song_bottomsheet.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/providers/download_provider.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../../../core/providers/player_provider.dart';
@@ -34,6 +35,12 @@ class PlayerUI extends StatefulWidget {
   final bool showFullScreen;
   final bool isBottomSheet;
   final bool isEmbedded;
+
+  /// When `false` the mini player paints no glass of its own (no blur, tint or
+  /// border) and just lays out its content, so a host like the floating bottom
+  /// dock can provide a single [LiquidGlass] backdrop behind everything.
+  final bool provideGlass;
+
   final VoidCallback onMinimize;
   final VoidCallback onExpand;
 
@@ -42,6 +49,7 @@ class PlayerUI extends StatefulWidget {
     this.showFullScreen = false,
     this.isBottomSheet = false,
     this.isEmbedded = false,
+    this.provideGlass = true,
     required this.onMinimize,
     required this.onExpand,
   });
@@ -598,9 +606,7 @@ class PlayerUIState extends State<PlayerUI>
       padding: const EdgeInsets.symmetric(horizontal: AppDimens.spacingSmMd),
       child: Column(
         children: [
-          SizedBox(
-            height: AppDimens.spacingXl,
-          ),
+          SizedBox(height: AppDimens.spacingXl),
           Expanded(
             child: PlayerComponents.buildMediaPlayer(
               isDarkMode,
@@ -610,9 +616,7 @@ class PlayerUIState extends State<PlayerUI>
               context,
             ),
           ),
-          SizedBox(
-            height: AppDimens.spacingXl,
-          ),
+          SizedBox(height: AppDimens.spacingXl),
           Consumer2<DownloadProvider, FavoriteSongProvider>(
             builder: (context, downloadProvider, favoriteSongProvider, child) {
               final videoId = _playerProvider.currentSong?.videoId;
@@ -639,9 +643,7 @@ class PlayerUIState extends State<PlayerUI>
               );
             },
           ),
-          SizedBox(
-            height: AppDimens.spacingXl,
-          ),
+          SizedBox(height: AppDimens.spacingXl),
           PlayerControls.buildProgressBar(
             context: context,
             isDarkMode: true,
@@ -659,9 +661,7 @@ class PlayerUIState extends State<PlayerUI>
             handleNext: _handleNext,
           ),
           if (!_isVideoMode) ...[
-            SizedBox(
-              height: AppDimens.spacingXxxl,
-            ),
+            SizedBox(height: AppDimens.spacingXxxl),
             Consumer<DownloadProvider>(
               builder: (context, downloadProvider, child) {
                 final videoId = _playerProvider.currentSong?.videoId;
@@ -700,9 +700,7 @@ class PlayerUIState extends State<PlayerUI>
               },
             ),
           ],
-          SizedBox(
-            height: AppDimens.spacingXl,
-          ),
+          SizedBox(height: AppDimens.spacingXl),
         ],
       ),
     );
@@ -797,180 +795,162 @@ class PlayerUIState extends State<PlayerUI>
     final thumbnailSize = isWideScreen
         ? AppDimens.thumbnailLarge
         : (isCompact ? AppDimens.thumbnailMini : AppDimens.thumbnailDefault);
-    const miniPlayerBorderRadius = BorderRadius.only(
-      topLeft: Radius.circular(16),
-      topRight: Radius.circular(16),
+    const miniPlayerBorderRadius = BorderRadius.all(
+      Radius.circular(AppDimens.radiusPill),
     );
 
-    return GestureDetector(
-      onTap: widget.onExpand,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: miniPlayerBorderRadius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              height: miniPlayerHeight,
-              constraints: const BoxConstraints(
-                maxWidth: AppDimens.maxModalWidth,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: miniPlayerBorderRadius,
-                gradient: LinearGradient(
-                  colors: [
-                    MainScreenColors.getSurfaceColor(
-                      isDarkMode,
-                    ).withValues(alpha: 0.78),
-                    MainScreenColors.getSurfaceColor(
-                      isDarkMode,
-                    ).withValues(alpha: 0.56),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+    final Widget glassContent = SizedBox(
+      height: miniPlayerHeight,
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                PlayerComponents.buildThumbnail(
+                  isMini: true,
+                  isDarkMode: isDarkMode,
+                  playerProvider: _playerProvider,
+                  playerService: _playerService,
+                  thumbnailSize: thumbnailSize,
                 ),
-                boxShadow: widget.isEmbedded
-                    ? null
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: AppDimens.opacityMedium,
-                          ),
-                          blurRadius: AppDimens.elevationHigh,
-                          offset: Offset(0, AppDimens.shadowOffsetSmall),
-                        ),
-                      ],
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        PlayerComponents.buildThumbnail(
-                          isMini: true,
-                          isDarkMode: isDarkMode,
-                          playerProvider: _playerProvider,
-                          playerService: _playerService,
-                          thumbnailSize: thumbnailSize,
-                        ),
-                        if (isWideScreen)
-                          SizedBox(
-                            width: AppDimens.songInfoCompactWidth,
-                            child: PlayerComponents.buildSongInfo(
-                              isMini: true,
-                              isDarkMode: isDarkMode,
-                              context: context,
-                              playerProvider: _playerProvider,
-                              expand: false,
-                            ),
-                          )
-                        else
-                          PlayerComponents.buildSongInfo(
-                            isMini: true,
-                            isDarkMode: isDarkMode,
-                            context: context,
-                            playerProvider: _playerProvider,
-                          ),
-                        if (isWideScreen) const Spacer(),
-                        if (isWideScreen)
-                          SizedBox(
-                            width:
-                                screenWidth *
-                                AppDimens.widePlayerProgressWidthFactor,
-                            child: PlayerControls.buildProgressBar(
-                              context: context,
-                              isMini: false,
-                              isDarkMode: isDarkMode,
-                              accentColor: accentColor,
-                              playerService: _playerService,
-                            ),
-                          ),
-                        if (isWideScreen) const Spacer(),
-                        PlayerControls.buildMiniControls(
-                          isDarkMode: isDarkMode,
-                          accentColor: accentColor,
-                          queueProvider: _queueProvider,
-                          playerService: _playerService,
-                          handlePrevious: _handlePrevious,
-                          handlePlayPause: _handlePlayPause,
-                          handleNext: _handleNext,
-                        ),
-                        if (_playerProvider.currentLocalSong == null)
-                          Consumer<FavoriteSongProvider>(
-                            builder: (context, favoriteSongProvider, child) {
-                              return PlayerControls.buildFavoriteButton(
-                                isMini: true,
-                                isDarkMode: isDarkMode,
-                                accentColor: accentColor,
-                                isLiked:
-                                    favoriteSongProvider.isCurrentSongLiked,
-                                toggleLike: favoriteSongProvider.toggleLike,
-                              );
-                            },
-                          ),
-                        if (isWideScreen) ...[
-                          const SizedBox(width: AppDimens.spacingXs),
-                          IconButton(
-                            icon: Icon(
-                              Icons.queue_music,
-                              color: MainScreenColors.getTextColor(isDarkMode),
-                              size: AppDimens.iconLg,
-                            ),
-                            onPressed: _showQueueBottomSheet,
-                            tooltip: 'Queue',
-                          ),
-                          Icon(
-                            _volume == 0
-                                ? Icons.volume_off
-                                : (_volume < 0.5
-                                      ? Icons.volume_down
-                                      : Icons.volume_up),
-                            color: MainScreenColors.getTextColor(isDarkMode),
-                            size: AppDimens.iconMd,
-                          ),
-                          SizedBox(
-                            width: AppDimens.inlineSliderWidth,
-                            child: SliderTheme(
-                              data: SliderThemeData(
-                                trackHeight: AppDimens.sliderTrackHeight,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: AppDimens.thumbRadius,
-                                ),
-                                overlayShape: const RoundSliderOverlayShape(
-                                  overlayRadius: AppDimens.overlayRadius,
-                                ),
-                                activeTrackColor: _volumeColor(_volume),
-                                inactiveTrackColor:
-                                    MainScreenColors.getTextColor(
-                                      isDarkMode,
-                                    ).withValues(
-                                      alpha: AppDimens.opacityMedium,
-                                    ),
-                                thumbColor: _volumeColor(_volume),
-                              ),
-                              child: Slider(
-                                value: _volume,
-                                onChanged: _setVolume,
-                                min: 0.0,
-                                max: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(width: AppDimens.spacingSm),
-                      ],
-                    ),
-                  ),
-                  if (!isWideScreen)
-                    PlayerControls.buildProgressBar(
-                      context: context,
+                if (isWideScreen)
+                  SizedBox(
+                    width: AppDimens.songInfoCompactWidth,
+                    child: PlayerComponents.buildSongInfo(
                       isMini: true,
+                      isDarkMode: isDarkMode,
+                      context: context,
+                      playerProvider: _playerProvider,
+                      expand: false,
+                    ),
+                  )
+                else
+                  PlayerComponents.buildSongInfo(
+                    isMini: true,
+                    isDarkMode: isDarkMode,
+                    context: context,
+                    playerProvider: _playerProvider,
+                  ),
+                if (isWideScreen) const Spacer(),
+                if (isWideScreen)
+                  SizedBox(
+                    width:
+                        screenWidth * AppDimens.widePlayerProgressWidthFactor,
+                    child: PlayerControls.buildProgressBar(
+                      context: context,
+                      isMini: false,
                       isDarkMode: isDarkMode,
                       accentColor: accentColor,
                       playerService: _playerService,
                     ),
+                  ),
+                if (isWideScreen) const Spacer(),
+                PlayerControls.buildMiniControls(
+                  isDarkMode: isDarkMode,
+                  accentColor: accentColor,
+                  queueProvider: _queueProvider,
+                  playerService: _playerService,
+                  handlePrevious: _handlePrevious,
+                  handlePlayPause: _handlePlayPause,
+                  handleNext: _handleNext,
+                ),
+                if (_playerProvider.currentLocalSong == null)
+                  Consumer<FavoriteSongProvider>(
+                    builder: (context, favoriteSongProvider, child) {
+                      return PlayerControls.buildFavoriteButton(
+                        isMini: true,
+                        isDarkMode: isDarkMode,
+                        accentColor: accentColor,
+                        isLiked: favoriteSongProvider.isCurrentSongLiked,
+                        toggleLike: favoriteSongProvider.toggleLike,
+                      );
+                    },
+                  ),
+                if (isWideScreen) ...[
+                  const SizedBox(width: AppDimens.spacingXs),
+                  IconButton(
+                    icon: Icon(
+                      Icons.queue_music,
+                      color: MainScreenColors.getTextColor(isDarkMode),
+                      size: AppDimens.iconLg,
+                    ),
+                    onPressed: _showQueueBottomSheet,
+                    tooltip: 'Queue',
+                  ),
+                  Icon(
+                    _volume == 0
+                        ? Icons.volume_off
+                        : (_volume < 0.5 ? Icons.volume_down : Icons.volume_up),
+                    color: MainScreenColors.getTextColor(isDarkMode),
+                    size: AppDimens.iconMd,
+                  ),
+                  SizedBox(
+                    width: AppDimens.inlineSliderWidth,
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: AppDimens.sliderTrackHeight,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: AppDimens.thumbRadius,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: AppDimens.overlayRadius,
+                        ),
+                        activeTrackColor: _volumeColor(_volume),
+                        inactiveTrackColor: MainScreenColors.getTextColor(
+                          isDarkMode,
+                        ).withValues(alpha: AppDimens.opacityMedium),
+                        thumbColor: _volumeColor(_volume),
+                      ),
+                      child: Slider(
+                        value: _volume,
+                        onChanged: _setVolume,
+                        min: 0.0,
+                        max: 1.5,
+                      ),
+                    ),
+                  ),
                 ],
-              ),
+                const SizedBox(width: AppDimens.spacingSm),
+              ],
             ),
+          ),
+          if (!isWideScreen)
+            PlayerControls.buildProgressBar(
+              context: context,
+              isMini: true,
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
+              playerService: _playerService,
+            ),
+        ],
+      ),
+    );
+
+    if (!widget.provideGlass) {
+      return GestureDetector(onTap: widget.onExpand, child: glassContent);
+    }
+
+    return GestureDetector(
+      onTap: widget.onExpand,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppDimens.maxModalWidth),
+          child: LiquidGlass(
+            borderRadius: miniPlayerBorderRadius,
+            blur: 16,
+            tint: MainScreenColors.getSurfaceColor(isDarkMode),
+            opacity: 0.5,
+            saturation: 1.3,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: AppDimens.opacityMedium,
+                ),
+                blurRadius: AppDimens.elevationHigh,
+                offset: Offset(0, AppDimens.shadowOffsetSmall),
+              ),
+            ],
+            child: glassContent,
           ),
         ),
       ),
