@@ -168,9 +168,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final accentColor = settingsProvider.accentColor;
     return Theme(
       data: ThemeData(
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
       ),
       child: Scaffold(
         body: Column(

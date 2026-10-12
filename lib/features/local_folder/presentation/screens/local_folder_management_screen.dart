@@ -230,9 +230,7 @@ class _LocalFolderManagementScreenState
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: isDarkMode
-            ? MainScreenColors.darkBackgroundColor
-            : MainScreenColors.lightBackgroundColor,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,

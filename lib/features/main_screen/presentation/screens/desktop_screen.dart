@@ -171,7 +171,7 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+        backgroundColor: Colors.transparent,
         body: Column(
           children: [
             Expanded(

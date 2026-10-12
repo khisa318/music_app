@@ -39,7 +39,7 @@ class LibrarySongSearchDelegate extends SearchDelegate<String> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return ThemeData(
-      scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: AppBarTheme(
         backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
         elevation: AppDimens.elevationNone,

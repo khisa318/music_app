@@ -30,7 +30,7 @@ class _ThemeSetupScreenState extends State<ThemeSetupScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            MainScreenColors.getBackgroundColor(isDarkMode),
+            Colors.transparent,
             MainScreenColors.getSurfaceColor(isDarkMode),
           ],
         ),

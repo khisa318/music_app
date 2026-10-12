@@ -36,6 +36,7 @@ import 'core/services/download_notification_service.dart';
 import 'core/services/intent_service.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/widgets/animated_app_background.dart';
 
 import 'features/home/data/providers/home_screen_provider.dart';
 import 'features/home/data/providers/covers_and_remixes_provider.dart';
@@ -562,9 +563,18 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
 
       themeMode: settingsProvider.themeMode,
 
+      // The animated background lives behind the navigator so it is painted
+      // once for the whole app. Screens reveal it through a transparent
+      // scaffold (see AppTheme), rather than each drawing its own.
       builder: (context, child) => AppTextStyles.appBuilder(
         context,
-        ConnectivityListener(child: child ?? const SizedBox.shrink()),
+        Stack(
+          alignment: Alignment.topLeft,
+          children: [
+            const Positioned.fill(child: AnimatedAppBackground()),
+            ConnectivityListener(child: child ?? const SizedBox.shrink()),
+          ],
+        ),
       ),
 
       home: const SplashScreen(),

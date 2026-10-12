@@ -53,9 +53,7 @@ class _AiApiConfigScreenState extends State<AiApiConfigScreen> {
     final accentColor = settingsProvider.accentColor;
 
     return Scaffold(
-      backgroundColor: isDarkMode
-          ? MainScreenColors.darkBackgroundColor
-          : MainScreenColors.lightBackgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: SettingsAppBar(
         title: 'ai_api_configuration'.tr(),
         icon: Icons.vpn_key_rounded,

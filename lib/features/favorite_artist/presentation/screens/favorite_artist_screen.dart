@@ -625,7 +625,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
             Positioned.fill(
               bottom: hasPlayer ? AppDimens.miniPlayerHeight : 0,
               child: Container(
-                color: MainScreenColors.getBackgroundColor(isDarkMode),
+                color: Colors.transparent,
                 child: isDesktopLayout
                     ? Padding(
                         padding: EdgeInsets.symmetric(
@@ -726,7 +726,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
             ),
           ],
         ),
-        backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+        backgroundColor: Colors.transparent,
       ),
     );
   }

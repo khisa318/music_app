@@ -167,7 +167,7 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
     final accentColor = settingsProvider.accentColor;
 
     return Scaffold(
-      backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
         child: Column(

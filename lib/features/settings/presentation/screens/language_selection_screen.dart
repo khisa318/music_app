@@ -58,7 +58,7 @@ class LanguageSelectionScreen extends StatelessWidget {
           accentColor: accentColor,
           showBackButton: !isOnboardingFlow,
         ),
-        backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+        backgroundColor: Colors.transparent,
         body: Padding(
           padding: EdgeInsets.all(AppDimens.paddingLg),
           child: LayoutBuilder(

@@ -125,9 +125,7 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
       ),
       builder: (context, themeData, child) {
         return Scaffold(
-          backgroundColor: themeData.isDarkMode
-              ? MainScreenColors.darkBackgroundColor
-              : MainScreenColors.lightBackgroundColor,
+          backgroundColor: Colors.transparent,
           appBar: SettingsAppBar(
             title: 'crash_logs_title'.tr(),
             icon: Icons.bug_report_rounded,
@@ -700,9 +698,7 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
         );
 
         return Scaffold(
-          backgroundColor: themeData.isDarkMode
-              ? MainScreenColors.darkBackgroundColor
-              : MainScreenColors.lightBackgroundColor,
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
             backgroundColor: themeData.isDarkMode
                 ? Colors.transparent

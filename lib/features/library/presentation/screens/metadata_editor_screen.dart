@@ -305,7 +305,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final accentColor = settingsProvider.accentColor;
     final textColor = MainScreenColors.getTextColor(isDarkMode);
-    final backgroundColor = MainScreenColors.getBackgroundColor(isDarkMode);
+    const backgroundColor = Colors.transparent;
 
     return Scaffold(
       backgroundColor: backgroundColor,

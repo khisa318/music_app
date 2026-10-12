@@ -85,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen>
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: MusiXColors.backgroundColor,
+      backgroundColor: Colors.transparent,
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,

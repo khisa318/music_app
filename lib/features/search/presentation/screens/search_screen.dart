@@ -412,9 +412,7 @@ class _SearchScreenState extends State<SearchScreen>
 
     return Theme(
       data: ThemeData(
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
         cardColor: MainScreenColors.getSurfaceColor(isDarkMode),
         colorScheme: ColorScheme(
           brightness: isDarkMode ? Brightness.dark : Brightness.light,

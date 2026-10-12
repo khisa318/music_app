@@ -99,9 +99,7 @@ class _ManageDataScreenState extends State<ManageDataScreen> {
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: isDarkMode
-            ? MainScreenColors.darkBackgroundColor
-            : MainScreenColors.lightBackgroundColor,
+        backgroundColor: Colors.transparent,
         appBar: SettingsAppBar(
           title: 'manage_data'.tr(),
           icon: Icons.storage_rounded,

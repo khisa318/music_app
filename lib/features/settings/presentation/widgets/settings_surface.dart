@@ -202,7 +202,7 @@ class SettingsAppBar extends StatelessWidget implements PreferredSizeWidget {
     final iconScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
         : 1.0;
-    final backgroundColor = MainScreenColors.getBackgroundColor(isDarkMode);
+    const backgroundColor = Colors.transparent;
 
     return AppBar(
       elevation: 0,
@@ -375,7 +375,7 @@ class SettingsSubPageScaffold extends StatelessWidget {
     final accentColor = settingsProvider.accentColor;
 
     return Scaffold(
-      backgroundColor: MainScreenColors.getBackgroundColor(isDarkMode),
+      backgroundColor: Colors.transparent,
       appBar: SettingsAppBar(
         title: title,
         icon: icon,

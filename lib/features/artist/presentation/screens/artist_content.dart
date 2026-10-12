@@ -1037,9 +1037,7 @@ class _ArtistContentState extends State<ArtistContent>
     return Theme(
       data: ThemeData(
         brightness: isDarkMode ? Brightness.dark : Brightness.light,
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
         cardColor: MainScreenColors.getSurfaceColor(isDarkMode),
       ),
       child: Consumer<PlayerProvider>(

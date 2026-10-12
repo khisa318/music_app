@@ -42,18 +42,18 @@ void main() {
       }
     });
 
-    test('the surrounding light and dark surfaces are left alone', () {
+    test('the scaffold is transparent so the animated background shows', () {
       final light = AppTheme.lightTheme(_pink);
       final dark = AppTheme.darkTheme(_pink);
 
-      expect(
-        light.scaffoldBackgroundColor,
-        MainScreenColors.lightBackgroundColor,
-      );
-      expect(
-        dark.scaffoldBackgroundColor,
-        MainScreenColors.darkBackgroundColor,
-      );
+      // The app-wide AnimatedAppBackground is painted behind the navigator, so
+      // a scaffold must not paint over it. Screens that want a solid surface
+      // set one explicitly.
+      expect(light.scaffoldBackgroundColor, Colors.transparent);
+      expect(dark.scaffoldBackgroundColor, Colors.transparent);
+
+      // The app-bar surfaces are deliberately left alone: a bar stays readable
+      // over the moving background.
       expect(
         light.appBarTheme.backgroundColor,
         MainScreenColors.lightSurfaceColor,

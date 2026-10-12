@@ -672,9 +672,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
 
     return Theme(
       data: ThemeData(
-        scaffoldBackgroundColor: MainScreenColors.getBackgroundColor(
-          isDarkMode,
-        ),
+        scaffoldBackgroundColor: Colors.transparent,
         cardColor: MainScreenColors.getSurfaceColor(isDarkMode),
         popupMenuTheme: PopupMenuThemeData(
           color: MainScreenColors.getSurfaceColor(isDarkMode),
