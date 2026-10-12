@@ -99,6 +99,7 @@ flutter:
 
   assets:
     - assets/default_artwork.png
+    - assets/app_icon.png
     - assets/musix_mockup.jpg
     - assets/splash_logo.png
     - assets/images/
