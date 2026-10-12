@@ -281,17 +281,46 @@ jobs:
             exit 1
           fi
 
+      # Release notes are hand-written in RELEASE_NOTES.md at the tagged commit.
+      # GitHub's generated notes only pull in merged pull-request titles, and
+      # this repository releases by pushing straight to main, so they came out
+      # empty - just the "Full Changelog" line. When the file exists it becomes
+      # the body; otherwise we fall back to generated notes.
+      - name: Look for hand-written release notes
+        id: notes
+        shell: bash
+        run: |
+          if [ -s RELEASE_NOTES.md ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # The Release is created here, after the APK exists. Creating it
       # beforehand with `gh release create` would leave a public, empty release
       # on the tag if the build failed.
       - name: Create GitHub Release
+        if: steps.notes.outputs.present == 'true'
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.apk.outputs.version }}
           tag_name: ${{ inputs.tag || github.ref_name }}
-          # Notes are generated from the merged pull requests and commits
-          # between the previous tag and this one, so they describe what
-          # actually changed. Nothing is invented.
+          # The checked-in notes describe what actually changed, in the project's
+          # own words, rather than whatever GitHub can infer.
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.checksum }}
+          fail_on_unmatched_files: true
+
+      - name: Create GitHub Release (generated notes)
+        if: steps.notes.outputs.present != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.apk.outputs.version }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
