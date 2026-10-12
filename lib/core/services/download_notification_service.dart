@@ -26,6 +26,21 @@ class DownloadNotificationService {
   static const String _completeChannelDescription =
       'Shows completed and failed downloads';
 
+  // Playback (media) notification channel. audio_service owns the notification
+  // itself, but we create its channel here, at app startup, on purpose.
+  //
+  // Android 13+ throws RemoteServiceException when startForeground() is handed
+  // a notification whose channel does not exist yet, which kills the process
+  // with no Dart-level catch. audio_service only creates this channel lazily,
+  // immediately before the first startForeground(), so if the user has turned
+  // notifications off by then the create-and-post sequence is what crashes.
+  // Creating it once, unconditionally, at launch (before anything can go into
+  // the foreground) avoids that whole window.
+  static const String mediaChannelId = 'com.anand.noize';
+  static const String _mediaChannelName = 'Noize Playback';
+  static const String _mediaChannelDescription =
+      'Shows playback controls for the current song';
+
   Future<void> initialize() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -121,13 +136,53 @@ class DownloadNotificationService {
           playSound: true,
         );
 
+    // Matches the channel audio_service uses for its media notification
+    // (see AudioServiceConfig.androidNotificationChannelId).
+    const AndroidNotificationChannel mediaChannel = AndroidNotificationChannel(
+      mediaChannelId,
+      _mediaChannelName,
+      description: _mediaChannelDescription,
+      importance: Importance.low,
+      showBadge: false,
+      enableVibration: false,
+      playSound: false,
+    );
+
     final AndroidFlutterLocalNotificationsPlugin? android = _notifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
 
+    // Never gate channel creation on whether notifications are currently
+    // enabled: Android keeps channels even while muted, and it is the missing
+    // channel (not the mute) that makes startForeground() throw and kill the
+    // app. Creating the media channel here, at launch, removes that risk.
     await android?.createNotificationChannel(progressChannel);
     await android?.createNotificationChannel(completeChannel);
+    await android?.createNotificationChannel(mediaChannel);
+  }
+
+  /// Whether the OS currently allows this app to post notifications.
+  ///
+  /// Shown notifications are best-effort: if the user has turned notifications
+  /// off we simply skip them rather than letting the platform call throw inside
+  /// a fire-and-forget progress callback.
+  Future<bool> _canPostNotifications() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+
+    try {
+      final bool? enabled = await _notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.areNotificationsEnabled();
+
+      return enabled ?? true;
+    } catch (_) {
+      return true;
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
@@ -141,6 +196,10 @@ class DownloadNotificationService {
     required double progress,
     required bool isPaused,
   }) async {
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
     final int progressPercent = (progress * 100).round().clamp(0, 100);
 
     final String notificationTitle = isPaused
@@ -193,12 +252,17 @@ class DownloadNotificationService {
       windows: windowsDetails,
     );
 
-    await _notifications.show(
-      id: notificationId,
-      title: notificationTitle,
-      body: '$title\n$artist • $statusText',
-      notificationDetails: details,
-    );
+    try {
+      await _notifications.show(
+        id: notificationId,
+        title: notificationTitle,
+        body: '$title\n$artist • $statusText',
+        notificationDetails: details,
+      );
+    } catch (_) {
+      // Notification delivery is best-effort; never let it surface as an
+      // unhandled error (these calls are also fired without being awaited).
+    }
   }
 
   Future<void> showDownloadComplete({
@@ -206,8 +270,14 @@ class DownloadNotificationService {
     required String title,
     required String artist,
   }) async {
-    // First remove the ongoing progress notification.
-    await _notifications.cancel(id: notificationId);
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
+    try {
+      // First remove the ongoing progress notification.
+      await _notifications.cancel(id: notificationId);
+    } catch (_) {}
 
     final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
@@ -248,12 +318,14 @@ class DownloadNotificationService {
       windows: windowsDetails,
     );
 
-    await _notifications.show(
-      id: notificationId,
-      title: 'Download complete',
-      body: '$title\n$artist',
-      notificationDetails: details,
-    );
+    try {
+      await _notifications.show(
+        id: notificationId,
+        title: 'Download complete',
+        body: '$title\n$artist',
+        notificationDetails: details,
+      );
+    } catch (_) {}
   }
 
   Future<void> showDownloadFailed({
@@ -261,7 +333,13 @@ class DownloadNotificationService {
     required String title,
     required String artist,
   }) async {
-    await _notifications.cancel(id: notificationId);
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
+    try {
+      await _notifications.cancel(id: notificationId);
+    } catch (_) {}
 
     final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
@@ -302,19 +380,33 @@ class DownloadNotificationService {
       windows: windowsDetails,
     );
 
-    await _notifications.show(
-      id: notificationId,
-      title: 'Download failed',
-      body: '$title\n$artist',
-      notificationDetails: details,
-    );
+    try {
+      await _notifications.show(
+        id: notificationId,
+        title: 'Download failed',
+        body: '$title\n$artist',
+        notificationDetails: details,
+      );
+    } catch (_) {}
   }
 
   Future<void> cancelNotification(int notificationId) async {
-    await _notifications.cancel(id: notificationId);
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
+    try {
+      await _notifications.cancel(id: notificationId);
+    } catch (_) {}
   }
 
   Future<void> cancelAllNotifications() async {
-    await _notifications.cancelAll();
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
+    try {
+      await _notifications.cancelAll();
+    } catch (_) {}
   }
 }
