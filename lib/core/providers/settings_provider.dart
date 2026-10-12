@@ -46,6 +46,7 @@ class SettingsProvider with ChangeNotifier {
   static const String _loggingOnStartupKey = 'loggingOnStartup';
   static const String _volumeLevelKey = 'volumeLevel';
   static const String _gaplessPlaybackKey = 'gaplessPlayback';
+  static const String _reduceEffectsKey = 'reduceEffects';
 
   String _streamingQuality = 'High';
   String _downloadingQuality = 'High';
@@ -84,6 +85,7 @@ class SettingsProvider with ChangeNotifier {
   bool _wifiOnlyDownloads = false;
   bool _audioCacheEnabled = true;
   bool _updateCheckEnabled = true;
+  bool _reduceEffectsEnabled = false;
 
   List<String> _includedFolders = [];
   List<String> _excludedFolders = [];
@@ -130,6 +132,7 @@ class SettingsProvider with ChangeNotifier {
   bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
   bool get wifiOnlyDownloads => _wifiOnlyDownloads;
   bool get audioCacheEnabled => _audioCacheEnabled;
+  bool get reduceEffectsEnabled => _reduceEffectsEnabled;
 
   /// The mode the app is actually rendered in, always resolved to light or
   /// dark.
@@ -298,6 +301,12 @@ class SettingsProvider with ChangeNotifier {
   set audioCacheEnabled(bool value) {
     _audioCacheEnabled = value;
     _saveToPrefs(_audioCacheEnabledKey, value);
+    notifyListeners();
+  }
+
+  set reduceEffectsEnabled(bool value) {
+    _reduceEffectsEnabled = value;
+    _saveToPrefs(_reduceEffectsKey, value);
     notifyListeners();
   }
 
@@ -508,6 +517,7 @@ class SettingsProvider with ChangeNotifier {
     _volumeLevel = ((box.get(_volumeLevelKey) as num?)?.toDouble() ?? 1.0)
         .clamp(0.0, 1.5);
     _gaplessPlaybackEnabled = (box.get(_gaplessPlaybackKey) as bool?) ?? true;
+    _reduceEffectsEnabled = (box.get(_reduceEffectsKey) as bool?) ?? false;
 
     notifyListeners();
   }

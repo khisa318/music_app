@@ -72,6 +72,8 @@
 	"adaptive_color_title": "Adaptive Colour",
 	"animation_type": "Animation Type",
 	"choose_animation": "Choose Animation",
+	"reduce_effects": "Reduce Effects",
+	"reduce_effects_subtitle": "Reduce blur and transparency of floating panels for a flatter look or better performance",
 	"animations": "Animations",
 	"current": "Current",
 	"equalizer_card_title": "Equalizer",
