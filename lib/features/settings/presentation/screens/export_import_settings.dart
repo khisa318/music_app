@@ -600,7 +600,7 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
 
       if (!context.mounted) return;
       await SharePlus.instance.share(
-        ShareParams(text: 'Noize export file', files: [XFile(filePath)]),
+        ShareParams(text: 'MusiX export file', files: [XFile(filePath)]),
       );
 
       if (!context.mounted) return;

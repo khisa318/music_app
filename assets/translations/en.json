@@ -196,14 +196,14 @@
 	"spotify_no_tracks": "No tracks found in this Spotify playlist",
 	"spotify_import_success": "Imported '{}' with {} songs",
 
-	"about_dev": "Development",
-	"app_name_noize": "MusiX",
-	"application_name_noize": "MusiX",
+	"about_dev": "Independent developer from Kenya, building MusiX as a free, open-source music player. It streams from YouTube Music and JioSaavn, works offline with downloads, and adds synced lyrics, an equalizer and more — with no ads and no subscriptions.",
+	"app_name_musix": "MusiX",
+	"application_name_musix": "MusiX",
 	"app_tagline": "Your personal music companion",
-	"about_noize_card_title": "About MusiX",
+	"about_musix_card_title": "About MusiX",
 	"github_repository": "GitHub Repository",
 	"contribute": "Contribute",
-	"help_improve_noize": "Help improve MusiX",
+	"help_improve_musix": "Help improve MusiX",
 	"release_notes": "Release Notes",
 	"see_release_notes_subtitle": "See what's new in this update",
 	"release_notes_unavailable": "Release notes are unavailable right now",
@@ -488,5 +488,5 @@
 
 	"Gemini": "Gemini",
 	"OpenAI": "OpenAI",
-	"application_legalese_noize": "MusiX is free and open source software, distributed under the terms of the licenses listed below."
+	"application_legalese_musix": "MusiX is free and open source software, distributed under the terms of the licenses listed below."
 }

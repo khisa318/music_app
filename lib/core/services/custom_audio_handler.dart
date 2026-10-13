@@ -106,7 +106,7 @@ class CustomAudioHandler extends BaseAudioHandler
         : 'https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg';
     return MediaItem(
       id: song.videoId,
-      album: 'Noize',
+      album: 'MusiX',
       title: song.name,
       artist: song.artists.map((a) => a.name).join(', '),
       artUri: Uri.parse(thumb),

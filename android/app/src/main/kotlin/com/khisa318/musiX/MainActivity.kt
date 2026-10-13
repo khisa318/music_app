@@ -23,9 +23,9 @@ import kotlinx.coroutines.*
 import java.io.ByteArrayOutputStream
 
 class MainActivity : com.ryanheise.audioservice.AudioServiceActivity() {
-    private val CHANNEL = "com.anand.musicx/audio_output"
-    private val LOCAL_SONGS_CHANNEL = "com.anand.musicx/local_songs"
-    private val BATTERY_OPTIMIZATION_CHANNEL = "com.anand.musicx/battery_optimization"
+    private val CHANNEL = "com.khisa318.musiX/audio_output"
+    private val LOCAL_SONGS_CHANNEL = "com.khisa318.musiX/local_songs"
+    private val BATTERY_OPTIMIZATION_CHANNEL = "com.khisa318.musiX/battery_optimization"
     private var bluetoothA2dp: BluetoothA2dp? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val batteryOptimizationHelper by lazy { BatteryOptimizationHelper(this) }

@@ -36,8 +36,8 @@ class DownloadNotificationService {
   // notifications off by then the create-and-post sequence is what crashes.
   // Creating it once, unconditionally, at launch (before anything can go into
   // the foreground) avoids that whole window.
-  static const String mediaChannelId = 'com.anand.noize';
-  static const String _mediaChannelName = 'Noize Playback';
+  static const String mediaChannelId = 'com.khisa318.musiX';
+  static const String _mediaChannelName = 'MusiX Playback';
   static const String _mediaChannelDescription =
       'Shows playback controls for the current song';
 
@@ -59,7 +59,7 @@ class DownloadNotificationService {
         WindowsInitializationSettings(
           appName: 'MusiX',
           iconPath: 'assets/default_artwork.png',
-          appUserModelId: 'com.anand.musix',
+          appUserModelId: 'com.khisa318.musiX',
           guid: '27D44D0C-A542-5B90-BCDB-AC3126048BA2',
         );
 

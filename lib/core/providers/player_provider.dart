@@ -166,8 +166,8 @@ class PlayerProvider extends ChangeNotifier {
           _favoriteSongProvider,
         ),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'com.anand.noize',
-          androidNotificationChannelName: 'Noize Playback',
+          androidNotificationChannelId: 'com.khisa318.musiX',
+          androidNotificationChannelName: 'MusiX Playback',
           // Keep the service in the foreground while paused. With `true`,
           // pausing calls stopForeground() and resuming calls
           // startForeground() again, which Android 13+ rejects (killing the
