@@ -18,7 +18,7 @@ class GeneralSettingsSection extends StatelessWidget {
   const GeneralSettingsSection({super.key});
 
   static const MethodChannel _batteryOptimizationChannel = MethodChannel(
-    'com.anand.noize/battery_optimization',
+    'com.khisa318.musiX/battery_optimization',
   );
 
   Future<void> _openDisableRestrictionsSettings() async {

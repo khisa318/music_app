@@ -63,7 +63,7 @@ class ExportImportSettingsService {
 
   Future<String> createExportFile(Map<String, dynamic> exportData) async {
     final jsonString = json.encode(exportData);
-    const directoryPath = '/storage/emulated/0/Download/Noize/Exports';
+    const directoryPath = '/storage/emulated/0/Download/MusiX/Exports';
 
     final Directory exportDirectory = Directory(directoryPath);
     if (!await exportDirectory.exists()) {
@@ -71,7 +71,7 @@ class ExportImportSettingsService {
     }
 
     final file = File(
-      '$directoryPath/noize_export_${DateTime.now().millisecondsSinceEpoch}.json',
+      '$directoryPath/musix_export_${DateTime.now().millisecondsSinceEpoch}.json',
     );
     await file.writeAsString(jsonString);
     return file.path;
@@ -514,7 +514,12 @@ class ExportImportSettingsService {
   }
 
   bool isValidImportFile(String fileName) {
-    return fileName.startsWith('noize_export') && fileName.endsWith('.json');
+    // Accept `musix_export_*` plus legacy `noize_export_*` backups so older
+    // exports can still be imported after the rebrand.
+    final isExport =
+        fileName.startsWith('musix_export') ||
+        fileName.startsWith('noize_export');
+    return isExport && fileName.endsWith('.json');
   }
 
   Map<String, bool> detectAvailableDataTypes(Map<String, dynamic> importData) {

@@ -230,7 +230,7 @@ class LyricsProvider with ChangeNotifier {
   Future<LyricsResponse?> _readCachedLyrics(String cacheKey) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/noize/$cacheKey');
+      final file = File('${directory.path}/musix/$cacheKey');
       if (await file.exists()) {
         final content = await file.readAsString();
         final data = json.decode(content);
@@ -251,7 +251,11 @@ class LyricsProvider with ChangeNotifier {
   ) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/$cacheKey');
+      final lyricsDir = Directory('${directory.path}/musix');
+      if (!await lyricsDir.exists()) {
+        await lyricsDir.create(recursive: true);
+      }
+      final file = File('${lyricsDir.path}/$cacheKey');
       final content = json.encode({
         'lyrics': lyricsResponse.lyrics,
         'isSynced': lyricsResponse.isSynced,

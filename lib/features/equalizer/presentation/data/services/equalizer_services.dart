@@ -44,7 +44,7 @@ class EqualizerService {
   static const String _customPresetsKey = 'custom_presets';
 
   static const Map<String, List<double>> builtInPresets = {
-    'Noize': [5.5, 3.0, 0.5, 0.0, 0.0, 0.8],
+    'MusiX': [5.5, 3.0, 0.5, 0.0, 0.0, 0.8],
     'Flat': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     'Rock': [4.0, 3.0, -2.0, 1.5, 3.0, 4.0],
     'Pop': [3.5, 2.0, 1.0, 1.0, 2.0, 3.5],
@@ -68,7 +68,7 @@ class EqualizerService {
   ];
 
   bool _equalizerEnabled = false;
-  String _currentPreset = 'Noize';
+  String _currentPreset = 'MusiX';
   Map<String, List<double>> _customPresets = {};
   List<double> _gains = [0, 0, 0, 0, 0, 0];
   MediaKitPlayerAdapter? _playerAdapter;
@@ -99,7 +99,10 @@ class EqualizerService {
       }
     }
 
-    _currentPreset = (box.get(_currentPresetKey) as String?) ?? 'Noize';
+    // Migrate the legacy built-in preset key from 'Noize' to 'MusiX' so
+    // existing installs keep their selected preset after the rebrand.
+    final storedPreset = box.get(_currentPresetKey) as String?;
+    _currentPreset = storedPreset == 'Noize' ? 'MusiX' : (storedPreset ?? 'MusiX');
     final bandGainsString = box.get(_bandGainsKey) as String?;
     if (bandGainsString != null) {
       _gains = bandGainsString

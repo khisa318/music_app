@@ -33,7 +33,7 @@ class _EqualizerScreenState extends State<EqualizerScreen>
   EqualizerParameters? _params;
   late AnimationController _animationController;
   bool _isEnabled = false;
-  String _currentPreset = 'Noize';
+  String _currentPreset = 'MusiX';
   bool _isLoading = false;
   bool _isCurveMode = false;
 
@@ -175,7 +175,7 @@ class _EqualizerScreenState extends State<EqualizerScreen>
   }
 
   final Map<String, String> _presetDescriptions = {
-    'Noize': 'Preset from creator of Noize',
+    'MusiX': 'MusiX signature preset',
     'Flat': 'Balanced sound across all frequencies',
     'Classical': 'Enhanced mids and highs for orchestral clarity',
     'Dance': 'Boosted bass and treble for electronic music',

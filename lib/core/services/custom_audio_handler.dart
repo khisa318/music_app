@@ -106,7 +106,7 @@ class CustomAudioHandler extends BaseAudioHandler
         : 'https://img.youtube.com/vi/${song.videoId}/hqdefault.jpg';
     return MediaItem(
       id: song.videoId,
-      album: 'Noize',
+      album: 'MusiX',
       title: song.name,
       artist: song.artists.map((a) => a.name).join(', '),
       artUri: Uri.parse(thumb),
@@ -145,6 +145,11 @@ class CustomAudioHandler extends BaseAudioHandler
     final isOnlineSong = _playerProvider.currentSong != null;
     final controls = <MediaControl>[
       if (_queueProvider.hasPrevious) MediaControl.skipToPrevious,
+      MediaControl.custom(
+        androidIcon: 'drawable/ic_seek_back',
+        label: 'Seek Back 10s',
+        name: 'seekBackward',
+      ),
       if (isOnlineSong)
         MediaControl.custom(
           androidIcon: _favoriteSongProvider.isCurrentSongLiked
@@ -155,12 +160,25 @@ class CustomAudioHandler extends BaseAudioHandler
         ),
       _playerService.isPlaying ? MediaControl.pause : MediaControl.play,
       MediaControl.custom(
+        androidIcon: 'drawable/ic_seek_forward',
+        label: 'Seek Forward 10s',
+        name: 'seekForward',
+      ),
+      MediaControl.custom(
         androidIcon: _queueProvider.repeatMode == RepeatMode.one
             ? 'drawable/ic_repeat_one'
             : 'drawable/ic_repeat',
         label: 'Repeat',
         name: 'toggleRepeat',
       ),
+      if (_queueProvider.queueLength > 1)
+        MediaControl.custom(
+          androidIcon: _queueProvider.isShuffleEnabled
+              ? 'drawable/ic_shuffle_on'
+              : 'drawable/ic_shuffle',
+          label: 'Shuffle',
+          name: 'toggleShuffle',
+        ),
       if (_queueProvider.hasNext || _queueProvider.isRepeatEnabled)
         MediaControl.skipToNext,
     ];
@@ -254,9 +272,37 @@ class CustomAudioHandler extends BaseAudioHandler
         _queueProvider.toggleRepeat();
         _broadcastState();
         break;
+      case 'toggleShuffle':
+        _queueProvider.toggleShuffle();
+        _broadcastState();
+        break;
+      case 'seekBackward':
+        await _seekRelative(const Duration(seconds: 10), forward: false);
+        break;
+      case 'seekForward':
+        await _seekRelative(const Duration(seconds: 10), forward: true);
+        break;
       default:
         break;
     }
     return null;
+  }
+
+  Future<void> _seekRelative(
+    Duration step, {
+    required bool forward,
+  }) async {
+    if (forward) {
+      final max = _duration > Duration.zero ? _duration : null;
+      final target = _position + step;
+      await _playerService.seek(
+        max != null && target > max ? max : target,
+      );
+    } else {
+      final target = _position - step;
+      await _playerService.seek(
+        target < Duration.zero ? Duration.zero : target,
+      );
+    }
   }
 }

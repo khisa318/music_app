@@ -862,7 +862,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           },
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 120),
+            padding: const EdgeInsets.only(
+              bottom: AppDimens.bottomDockClearance,
+            ),
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
