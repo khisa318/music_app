@@ -132,26 +132,35 @@ class OTADialog extends StatelessWidget {
             height: AppDimens.buttonHeightLarge,
             child: ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
+                // Capture the navigator before awaiting the method dialog.
+                // This dialog is dismissed below, so its own context is
+                // disposed by the time the user picks an option - resolving
+                // `Navigator.of(context)` afterwards would find nothing and
+                // the choice would silently do nothing.
+                final navigator = Navigator.of(context);
                 final choice = await UpdateMethodDialog.show(
                   context,
                   updateInfo,
                 );
                 if (!context.mounted) return;
 
+                // Dismiss the prompt now that a choice has been made.
+                navigator.pop();
+
                 switch (choice) {
                   case UpdateChoice.downloadInApp:
                     otaProvider.setOTAScreenActive(true);
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const OTAScreen(),
-                        ),
-                      ).then((_) {
-                        otaProvider.setOTAScreenActive(false);
-                        otaProvider.setUpdateUIShown(false);
-                      });
+                      navigator
+                          .push(
+                            MaterialPageRoute(
+                              builder: (context) => const OTAScreen(),
+                            ),
+                          )
+                          .then((_) {
+                            otaProvider.setOTAScreenActive(false);
+                            otaProvider.setUpdateUIShown(false);
+                          });
                     });
                   case UpdateChoice.openWebsite:
                     await otaProvider.openReleasePage();
