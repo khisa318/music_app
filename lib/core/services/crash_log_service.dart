@@ -29,7 +29,7 @@ class CrashLogService {
     await _generateHeader();
 
     for (final c in _channels) {
-      final f = File(p.join(_dir.path, 'noize', 'noize_${c}_logs.txt'));
+      final f = File(p.join(_dir.path, 'musix', 'musix_${c}_logs.txt'));
       if (!await f.exists()) {
         await f.create(recursive: true);
       }
@@ -140,7 +140,7 @@ class CrashLogService {
 
     await SharePlus.instance.share(ShareParams(
       files: [XFile(tempFile.path)],
-      text: 'Noize — $channel logs',
+      text: 'MusiX — $channel logs',
     ));
   }
 

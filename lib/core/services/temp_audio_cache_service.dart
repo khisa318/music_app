@@ -8,7 +8,7 @@ import '../models/song_model.dart';
 import '../providers/settings_provider.dart';
 
 class TempAudioCacheService {
-  static const String _cacheDirName = 'noize_stream_cache';
+  static const String _cacheDirName = 'musix_stream_cache';
   static const Duration _defaultMaxAge = Duration(days: 2);
 
   Future<Directory> _getCacheDirectory() async {

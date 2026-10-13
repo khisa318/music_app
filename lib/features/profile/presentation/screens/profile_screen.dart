@@ -297,7 +297,7 @@ const SizedBox(height: AppDimens.bottomDockClearance),
                 const SizedBox(height: AppDimens.paddingXl),
 
                 Text(
-                  'app_name_noize'.tr(),
+                  'app_name_musix'.tr(),
                   style: AppTextStyles.displayLg(
                     isDarkMode: isDarkMode,
                   ).copyWith(letterSpacing: -0.5),
