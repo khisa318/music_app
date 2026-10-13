@@ -514,6 +514,12 @@ class DownloadProvider with ChangeNotifier {
     );
   }
 
+  Future<void> downloadSongs(List<SongInfo> songs) async {
+    for (final song in songs) {
+      await downloadSong(song);
+    }
+  }
+
   Future<void> startQueuedDownload(String videoId) async {
     if (_isPaused) {
       await resumeAllDownloads();

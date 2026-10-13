@@ -447,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
 
           const SliverToBoxAdapter(
-            child: SizedBox(height: AppDimens.paddingXl),
+            child: SizedBox(height: AppDimens.bottomDockClearance),
           ),
         ],
       ),

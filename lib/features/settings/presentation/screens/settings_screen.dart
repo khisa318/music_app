@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         SettingsItem(
                                           icon: Icons.info_rounded,
                                           title:
-                                              'about_noize_card_title'.tr(),
+                                              'about_musix_card_title'.tr(),
                                           onTap: () {
                                             Navigator.push(
                                               context,

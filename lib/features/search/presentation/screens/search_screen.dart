@@ -281,6 +281,14 @@ class _SearchScreenState extends State<SearchScreen>
     _searchHistoryNotifier.value = updatedHistory;
   }
 
+  Future<void> _clearSearchHistory() async {
+    await _services.clearSearchHistory();
+
+    if (!mounted) return;
+
+    _searchHistoryNotifier.value = [];
+  }
+
   Future<void> _playSong(dynamic song) async {
     _focusNode.unfocus();
 
@@ -614,6 +622,7 @@ class _SearchScreenState extends State<SearchScreen>
               _onSearch(item);
             },
             onHistoryItemRemoved: _removeSearchHistoryItem,
+            onClearAllHistory: _clearSearchHistory,
             onQuickSongTapped: (song) {
               _focusNode.unfocus();
 

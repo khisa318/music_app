@@ -1,7 +1,9 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/providers/playlist_album_library_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/providers/download_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../core/constants/app_text_styles.dart';
@@ -76,6 +78,45 @@ class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
     });
   }
 
+  Future<void> _downloadAll() async {
+    if (_songs.isEmpty) return;
+
+    final songs = _songs
+        .map(SongInfo.fromHistoryMap)
+        .whereType<SongInfo>()
+        .toList();
+
+    if (songs.isEmpty) {
+      if (!mounted) return;
+      AppSnackBar.showError(
+        context,
+        'Failed to add songs to download queue',
+      );
+      return;
+    }
+
+    final downloadProvider = Provider.of<DownloadProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      await downloadProvider.downloadSongs(songs);
+      if (!mounted) return;
+      AppSnackBar.showSuccess(
+        context,
+        'All songs added to download queue',
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppSnackBar.showError(
+        context,
+        'Failed to add songs to download queue: $e',
+      );
+    }
+  }
+
   Future<void> _playSong(Map<String, dynamic> song) async {
     try {
       final playerProvider = Provider.of<PlayerProvider>(
@@ -144,6 +185,15 @@ class PlaylistDetailsScreenState extends State<PlaylistDetailsScreen> {
             widget.playlist['name'],
             style: AppTextStyles.appBarTitle(isDarkMode: isDarkMode),
           ),
+          actions: [
+            if (_songs.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.download),
+                tooltip: 'download_all'.tr(),
+                onPressed: _downloadAll,
+              ),
+            const SizedBox(width: 4),
+          ],
         ),
         body: Consumer<PlayerProvider>(
           builder: (context, playerProvider, _) {

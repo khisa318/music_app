@@ -2,7 +2,7 @@ name: music_app
 description: "MusiX music streaming and downloads app."
 publish_to: none
 
-version: 1.0.3+4
+version: 1.0.4+5
 
 environment:
   sdk: ^3.12.0
@@ -99,6 +99,7 @@ flutter:
 
   assets:
     - assets/default_artwork.png
+    - assets/app_icon.png
     - assets/musix_mockup.jpg
     - assets/splash_logo.png
     - assets/images/

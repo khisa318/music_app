@@ -88,6 +88,10 @@ class SearchScreenServices {
     return updatedHistory;
   }
 
+  Future<void> clearSearchHistory() async {
+    await saveSearchHistory(const []);
+  }
+
   // ---------------------------------------------------------------------------
   // SEARCH SUGGESTIONS
   // ---------------------------------------------------------------------------

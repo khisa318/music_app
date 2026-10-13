@@ -25,7 +25,7 @@ class AudioOutputDevice {
 }
 
 class AudioOutputService {
-  static const _channel = MethodChannel('com.anand.noize/audio_output');
+  static const _channel = MethodChannel('com.khisa318.musiX/audio_output');
 
   static Future<List<AudioOutputDevice>> getAudioDevices() async {
     if (!Platform.isAndroid) return [];

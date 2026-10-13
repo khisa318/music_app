@@ -28,12 +28,12 @@ class AboutSettingsScreen extends StatelessWidget {
   }
 
   static const String _baseUrl =
-      'https://raw.githubusercontent.com/anandssm/noize/main/docs/changelogs';
+      'https://raw.githubusercontent.com/khisa318/music_app/main/docs/changelogs';
 
   Future<Directory> _changelogDir() async {
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory(
-      '${docs.path}${Platform.pathSeparator}noize${Platform.pathSeparator}changelogs',
+      '${docs.path}${Platform.pathSeparator}musix${Platform.pathSeparator}changelogs',
     );
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
@@ -236,7 +236,7 @@ class AboutSettingsScreen extends StatelessWidget {
                               ),
                               SizedBox(height: AppDimens.paddingXl),
                               Text(
-                                'app_name_noize'.tr(),
+                                'app_name_musix'.tr(),
                                 style: isDesktop
                                     ? AppTextStyles.hero(isDarkMode: isDarkMode)
                                     : AppTextStyles.displayLg(
@@ -374,7 +374,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         ),
                                         SizedBox(height: AppDimens.spacingXs),
                                         Text(
-                                          'Made with ❤️ in India',
+                                          'Made with ❤️ in Kenya',
                                           style:
                                               AppTextStyles.body2(
                                                 isDarkMode: isDarkMode,
@@ -455,7 +455,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Anand Kumar',
+                                              'Armstrong Khisa',
                                               style: AppTextStyles.titleLg(
                                                 isDarkMode: isDarkMode,
                                               ),
@@ -509,7 +509,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                       ),
                                       InkWell(
                                         onTap: () => _launchURL(
-                                          'https://github.com/anandssm',
+                                          'https://github.com/khisa318',
                                         ),
                                         borderRadius: BorderRadius.circular(
                                           AppDimens.radiusLg,
@@ -590,7 +590,7 @@ class AboutSettingsScreen extends StatelessWidget {
 
                           InkWell(
                             onTap: () => _launchURL(
-                              'https://github.com/anandssm/noize/graphs/contributors',
+                              'https://github.com/khisa318/music_app/graphs/contributors',
                             ),
                             borderRadius: BorderRadius.circular(
                               AppDimens.radiusXl,
@@ -686,8 +686,9 @@ class AboutSettingsScreen extends StatelessWidget {
                             icon: Icons.code_rounded,
                             title: 'github_repository'.tr(),
                             subtitle: 'View source code',
-                            onTap: () =>
-                                _launchURL('https://github.com/anandssm/noize'),
+                            onTap: () => _launchURL(
+                              'https://github.com/khisa318/music_app',
+                            ),
                             isDarkMode: isDarkMode,
                             accentColor: accentColor,
                           ),
@@ -697,9 +698,9 @@ class AboutSettingsScreen extends StatelessWidget {
                           PremiumActionCard(
                             icon: Icons.volunteer_activism_rounded,
                             title: 'contribute'.tr(),
-                            subtitle: 'help_improve_noize'.tr(),
+                            subtitle: 'help_improve_musix'.tr(),
                             onTap: () => _launchURL(
-                              'https://github.com/anandssm/noize/blob/main/CONTRIBUTING.md',
+                              'https://github.com/khisa318/music_app/blob/main/CONTRIBUTING.md',
                             ),
                             isDarkMode: isDarkMode,
                             accentColor: accentColor,
@@ -728,8 +729,8 @@ class AboutSettingsScreen extends StatelessWidget {
                             subtitle: 'open_source_licenses_description'.tr(),
                             onTap: () => showLicensePage(
                               context: context,
-                              applicationName: 'application_name_noize'.tr(),
-                              applicationLegalese: 'application_legalese_noize'
+                              applicationName: 'application_name_musix'.tr(),
+                              applicationLegalese: 'application_legalese_musix'
                                   .tr(),
                             ),
                             isDarkMode: isDarkMode,
@@ -792,7 +793,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         icon: Icons.telegram,
                                         label: 'Telegram',
                                         onTap: () => _launchURL(
-                                          'https://t.me/NoizeUpdates',
+                                          'https://t.me/MusixUpdates',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -804,7 +805,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         icon: Icons.email_rounded,
                                         label: 'Email',
                                         onTap: () => _launchURL(
-                                          'mailto:gravityappslabin@gmail.com',
+                                          'mailto:khisaarmstrong@gmail.com',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -816,7 +817,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         icon: Icons.language_rounded,
                                         label: 'Website',
                                         onTap: () => _launchURL(
-                                          'https://noizeapp.netlify.app/',
+                                          'https://musix-website.vercel.app/',
                                         ),
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
@@ -834,7 +835,7 @@ class AboutSettingsScreen extends StatelessWidget {
                             child: Column(
                               children: [
                                 Text(
-                                  '© 2026 Noize',
+                                  '© 2026 MusiX',
                                   style:
                                       AppTextStyles.caption(
                                         isDarkMode: isDarkMode,

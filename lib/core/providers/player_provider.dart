@@ -6,6 +6,7 @@ import 'package:hive_ce/hive.dart';
 import '../models/song_model.dart';
 import '../services/custom_audio_handler.dart';
 import '../services/player_service.dart';
+import '../services/queue_storage_service.dart';
 import 'queued_provider.dart';
 import 'download_provider.dart';
 import 'video_info_provider.dart';
@@ -117,6 +118,7 @@ class PlayerProvider extends ChangeNotifier {
           await _fetchAndSetVideoDetails(_lastPlayedSong!.videoId);
         }
       }
+      await _restorePlaybackPosition();
       _isInitialized = true;
       isLoadingLastPlayedSongs = false;
       notifyListeners();
@@ -124,6 +126,35 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   CachedVideoInfo? get currentVideoDetails => _currentVideoDetails;
+
+  Future<void> _restorePlaybackPosition() async {
+    final song = _currentSong;
+
+    if (song == null || _currentLocalSong != null) return;
+
+    final position = await QueueStorage.loadPosition();
+
+    if (position == null) return;
+
+    if (position['videoId'] != song.videoId) return;
+
+    final positionMs = position['positionMs'] as int?;
+
+    if (positionMs == null || positionMs <= 0) return;
+
+    final durationMs = song.duration.inMilliseconds;
+
+    if (durationMs <= 0) return;
+
+    const minRestoreMs = 5000;
+    const endMarginMs = 5000;
+
+    if (positionMs < minRestoreMs || positionMs >= durationMs - endMarginMs) {
+      return;
+    }
+
+    await _playerService.seek(Duration(milliseconds: positionMs));
+  }
 
   Future<void> _initializeAudioService() async {
     try {
@@ -135,9 +166,15 @@ class PlayerProvider extends ChangeNotifier {
           _favoriteSongProvider,
         ),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'com.anand.noize',
-          androidNotificationChannelName: 'Noize Playback',
-          androidStopForegroundOnPause: true,
+          androidNotificationChannelId: 'com.khisa318.musiX',
+          androidNotificationChannelName: 'MusiX Playback',
+          // Keep the service in the foreground while paused. With `true`,
+          // pausing calls stopForeground() and resuming calls
+          // startForeground() again, which Android 13+ rejects (killing the
+          // process) once the user has turned notifications off. audio_service
+          // 0.18.x does not catch that native exception, so avoiding the
+          // restart is the fix.
+          androidStopForegroundOnPause: false,
           androidShowNotificationBadge: true,
           androidNotificationOngoing: false,
           androidNotificationIcon: 'mipmap/ic_launcher',

@@ -218,7 +218,7 @@ class ProfileScreen extends StatelessWidget {
                             accentColor: accentColor,
                           ),
 
-                          const SizedBox(height: AppDimens.paddingXl),
+const SizedBox(height: AppDimens.bottomDockClearance),
                         ],
                       ),
                     ),
@@ -297,7 +297,7 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: AppDimens.paddingXl),
 
                 Text(
-                  'app_name_noize'.tr(),
+                  'app_name_musix'.tr(),
                   style: AppTextStyles.displayLg(
                     isDarkMode: isDarkMode,
                   ).copyWith(letterSpacing: -0.5),

@@ -135,4 +135,46 @@ class QueueStorage {
     }
     return null;
   }
+
+  static Future<void> savePosition(String videoId, int positionMs) async {
+    try {
+      final box = Hive.box<String>(_boxName);
+
+      await box.put(
+        '_position',
+        jsonEncode({'videoId': videoId, 'positionMs': positionMs}),
+      );
+    } catch (e) {
+      debugPrint('Error saving position to Hive: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> loadPosition() async {
+    try {
+      final box = Hive.box<String>(_boxName);
+
+      final raw = box.get('_position');
+
+      if (raw == null) return null;
+
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+
+      if (map['videoId'] == null || map['positionMs'] == null) return null;
+
+      return map;
+    } catch (e) {
+      debugPrint('Error loading position from Hive: $e');
+    }
+    return null;
+  }
+
+  static Future<void> clearPosition() async {
+    try {
+      final box = Hive.box<String>(_boxName);
+
+      await box.delete('_position');
+    } catch (e) {
+      debugPrint('Error clearing position from Hive: $e');
+    }
+  }
 }

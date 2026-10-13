@@ -26,7 +26,7 @@ class DataUsageStats {
 }
 
 class DataManagementService {
-  static const String _tempAudioCacheDirName = 'noize_stream_cache';
+  static const String _tempAudioCacheDirName = 'musix_stream_cache';
 
   Future<void> clearCache() async {
     final cacheDir = await getTemporaryDirectory();

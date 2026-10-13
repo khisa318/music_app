@@ -12,5 +12,5 @@
 	"check_your_connection_and_retry": "接続を確認して再試行してください。",
 	"no_cached_data": "まだ何も保存されていません。インターネットに接続すると最新の内容を読み込めます。",
 	"no_internet_setup_blocked": "MusiX のセットアップを完了するにはインターネットに接続してください。",
-	"application_legalese_noize": "MusiX は自由なオープンソースソフトウェアで、以下のに記載されたライセンスの条件に基づいて配布されています。"
+	"application_legalese_musix": "MusiX は自由なオープンソースソフトウェアで、以下のに記載されたライセンスの条件に基づいて配布されています。"
 }

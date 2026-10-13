@@ -16,6 +16,7 @@ class SearchSuggestionsList extends StatelessWidget {
   final ValueChanged<String> onSuggestionTapped;
   final ValueChanged<String> onHistoryItemTapped;
   final ValueChanged<String> onHistoryItemRemoved;
+  final VoidCallback? onClearAllHistory;
   final ValueChanged<dynamic> onQuickSongTapped;
 
   const SearchSuggestionsList({
@@ -30,6 +31,7 @@ class SearchSuggestionsList extends StatelessWidget {
     required this.onSuggestionTapped,
     required this.onHistoryItemTapped,
     required this.onHistoryItemRemoved,
+    this.onClearAllHistory,
     required this.onQuickSongTapped,
   });
 
@@ -71,32 +73,72 @@ class SearchSuggestionsList extends StatelessWidget {
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
-            child: ListView.builder(
-              itemCount: searchHistory.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: Icon(
-                    Icons.history,
-                    color: MainScreenColors.getTextColor(
-                      isDarkMode,
-                    ).withValues(alpha: 0.5),
+            child: ListView(
+              padding: const EdgeInsets.only(
+                bottom: AppDimens.bottomDockClearance,
+              ),
+              children: [
+                if (onClearAllHistory != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.paddingLg,
+                      AppDimens.spacingSm,
+                      AppDimens.paddingMd,
+                      AppDimens.spacingXxs,
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          'search_history_card_title'.tr(),
+                          style: AppTextStyles.subtitle(
+                            isDarkMode: isDarkMode,
+                          ).copyWith(
+                            color: MainScreenColors.getTextColor(
+                              isDarkMode,
+                            ).withValues(alpha: 0.7),
+                            fontWeight: AppTextStyles.weightSemiBold,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: onClearAllHistory,
+                          style: TextButton.styleFrom(
+                            foregroundColor: accentColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppDimens.spacingSm,
+                            ),
+                            minimumSize: const Size(0, 32),
+                          ),
+                          child: Text('clear'.tr(), style: AppTextStyles.caption(isDarkMode: isDarkMode)),
+                        ),
+                      ],
+                    ),
                   ),
-                  title: Text(
-                    searchHistory[index],
-                    style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(
-                      Icons.close,
+                ...searchHistory.map(
+                  (item) => ListTile(
+                    leading: Icon(
+                      Icons.history,
                       color: MainScreenColors.getTextColor(
                         isDarkMode,
                       ).withValues(alpha: 0.5),
                     ),
-                    onPressed: () => onHistoryItemRemoved(searchHistory[index]),
+                    title: Text(
+                      item,
+                      style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
+                    ),
+                    trailing: IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        color: MainScreenColors.getTextColor(
+                          isDarkMode,
+                        ).withValues(alpha: 0.5),
+                      ),
+                      onPressed: () => onHistoryItemRemoved(item),
+                    ),
+                    onTap: () => onHistoryItemTapped(item),
                   ),
-                  onTap: () => onHistoryItemTapped(searchHistory[index]),
-                );
-              },
+                ),
+              ],
             ),
           ),
         );
@@ -132,6 +174,9 @@ class SearchSuggestionsList extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: ListView(
+                  padding: const EdgeInsets.only(
+                    bottom: AppDimens.bottomDockClearance,
+                  ),
                   children: [
                     ...searchSuggestions.map(
                       (suggestion) => ListTile(
