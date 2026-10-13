@@ -402,9 +402,20 @@ class OTAProvider extends ChangeNotifier {
   /// the per-release "View on GitHub" action.
   Future<void> openExternal(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !await canLaunchUrl(uri)) return;
+    if (uri == null) return;
 
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    // Try to launch directly rather than gating on `canLaunchUrl`. On Android
+    // 11+ `canLaunchUrl` can return false even when a browser exists (package
+    // visibility), which would turn this into a silent no-op.
+    try {
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        debugPrint('[Update] could not open $url');
+      }
+    } catch (error) {
+      debugPrint('[Update] could not open $url: $error');
+    }
   }
 
   void setUpdateUIShown(bool value) {
