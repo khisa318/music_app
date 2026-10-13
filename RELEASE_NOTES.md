@@ -1,25 +1,29 @@
-# MusiX v1.0.3
+# MusiX v1.0.4
+
+## New
+
+- Import Spotify playlists: paste a Spotify or YouTube playlist link and MusiX detects the source automatically. Spotify playlists are matched track-by-track to YouTube Music and saved as a local, playable playlist, with a live import progress indicator.
+- Redesigned player with a liquid-glass dock and a floating mini player that keeps playback controls within reach.
+- Session resume: MusiX now remembers what you were playing and where you left off, and restores it on the next launch.
+- Richer search with suggestions, and faster, clearer results as you type.
+- More notification controls, including seek back and seek forward actions.
 
 ## Improvements
 
-- Redesigned the update screen: a clean themed layout with dedicated "What's New" and "Fixed" sections pulled straight from the release notes.
-- Added a previous-versions picker so you can review and install any of the last 10 GitHub releases, and open any release on GitHub.
-- Update controls are now grouped into a single "App Updates" section in Settings (current version, check for updates, auto-check, and update channel in one place).
-- Added a download tracker right under the home app bar: see the song downloading, its progress, and pause, resume, or cancel without leaving Home. Tap it to open the full Downloads screen.
-- Download pause/resume now shows clear, translated status on the tracker.
+- New "Reduce Effects" appearance setting: tone down blur and transparency on floating panels for a flatter look or better performance on low-end devices.
+- Home app bar now shows the MusiX app icon instead of a letter avatar.
+- "Download all" action for playlists: queue every song in a playlist in one tap.
+- Complete rebrand to MusiX across the app, settings, share sheets, storage folders, export files, and notification channels.
+- About screen refreshed with the MusiX story, project links, and a changelog.
 
 ## Fixed
 
-- The update prompt no longer overlaps the home screen; it now appears as a clean, centered dialog.
-- External audio files opened from Android's Files app (ACTION_VIEW) now display correct title/artist instead of "Unknown Title/Artist". Content:// URIs are handled properly.
-- Downloads now appear promptly in device storage after completion (media library scan triggered).
-- Profile social/share links updated (Telegram, GitHub, Website).
-- Home skeleton no longer flashes on reload; speed dial tracks made smaller for better density.
-- Language option removed from settings.
-- Android intent filters expanded to support more audio formats and file schemes.
+- Fixed a crash when playback started while notifications were disabled, by creating the media notification channel up front and making notification calls safe.
+- Fixed the "Optimise Battery" action failing with a missing plugin error after the rebrand.
+- Lyrics cache now reads and writes to the same folder, so cached lyrics are actually reused.
 
 ## Notes
 
 - Built with Flutter. All tests and analysis pass.
 
-**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.2...v1.0.3
+**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.3...v1.0.4
