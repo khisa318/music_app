@@ -10,6 +10,7 @@ import '../../../../shared/components/app_snackbar.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/services/content_details_service.dart';
 import '../../../../core/models/song_model.dart';
 import '../../data/providers/library_provider.dart';
@@ -167,9 +168,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final libraryProvider = Provider.of<LibraryProvider>(context);
     final accentColor = settingsProvider.accentColor;
     return Theme(
-      data: ThemeData(
-        scaffoldBackgroundColor: Colors.transparent,
-      ),
+      data: ThemeData(scaffoldBackgroundColor: Colors.transparent),
       child: Scaffold(
         body: Column(
           children: [
@@ -837,7 +836,9 @@ class _LibraryScreenState extends State<LibraryScreen>
           onRefresh: favoriteArtistProvider.loadFavoriteArtists,
           color: accentColor,
           child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: AppDimens.bottomDockClearance),
+            padding: const EdgeInsets.only(
+              bottom: AppDimens.bottomDockClearance,
+            ),
             itemCount: artists.length,
             itemBuilder: (context, index) {
               final artist = artists[index];
@@ -909,8 +910,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         onRefresh: libraryProvider.refreshLibraryData,
         color: accentColor,
         child: LayoutBuilder(
-          builder:
-              (BuildContext context, BoxConstraints viewportConstraints) {
+          builder: (BuildContext context, BoxConstraints viewportConstraints) {
             return SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: ConstrainedBox(
@@ -1100,34 +1100,49 @@ class _LibraryScreenState extends State<LibraryScreen>
   }) {
     final filterValue = fullPath ?? title;
     final isSelected = _selectedFilter == filterValue;
-    return ElevatedButton(
-      onPressed: () {
-        setState(() {
-          _selectedFilter = filterValue;
-        });
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? accentColor
-            : (isDarkMode ? Colors.transparent : Colors.white),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
-          side: BorderSide(color: accentColor),
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDimens.paddingSm,
-          vertical: AppDimens.spacingXs,
-        ),
-        minimumSize: const Size(0, 32),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(
-        title,
-        style: AppTextStyles.caption(
-          isDarkMode: isDarkMode,
-          color: isSelected
-              ? (isDarkMode ? Colors.white : Colors.black)
-              : accentColor,
+    final bool isMobile = AppDimens.isMobile(context);
+
+    return LiquidGlass(
+      borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+      tint: isSelected ? accentColor : Colors.white,
+      opacity: isSelected ? 0.85 : (isDarkMode ? 0.12 : 0.5),
+      boxShadow: isSelected
+          ? [
+              BoxShadow(
+                color: accentColor.withValues(alpha: 0.35),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ]
+          : null,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+          onTap: () {
+            setState(() {
+              _selectedFilter = filterValue;
+            });
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? AppDimens.paddingLg : AppDimens.paddingXl,
+              vertical: isMobile ? AppDimens.spacingMd : AppDimens.spacingMdLg,
+            ),
+            child: Text(
+              title,
+              style:
+                  AppTextStyles.caption(
+                    isDarkMode: isDarkMode,
+                    color: isSelected
+                        ? (isDarkMode ? Colors.white : Colors.black)
+                        : accentColor,
+                  ).copyWith(
+                    fontWeight: AppTextStyles.weightSemiBold,
+                    fontSize: 14,
+                  ),
+            ),
+          ),
         ),
       ),
     );

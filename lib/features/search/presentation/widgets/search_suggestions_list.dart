@@ -5,6 +5,99 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 
+class _SearchCategory {
+  final String label;
+  final String query;
+  final IconData icon;
+  final Color color;
+
+  const _SearchCategory(this.label, this.query, this.icon, this.color);
+}
+
+const List<_SearchCategory> _searchCategories = [
+  _SearchCategory('Pop', 'pop music', Icons.star_rounded, Color(0xFFFF4FE3)),
+  _SearchCategory(
+    'Rock',
+    'rock music',
+    Icons.electric_bolt_rounded,
+    Color(0xFFFF6363),
+  ),
+  _SearchCategory(
+    'Hip-Hop',
+    'hip hop music',
+    Icons.mic_rounded,
+    Color(0xFF7A5CFF),
+  ),
+  _SearchCategory(
+    'R&B',
+    'rnb music',
+    Icons.favorite_rounded,
+    Color(0xFFB863FF),
+  ),
+  _SearchCategory('Jazz', 'jazz music', Icons.piano_rounded, Color(0xFF3F51B5)),
+  _SearchCategory(
+    'Electronic',
+    'electronic music',
+    Icons.graphic_eq_rounded,
+    Color(0xFF00BCD4),
+  ),
+  _SearchCategory(
+    'Classical',
+    'classical music',
+    Icons.music_note_rounded,
+    Color(0xFFB8860B),
+  ),
+  _SearchCategory(
+    'Country',
+    'country music',
+    Icons.landscape_rounded,
+    Color(0xFF808000),
+  ),
+  _SearchCategory(
+    'Reggae',
+    'reggae music',
+    Icons.waves_rounded,
+    Color(0xFF00A86B),
+  ),
+  _SearchCategory(
+    'K-Pop',
+    'kpop music',
+    Icons.auto_awesome_rounded,
+    Color(0xFFFF6EC7),
+  ),
+  _SearchCategory(
+    'Latin',
+    'latin music',
+    Icons.local_fire_department_rounded,
+    Color(0xFFFF8C42),
+  ),
+  _SearchCategory(
+    'Metal',
+    'metal music',
+    Icons.bolt_rounded,
+    Color(0xFF546E7A),
+  ),
+  _SearchCategory(
+    'Blues',
+    'blues music',
+    Icons.nightlife_rounded,
+    Color(0xFF1976D2),
+  ),
+  _SearchCategory('Soul', 'soul music', Icons.spa_rounded, Color(0xFF8E24AA)),
+  _SearchCategory(
+    'Dance',
+    'dance music',
+    Icons.disc_full_rounded,
+    Color(0xFF26C6DA),
+  ),
+  _SearchCategory(
+    'Indie',
+    'indie music',
+    Icons.headphones_rounded,
+    Color(0xFF5C6BC0),
+  ),
+];
+
 class SearchSuggestionsList extends StatelessWidget {
   final bool isDarkMode;
   final Color accentColor;
@@ -18,6 +111,7 @@ class SearchSuggestionsList extends StatelessWidget {
   final ValueChanged<String> onHistoryItemRemoved;
   final VoidCallback? onClearAllHistory;
   final ValueChanged<dynamic> onQuickSongTapped;
+  final ValueChanged<String> onCategoryTapped;
 
   const SearchSuggestionsList({
     super.key,
@@ -33,6 +127,7 @@ class SearchSuggestionsList extends StatelessWidget {
     required this.onHistoryItemRemoved,
     this.onClearAllHistory,
     required this.onQuickSongTapped,
+    required this.onCategoryTapped,
   });
 
   @override
@@ -55,19 +150,6 @@ class SearchSuggestionsList extends StatelessWidget {
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => onInitializeSearchHistory(),
           );
-          return Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Text(
-                'search_hint'.tr(),
-                style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-                  color: MainScreenColors.getTextColor(
-                    isDarkMode,
-                  ).withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-          );
         }
 
         return Center(
@@ -78,7 +160,7 @@ class SearchSuggestionsList extends StatelessWidget {
                 bottom: AppDimens.bottomDockClearance,
               ),
               children: [
-                if (onClearAllHistory != null)
+                if (onClearAllHistory != null && searchHistory.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppDimens.paddingLg,
@@ -90,14 +172,13 @@ class SearchSuggestionsList extends StatelessWidget {
                       children: [
                         Text(
                           'search_history_card_title'.tr(),
-                          style: AppTextStyles.subtitle(
-                            isDarkMode: isDarkMode,
-                          ).copyWith(
-                            color: MainScreenColors.getTextColor(
-                              isDarkMode,
-                            ).withValues(alpha: 0.7),
-                            fontWeight: AppTextStyles.weightSemiBold,
-                          ),
+                          style: AppTextStyles.subtitle(isDarkMode: isDarkMode)
+                              .copyWith(
+                                color: MainScreenColors.getTextColor(
+                                  isDarkMode,
+                                ).withValues(alpha: 0.7),
+                                fontWeight: AppTextStyles.weightSemiBold,
+                              ),
                         ),
                         const Spacer(),
                         TextButton(
@@ -109,7 +190,12 @@ class SearchSuggestionsList extends StatelessWidget {
                             ),
                             minimumSize: const Size(0, 32),
                           ),
-                          child: Text('clear'.tr(), style: AppTextStyles.caption(isDarkMode: isDarkMode)),
+                          child: Text(
+                            'clear'.tr(),
+                            style: AppTextStyles.caption(
+                              isDarkMode: isDarkMode,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -138,11 +224,91 @@ class SearchSuggestionsList extends StatelessWidget {
                     onTap: () => onHistoryItemTapped(item),
                   ),
                 ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppDimens.paddingLg,
+                    searchHistory.isNotEmpty
+                        ? AppDimens.spacingXl
+                        : AppDimens.spacingSm,
+                    AppDimens.paddingLg,
+                    AppDimens.spacingXxs,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader('Browse Categories'),
+                      const SizedBox(height: AppDimens.spacingSm),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        itemCount: _searchCategories.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: AppDimens.spacingMd,
+                              mainAxisSpacing: AppDimens.spacingMd,
+                              childAspectRatio: 2.8,
+                            ),
+                        itemBuilder: (context, index) =>
+                            _buildCategoryTile(_searchCategories[index]),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: AppTextStyles.subtitle(isDarkMode: isDarkMode).copyWith(
+        color: MainScreenColors.getTextColor(isDarkMode).withValues(alpha: 0.7),
+        fontWeight: AppTextStyles.weightSemiBold,
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile(_SearchCategory category) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+      onTap: () => onCategoryTapped(category.query),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingMd),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              category.color.withValues(alpha: 0.9),
+              category.color.withValues(alpha: 0.55),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        ),
+        child: Row(
+          children: [
+            Icon(category.icon, color: Colors.white, size: AppDimens.iconLg),
+            const SizedBox(width: AppDimens.spacingMd),
+            Expanded(
+              child: Text(
+                category.label,
+                style: AppTextStyles.bodyLg(isDarkMode: isDarkMode).copyWith(
+                  color: Colors.white,
+                  fontWeight: AppTextStyles.weightSemiBold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
