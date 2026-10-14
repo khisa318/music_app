@@ -133,7 +133,7 @@ void main() {
         ),
       );
 
-      expect(resolved, MainScreenColors.skyBlue);
+      expect(resolved, MainScreenColors.secondaryPink);
     });
   });
 }
