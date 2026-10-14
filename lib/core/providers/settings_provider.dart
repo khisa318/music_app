@@ -65,7 +65,7 @@ class SettingsProvider with ChangeNotifier {
   String _theme = 'Dark';
   bool _notificationsEnabled = true;
   String _language = 'English';
-  Color _accentColor = MainScreenColors.skyBlue; // default accent
+  Color _accentColor = MainScreenColors.secondaryPink; // default accent (first swatch)
   String _progressBarStyle = 'Default';
 
   String _animationType = 'Animation 1';
@@ -490,7 +490,7 @@ class SettingsProvider with ChangeNotifier {
     if (accentColorValue != null) {
       _accentColor = Color(accentColorValue);
     } else {
-      _accentColor = MainScreenColors.skyBlue;
+      _accentColor = MainScreenColors.secondaryPink;
     }
 
     _adaptiveColorEnabled = (box.get(_adaptiveColorKey) as bool?) ?? false;

@@ -130,6 +130,7 @@ class AudioUrlService {
     int maxRetries = 1,
     Duration initialDelay = const Duration(seconds: 1),
     Completer<bool>? completer,
+    void Function(String errorType, String message)? onError,
   }) async {
     if (completer != null && completer.isCompleted) {
       throw CanceledException('Audio URL fetch cancelled before start');
@@ -182,6 +183,9 @@ class AudioUrlService {
       'Fetching stream URL in isolate for ${song.name} - ${song.videoId} (preloading: $isPreloading)',
     );
 
+    String? lastErrorType;
+    String? lastErrorMessage;
+
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       if (completer != null && completer.isCompleted) {
         throw CanceledException('Audio URL fetch cancelled during retry');
@@ -230,13 +234,19 @@ class AudioUrlService {
           );
           return {'url': audioUrl, 'duration': duration};
         } else {
-          final error = result['error'] as String?;
-          throw Exception(error ?? 'Unknown error from isolate');
+          lastErrorType = result['errorType'] as String? ?? 'unknown';
+          lastErrorMessage =
+              result['error'] as String? ??
+              'Unable to play this song right now.';
+          throw Exception(lastErrorMessage);
         }
       } catch (e) {
         debugPrint(
           'Error getting audio URL for ${song.videoId} (attempt ${attempt + 1}): $e',
         );
+
+        lastErrorType ??= _classifyError(e);
+        lastErrorMessage ??= _userMessageForError(lastErrorType);
 
         if (e is! CanceledException) {
           AudioUrlIsolate.cancelRequest(song.videoId).catchError((_) {});
@@ -250,7 +260,54 @@ class AudioUrlService {
     }
 
     debugPrint('All retries failed for ${song.videoId}');
+
+    onError?.call(
+      lastErrorType ?? 'unknown',
+      lastErrorMessage ?? 'Unable to play this song right now.',
+    );
+
     return null;
+  }
+
+  static String _classifyError(Object error) {
+    final message = error.toString().toLowerCase();
+
+    if (message.contains('not a bot') ||
+        message.contains('confirm you') ||
+        message.contains('sign in to') ||
+        message.contains('login_required') ||
+        message.contains('rate limit') ||
+        message.contains('too many requests') ||
+        message.contains('bot_check') ||
+        message.contains('429') ||
+        message.contains('/sorry/')) {
+      return 'bot_check';
+    }
+
+    if (message.contains('network') ||
+        message.contains('socket') ||
+        message.contains('connection') ||
+        message.contains('timeout')) {
+      return 'network';
+    }
+
+    return 'unknown';
+  }
+
+  static String _userMessageForError(String errorType) {
+    switch (errorType) {
+      case 'bot_check':
+        return 'YouTube is asking to verify you are not a bot. '
+            'Please try again in a moment.';
+      case 'network':
+        return 'Unable to connect. Check your internet connection.';
+      case 'unavailable':
+        return 'This song is currently unavailable.';
+      case 'no_audio':
+        return 'No playable audio was found for this song.';
+      default:
+        return 'Unable to play this song right now.';
+    }
   }
 
   AudioOnlyStreamInfo getStreamQuality(StreamManifest manifest) {

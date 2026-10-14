@@ -6,8 +6,8 @@ import '../constants/app_colors.dart';
 ///
 /// The accent used to reach a widget only as a hand-passed
 /// `SettingsProvider.accentColor` argument, so anything that resolved its
-/// colour from `Theme.of(context)` fell back to [MainScreenColors.skyBlue] and
-/// ignored the choice that had been made.
+/// colour from `Theme.of(context)` fell back to [MainScreenColors.secondaryPink]
+/// and ignored the choice that had been made.
 @immutable
 class MusiXAccent extends ThemeExtension<MusiXAccent> {
   const MusiXAccent(this.color);
@@ -32,7 +32,7 @@ extension MusiXThemeContext on BuildContext {
   /// built without one.
   Color get accentColor =>
       Theme.of(this).extension<MusiXAccent>()?.color ??
-      MainScreenColors.skyBlue;
+      MainScreenColors.secondaryPink;
 }
 
 class AppTheme {

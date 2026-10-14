@@ -27,6 +27,10 @@ class SongListTile extends StatelessWidget {
 
   final VoidCallback? onLongPress;
 
+  /// When set, the trailing action becomes "remove from playlist" instead of
+  /// the overflow menu. Only used for locally stored playlists.
+  final VoidCallback? onDelete;
+
   const SongListTile({
     super.key,
     required this.song,
@@ -39,6 +43,7 @@ class SongListTile extends StatelessWidget {
     this.isSelected = false,
     this.onSelectionChanged,
     this.onLongPress,
+    this.onDelete,
   });
 
   String _formatDuration(Duration? duration) {
@@ -99,9 +104,7 @@ class SongListTile extends StatelessWidget {
 
     final mq = MediaQuery.of(context);
     final textScaleFactor = mq.textScaler.scale(1.0);
-    final enforcedTextScale = textScaleFactor > 1.0
-        ? 1.0
-        : textScaleFactor;
+    final enforcedTextScale = textScaleFactor > 1.0 ? 1.0 : textScaleFactor;
 
     return MediaQuery(
       data: mq.copyWith(textScaler: TextScaler.linear(enforcedTextScale)),
@@ -250,7 +253,9 @@ class SongListTile extends StatelessWidget {
                         height: AppDimens.iconMd * uiScale,
                         child: CircularProgressIndicator(
                           strokeWidth: AppDimens.progressStroke * uiScale,
-                          valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
                         ),
                       )
                     else if (downloadProgress != null &&
@@ -303,11 +308,11 @@ class SongListTile extends StatelessWidget {
                       ),
                     IconButton(
                       icon: Icon(
-                        Icons.more_vert,
-                        color: textColor,
+                        onDelete != null ? Icons.delete : Icons.more_vert,
+                        color: onDelete != null ? Colors.redAccent : textColor,
                         size: AppDimens.iconMd * uiScale,
                       ),
-                      onPressed: showOptionsBottomSheet,
+                      onPressed: onDelete ?? showOptionsBottomSheet,
                     ),
                   ],
                 ),
