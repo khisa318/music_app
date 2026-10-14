@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../../features/equalizer/presentation/data/services/equalizer_services.dart';
+import '../../shared/components/app_snackbar.dart';
 import '../models/song_model.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
@@ -533,6 +534,33 @@ class PlayerService {
     }
   }
 
+  DateTime? _lastStreamErrorShownAt;
+
+  /// Surfaces playback failures the user can act on.
+  ///
+  /// YouTube's bot check is transient and worth telling the user about;
+  /// everything else is handled by the normal "skip to next" flow. Throttled
+  /// so the retry attempts around a single song do not stack snackbars.
+  void _handleStreamFetchError(String errorType, String message) {
+    if (errorType != 'bot_check') return;
+
+    final now = DateTime.now();
+
+    if (_lastStreamErrorShownAt != null &&
+        now.difference(_lastStreamErrorShownAt!) <
+            const Duration(seconds: 15)) {
+      return;
+    }
+
+    _lastStreamErrorShownAt = now;
+
+    final context = GetIt.I<SettingsProvider>().navigatorKey.currentContext;
+
+    if (context == null || !context.mounted) return;
+
+    AppSnackBar.showWarning(context, message);
+  }
+
   Future<void> _openSong(
     SongInfo song, {
     required bool playWhenReady,
@@ -578,6 +606,7 @@ class PlayerService {
           final audioData = await _audioUrlService.getAudioUrl(
             song,
             forceRefresh: forceRefresh,
+            onError: _handleStreamFetchError,
           );
 
           final audioUrl = audioData?['url'] as String?;
