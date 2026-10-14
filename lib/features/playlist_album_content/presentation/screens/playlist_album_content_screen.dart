@@ -14,6 +14,7 @@ import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/download_provider.dart' as dp;
 import '../../data/providers/playlist_album_content_provider.dart';
+import '../../data/models/local_playlist_content.dart';
 import '../widgets/search_song_delegate.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
@@ -29,22 +30,45 @@ class PlaylistAlbumContent extends StatefulWidget {
 class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   final ScrollController _scrollController = ScrollController();
   late PlaylistAlbumContentProvider _provider;
+  late final PlaylistAlbumLibraryProvider _libraryProvider;
+  bool _isLocal = false;
 
   @override
   void initState() {
     super.initState();
     _provider = PlaylistAlbumContentProvider();
     _provider.addListener(() => setState(() {}));
-    _provider.loadContent(widget.content);
-    _checkIfSaved();
-  }
-
-  Future<void> _checkIfSaved() async {
-    final libraryProvider = Provider.of<PlaylistAlbumLibraryProvider>(
+    _libraryProvider = Provider.of<PlaylistAlbumLibraryProvider>(
       context,
       listen: false,
     );
-    await _provider.checkIfSaved(widget.content, libraryProvider);
+    _isLocal = widget.content is LocalPlaylistContent;
+    if (_isLocal) _libraryProvider.addListener(_onLibraryChanged);
+    _provider.loadContent(widget.content, libraryProvider: _libraryProvider);
+    _provider.checkIfSaved(widget.content, _libraryProvider);
+  }
+
+  /// Local playlists can be written to (removing a song, or a background
+  /// Spotify import still filling them in), so re-read them on change.
+  void _onLibraryChanged() {
+    if (!mounted) return;
+    _provider.refreshLocalSongs(_libraryProvider);
+  }
+
+  String get _localPlaylistName =>
+      (widget.content as LocalPlaylistContent).playlistName;
+
+  Future<void> _removeSong(dynamic song) async {
+    await _libraryProvider.removeSongFromPlaylist(
+      _localPlaylistName,
+      song.videoId as String,
+    );
+    if (!mounted) return;
+    AppSnackBar.showInfo(
+      context,
+      'removed_from_playlist'.tr(),
+      duration: const Duration(seconds: 2),
+    );
   }
 
   Future<void> _addToLibrary() async {
@@ -446,21 +470,22 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                 iconSize: iconSize,
                 padding: buttonPadding,
               ),
-              _buildResponsiveIconButton(
-                icon: _provider.isSaved
-                    ? Icons.library_add_check
-                    : Icons.library_add,
-                onPressed: _provider.isSaved
-                    ? _removeFromLibrary
-                    : _addToLibrary,
-                tooltip: _provider.isSaved
-                    ? 'remove_from_library'.tr()
-                    : 'add_to_library'.tr(),
-                isDarkMode: isDarkMode,
-                size: buttonSize,
-                iconSize: iconSize,
-                padding: buttonPadding,
-              ),
+              if (_provider.canToggleLibrary)
+                _buildResponsiveIconButton(
+                  icon: _provider.isSaved
+                      ? Icons.library_add_check
+                      : Icons.library_add,
+                  onPressed: _provider.isSaved
+                      ? _removeFromLibrary
+                      : _addToLibrary,
+                  tooltip: _provider.isSaved
+                      ? 'remove_from_library'.tr()
+                      : 'add_to_library'.tr(),
+                  isDarkMode: isDarkMode,
+                  size: buttonSize,
+                  iconSize: iconSize,
+                  padding: buttonPadding,
+                ),
               _buildResponsiveIconButton(
                 icon: Icons.download,
                 onPressed: _provider.allSongs.isEmpty
@@ -551,17 +576,20 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
           iconSize: iconSize,
           padding: buttonPadding,
         ),
-        _buildResponsiveIconButton(
-          icon: _provider.isSaved ? Icons.library_add_check : Icons.library_add,
-          onPressed: _provider.isSaved ? _removeFromLibrary : _addToLibrary,
-          tooltip: _provider.isSaved
-              ? 'remove_from_library'.tr()
-              : 'add_to_library'.tr(),
-          isDarkMode: isDarkMode,
-          size: buttonSize,
-          iconSize: iconSize,
-          padding: buttonPadding,
-        ),
+        if (_provider.canToggleLibrary)
+          _buildResponsiveIconButton(
+            icon: _provider.isSaved
+                ? Icons.library_add_check
+                : Icons.library_add,
+            onPressed: _provider.isSaved ? _removeFromLibrary : _addToLibrary,
+            tooltip: _provider.isSaved
+                ? 'remove_from_library'.tr()
+                : 'add_to_library'.tr(),
+            isDarkMode: isDarkMode,
+            size: buttonSize,
+            iconSize: iconSize,
+            padding: buttonPadding,
+          ),
         SizedBox(
           width: isVerySmall ? screenWidth * 0.25 : screenWidth * 0.3,
           child: ElevatedButton(
@@ -761,6 +789,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                       song: song,
                       isPlaying: isCurrentlyPlaying,
                       onPlay: () => _playSong(song),
+                      onDelete: _isLocal ? () => _removeSong(song) : null,
                       isDarkMode: isDarkMode,
                     ),
                   );
@@ -855,6 +884,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                           song: song,
                           isPlaying: isCurrentlyPlaying,
                           onPlay: () => _playSong(song),
+                          onDelete: _isLocal ? () => _removeSong(song) : null,
                           isDarkMode: isDarkMode,
                         ),
                       );
@@ -878,6 +908,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
 
   @override
   void dispose() {
+    if (_isLocal) _libraryProvider.removeListener(_onLibraryChanged);
     _provider.removeListener(() => setState(() {}));
     _scrollController.dispose();
     super.dispose();

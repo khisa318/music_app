@@ -17,8 +17,8 @@ import '../../data/providers/playlist_album_library_provider.dart';
 
 import '../../../library/presentation/widgets/library_dense_row.dart';
 import '../../../playlist_album_content/presentation/screens/playlist_album_content_screen.dart';
+import '../../../playlist_album_content/data/models/local_playlist_content.dart';
 import '../widgets/create_playlist_bottomsheet.dart';
-import 'playlists_detail_screen.dart';
 
 import '../../../../shared/components/app_empty_state.dart';
 import '../../../../shared/components/app_snackbar.dart';
@@ -93,7 +93,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   // ============================================================
 
   Future<void> _createNewPlaylist() async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -104,13 +104,19 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
     if (!mounted) return;
 
-    if (result == true) {
-      final provider = Provider.of<PlaylistAlbumLibraryProvider>(
-        context,
-        listen: false,
-      );
+    final provider = Provider.of<PlaylistAlbumLibraryProvider>(
+      context,
+      listen: false,
+    );
 
+    if (result == true) {
       await provider.loadCreatedPlaylistsWithThumbnails();
+    } else if (result is Map) {
+      await provider.loadCreatedPlaylistsWithThumbnails();
+
+      if (!mounted) return;
+
+      _showPlaylistDetails(Map<String, dynamic>.from(result));
     }
   }
 
@@ -862,9 +868,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           },
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(
-              bottom: AppDimens.bottomDockClearance,
-            ),
+            padding: const EdgeInsets.only(bottom: 120),
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
@@ -1667,36 +1671,26 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   // PLAYLIST DETAILS
   // ============================================================
 
-  Future<void> _showPlaylistDetails(Map<String, dynamic> playlist) async {
-    try {
-      final name = playlist['name']?.toString();
+  /// Opens a locally stored (created) playlist in the same detail screen used
+  /// for saved YouTube playlists and albums.
+  void _showPlaylistDetails(Map<String, dynamic> playlist) {
+    final name = playlist['name']?.toString();
 
-      if (name == null || name.isEmpty) {
-        return;
-      }
-
-      final provider = Provider.of<PlaylistAlbumLibraryProvider>(
-        context,
-        listen: false,
-      );
-
-      final songs = await provider.getPlaylistSongs(name);
-
-      if (!mounted) return;
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              PlaylistDetailsScreen(playlist: playlist, songs: songs),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Error opening playlist: $e');
-
-      if (!mounted) return;
-
-      AppSnackBar.showError(context, 'Error opening playlist');
+    if (name == null || name.isEmpty) {
+      return;
     }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistAlbumContent(
+          content: LocalPlaylistContent(
+            playlistName: name,
+            name: name,
+            thumbnailUrl: playlist['thumbnail']?.toString() ?? '',
+          ),
+        ),
+      ),
+    );
   }
 }
