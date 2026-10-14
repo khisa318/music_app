@@ -464,6 +464,8 @@ Future<void> main() async {
 
               fallbackLocale: const Locale('en'),
 
+              useFallbackTranslations: true,
+
               child: const MusiXApp(),
             ),
           ),
@@ -518,6 +520,7 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
       _intentService = IntentService(
         Provider.of<PlayerProvider>(context, listen: false),
         Provider.of<QueueProvider>(context, listen: false),
+        Provider.of<PlaylistAlbumLibraryProvider>(context, listen: false),
       );
 
       _intentService?.init();

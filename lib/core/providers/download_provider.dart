@@ -14,6 +14,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import '../services/audio_url_isolate.dart';
 import '../services/local_songs_service.dart';
+import '../../shared/components/app_snackbar.dart';
 
 import 'connectivity_provider.dart';
 import 'settings_provider.dart';
@@ -534,6 +535,39 @@ class DownloadProvider with ChangeNotifier {
     }
   }
 
+  DateTime? _lastStreamErrorShownAt;
+
+  /// Shows a warning when a download URL fetch fails because YouTube is
+  /// asking the user to verify they are not a bot. Throttled so a batch of
+  /// downloads hitting the same check does not stack snackbars.
+  void _maybeShowStreamError(
+    Map<String, dynamic> urlResult,
+    SettingsProvider settingsProvider,
+  ) {
+    if (urlResult['errorType'] != 'bot_check') return;
+
+    final now = DateTime.now();
+
+    if (_lastStreamErrorShownAt != null &&
+        now.difference(_lastStreamErrorShownAt!) <
+            const Duration(seconds: 15)) {
+      return;
+    }
+
+    _lastStreamErrorShownAt = now;
+
+    final context = settingsProvider.navigatorKey.currentContext;
+
+    if (context == null || !context.mounted) return;
+
+    AppSnackBar.showWarning(
+      context,
+      urlResult['error'] as String? ??
+          'YouTube is asking to verify you are not a bot. '
+              'Please try again in a moment.',
+    );
+  }
+
   Future<void> _startDownload(
     SongInfo song,
     bool shouldShowNotifications,
@@ -562,19 +596,37 @@ class DownloadProvider with ChangeNotifier {
 
       final settingsProvider = GetIt.I<SettingsProvider>();
 
-      final urlResult = await AudioUrlIsolate.fetchStreamUrl(
-        videoId: videoId,
-        streamingQuality: settingsProvider.downloadingQuality.toLowerCase(),
-        timeout: const Duration(seconds: 30),
-        title: song.name,
-        artist: song.artists.isNotEmpty
-            ? song.artists[0].name
-            : 'Unknown Artist',
-        forDownloading: true,
-        jioSaavnEnabled: settingsProvider.jioSaavnEnabled,
-      );
+      Map<String, dynamic> urlResult = {};
+      const transientErrorTypes = {'bot_check', 'network'};
+
+      for (var attempt = 0; attempt < 2; attempt++) {
+        urlResult = await AudioUrlIsolate.fetchStreamUrl(
+          videoId: videoId,
+          streamingQuality: settingsProvider.downloadingQuality.toLowerCase(),
+          timeout: const Duration(seconds: 30),
+          title: song.name,
+          artist: song.artists.isNotEmpty
+              ? song.artists[0].name
+              : 'Unknown Artist',
+          forDownloading: true,
+          jioSaavnEnabled: settingsProvider.jioSaavnEnabled,
+        );
+
+        if (urlResult['success'] == true) break;
+
+        final isTransient = transientErrorTypes.contains(urlResult['errorType']);
+
+        if (!isTransient || attempt == 1) break;
+
+        debugPrint(
+          'Download URL fetch for $videoId failed '
+          '(${urlResult['errorType']}); retrying once with a fresh URL',
+        );
+        await Future.delayed(const Duration(seconds: 2));
+      }
 
       if (urlResult['success'] != true) {
+        _maybeShowStreamError(urlResult, settingsProvider);
         throw Exception('Failed to fetch download URL: ${urlResult['error']}');
       }
 

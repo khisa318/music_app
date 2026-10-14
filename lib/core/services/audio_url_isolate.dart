@@ -20,7 +20,9 @@ Future<Map<String, dynamic>> _fetchYoutubeUrl(
       return {
         'success': false,
         'source': 'youtube',
-        'errorType': 'unavailable',
+        'errorType': streamProvider.errorType.isNotEmpty
+            ? streamProvider.errorType
+            : 'unavailable',
         'error': streamProvider.statusMSG.isNotEmpty
             ? streamProvider.statusMSG
             : 'This YouTube video is unavailable.',
@@ -107,8 +109,25 @@ Future<Map<String, dynamic>> _fetchYoutubeUrl(
   }
 }
 
+bool _looksLikeBotCheck(String message) {
+  return message.contains('not a bot') ||
+      message.contains('confirm you') ||
+      message.contains('sign in to') ||
+      message.contains('login_required') ||
+      message.contains('login required') ||
+      message.contains('rate limit') ||
+      message.contains('too many requests') ||
+      message.contains('bot_check') ||
+      message.contains('429') ||
+      message.contains('/sorry/');
+}
+
 String _getErrorType(Object error) {
   final String message = error.toString().toLowerCase();
+
+  if (_looksLikeBotCheck(message)) {
+    return 'bot_check';
+  }
 
   if (message.contains('unavailable') ||
       message.contains('private') ||
@@ -133,6 +152,11 @@ String _getErrorType(Object error) {
 
 String _getUserFriendlyError(Object error) {
   final String message = error.toString().toLowerCase();
+
+  if (_looksLikeBotCheck(message)) {
+    return 'YouTube is asking to verify you are not a bot. '
+        'Please try again in a moment.';
+  }
 
   if (message.contains('unavailable') ||
       message.contains('private') ||

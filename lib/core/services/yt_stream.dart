@@ -17,123 +17,200 @@ class StreamProvider {
     this.errorType = '',
   });
 
+  /// YouTube clients to rotate through when resolving a stream manifest.
+  ///
+  /// YouTube serves each client a different manifest and applies its bot
+  /// check / rate limiting unevenly, so falling back across several clients
+  /// recovers many songs the default client alone fails on. Ordered
+  /// "most reliable for logged-out playback" first.
+  static final List<List<YoutubeApiClient>> _clientRotation = [
+    [YoutubeApiClient.visionos],
+    [YoutubeApiClient.androidVr],
+    [YoutubeApiClient.ios],
+    [YoutubeApiClient.androidMusic],
+    [YoutubeApiClient.android],
+    [YoutubeApiClient.tv],
+    [YoutubeApiClient.mweb],
+  ];
+
   static Future<StreamProvider> fetch(String videoId) async {
     final yt = YoutubeExplode();
 
     try {
       debugPrint('StreamProvider.fetch: fetching manifest for $videoId');
 
-      final res = await yt.videos.streamsClient.getManifest(videoId);
+      Object? lastError;
+      var botCheckDetected = false;
 
-      final audio = res.audioOnly;
+      for (var i = 0; i < _clientRotation.length; i++) {
+        final clients = _clientRotation[i];
 
-      debugPrint(
-        'StreamProvider.fetch: manifest fetched '
-        '- audioOnly count=${audio.length}',
-      );
+        try {
+          final res = await yt.videos.streamsClient.getManifest(
+            videoId,
+            ytClients: clients,
+          );
 
-      if (audio.isEmpty) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'No playable audio was found.',
-          errorType: 'no_audio',
-        );
-      }
+          final formats = _mapAudio(res.audioOnly);
 
-      final List<Audio> formats = [];
+          debugPrint(
+            'StreamProvider.fetch: manifest fetched with '
+            '${_clientLabel(clients)} '
+            '- audioOnly count=${formats.length}',
+          );
 
-      try {
-        for (final e in audio) {
-          formats.add(
-            Audio(
-              itag: e.tag,
-              audioCodec: e.audioCodec.contains('mp') ? Codec.mp4a : Codec.opus,
-              bitrate: e.bitrate.bitsPerSecond,
-              duration: 0,
-              loudnessDb: 0.0,
-              url: e.url.toString(),
-              size: e.size.totalBytes,
-            ),
+          if (formats.isNotEmpty) {
+            return StreamProvider(
+              playable: true,
+              statusMSG: 'OK',
+              errorType: '',
+              audioFormats: formats,
+            );
+          }
+        } catch (e, st) {
+          lastError = e;
+
+          if (_isBotCheck(e)) {
+            botCheckDetected = true;
+          }
+
+          debugPrint(
+            'StreamProvider.fetch: ${_clientLabel(clients)} '
+            'failed: $e\n$st',
           );
         }
-      } catch (mapError, st) {
-        debugPrint(
-          'StreamProvider.fetch: mapping error: '
-          '$mapError\n$st',
-        );
 
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'Unable to process the audio stream.',
-          errorType: 'mapping_error',
-        );
+        if (i < _clientRotation.length - 1) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
       }
 
-      if (formats.isEmpty) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'No playable audio was found.',
-          errorType: 'no_audio',
-        );
-      }
-
-      return StreamProvider(
-        playable: true,
-        statusMSG: 'OK',
-        errorType: '',
-        audioFormats: formats,
+      debugPrint(
+        'StreamProvider.fetch: all clients failed for $videoId '
+        '(botCheck: $botCheckDetected)',
       );
+
+      return _failureResult(lastError, botCheckDetected: botCheckDetected);
     } catch (e, st) {
-      debugPrint('StreamProvider.fetch: exception: $e\n$st');
+      debugPrint('StreamProvider.fetch: unexpected exception: $e\n$st');
 
-      if (e is SocketException) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'Unable to connect to the internet.',
-          errorType: 'network',
-        );
-      }
-
-      if (e is VideoUnavailableException) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'This song is currently unavailable.',
-          errorType: 'unavailable',
-        );
-      }
-
-      if (e is VideoUnplayableException) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'This song cannot be played.',
-          errorType: 'unplayable',
-        );
-      }
-
-      if (e is VideoRequiresPurchaseException) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'This song requires a purchase.',
-          errorType: 'purchase_required',
-        );
-      }
-
-      if (e is YoutubeExplodeException) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: 'Unable to load this song.',
-          errorType: 'youtube_error',
-        );
-      }
-
-      return StreamProvider(
-        playable: false,
-        statusMSG: 'Unable to play this song right now.',
-        errorType: 'unknown',
-      );
+      return _failureResult(e, botCheckDetected: _isBotCheck(e));
     } finally {
       yt.close();
     }
+  }
+
+  static List<Audio> _mapAudio(Iterable<AudioOnlyStreamInfo> audio) {
+    try {
+      final formats = <Audio>[];
+
+      for (final e in audio) {
+        formats.add(
+          Audio(
+            itag: e.tag,
+            audioCodec: e.audioCodec.contains('mp') ? Codec.mp4a : Codec.opus,
+            bitrate: e.bitrate.bitsPerSecond,
+            duration: 0,
+            loudnessDb: 0.0,
+            url: e.url.toString(),
+            size: e.size.totalBytes,
+          ),
+        );
+      }
+
+      return formats;
+    } catch (e) {
+      throw _AudioMappingException(e.toString());
+    }
+  }
+
+  static String _clientLabel(List<YoutubeApiClient> clients) => clients
+      .map((c) => c.payload['context']['client']['clientName'])
+      .join('+');
+
+  /// True when the failure looks like YouTube's bot / sign-in check or a rate
+  /// limit rather than a genuinely unavailable video.
+  static bool _isBotCheck(Object? error) {
+    final text = error?.toString().toLowerCase() ?? '';
+
+    return text.contains('not a bot') ||
+        text.contains('confirm you') ||
+        text.contains('sign in to') ||
+        text.contains('login_required') ||
+        text.contains('login required') ||
+        text.contains('rate limit') ||
+        text.contains('too many requests') ||
+        text.contains('429') ||
+        text.contains('/sorry/');
+  }
+
+  static StreamProvider _failureResult(
+    Object? error, {
+    required bool botCheckDetected,
+  }) {
+    if (botCheckDetected || error is RequestLimitExceededException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG:
+            'YouTube is asking to verify you are not a bot. '
+            'Please try again in a moment.',
+        errorType: 'bot_check',
+      );
+    }
+
+    if (error is SocketException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'Unable to connect to the internet.',
+        errorType: 'network',
+      );
+    }
+
+    if (error is VideoUnavailableException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'This song is currently unavailable.',
+        errorType: 'unavailable',
+      );
+    }
+
+    if (error is VideoUnplayableException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'This song cannot be played.',
+        errorType: 'unplayable',
+      );
+    }
+
+    if (error is VideoRequiresPurchaseException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'This song requires a purchase.',
+        errorType: 'purchase_required',
+      );
+    }
+
+    if (error is _AudioMappingException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'Unable to process the audio stream.',
+        errorType: 'mapping_error',
+      );
+    }
+
+    if (error is YoutubeExplodeException) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: 'Unable to load this song.',
+        errorType: 'youtube_error',
+      );
+    }
+
+    return StreamProvider(
+      playable: false,
+      statusMSG: 'Unable to play this song right now.',
+      errorType: 'unknown',
+    );
   }
 
   Audio? get highestQualityAudio {
@@ -179,6 +256,15 @@ class StreamProvider {
       orElse: () => audioFormats!.first,
     );
   }
+}
+
+class _AudioMappingException implements Exception {
+  final String message;
+
+  _AudioMappingException(this.message);
+
+  @override
+  String toString() => 'AudioMappingException: $message';
 }
 
 class Audio {

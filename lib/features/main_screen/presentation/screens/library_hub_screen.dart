@@ -10,6 +10,9 @@ import '../../../library/data/providers/library_provider.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../library/presentation/widgets/library_filter_chips.dart';
 import '../../../library/presentation/widgets/library_song_search_delegate.dart';
+import '../../../playlists/data/providers/playlist_album_library_provider.dart';
+import '../../../playlist_album_content/data/models/local_playlist_content.dart';
+import '../../../playlist_album_content/presentation/screens/playlist_album_content_screen.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
 import '../../../playlists/presentation/widgets/create_playlist_bottomsheet.dart';
 
@@ -76,16 +79,47 @@ class _LibraryHubScreenState extends State<LibraryHubScreen>
   }
 
   Future<void> _createPlaylist() async {
-    final created = await showModalBottomSheet<bool?>(
+    final result = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const CreatePlaylistBottomSheet(),
     );
 
-    if (created == true && mounted) {
+    if (!mounted) return;
+
+    if (result == true) {
       _selectFilter(_playlistsFilter);
+    } else if (result is Map) {
+      _openImportedPlaylist(Map<String, dynamic>.from(result));
     }
+  }
+
+  /// Opens a locally stored (created) playlist in the same detail screen used
+  /// for saved YouTube playlists and albums.
+  void _openImportedPlaylist(Map<String, dynamic> playlist) {
+    final provider = Provider.of<PlaylistAlbumLibraryProvider>(
+      context,
+      listen: false,
+    );
+    provider.loadCreatedPlaylistsWithThumbnails();
+
+    final name = playlist['name']?.toString();
+
+    if (name == null || name.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistAlbumContent(
+          content: LocalPlaylistContent(
+            playlistName: name,
+            name: name,
+            thumbnailUrl: playlist['thumbnail']?.toString() ?? '',
+          ),
+        ),
+      ),
+    );
   }
 
   void _openSongSearch() {

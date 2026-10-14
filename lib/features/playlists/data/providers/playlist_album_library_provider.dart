@@ -2,6 +2,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
 
+import '../../../../core/services/spotify_playlist_service.dart';
+import '../../../../core/services/spotify_track_matcher.dart';
+
+/// Live progress of a Spotify playlist being matched in the background.
+class PlaylistImportProgress {
+  final int total;
+  int matched;
+  bool done;
+
+  PlaylistImportProgress({
+    required this.total,
+    this.matched = 0,
+    this.done = false,
+  });
+
+  double get fraction => total <= 0 ? 0 : (matched / total).clamp(0.0, 1.0);
+}
+
 class PlaylistAlbumLibraryProvider with ChangeNotifier {
   static const String _playlistsBox = 'saved_playlists';
   static const String _albumsBox = 'saved_albums';
@@ -17,6 +35,8 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
   List<Map<String, dynamic>> _savedAlbums = [];
   List<Map<String, dynamic>> _createdPlaylists = [];
   bool _hasLoadedCreatedPlaylists = false;
+
+  final Map<String, PlaylistImportProgress> _importProgress = {};
 
   bool isPlaylistsLoading = false;
   bool isAlbumsLoading = false;
@@ -208,6 +228,68 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
 
     await _createdPlaylistsBox.put(name, json.encode(item));
     await loadCreatedPlaylists(notify: true);
+  }
+
+  /// Saves a playlist under [desiredName], appending " (2)", " (3)"… if a
+  /// playlist with that name already exists, and returns the name used.
+  Future<String> createPlaylistWithUniqueName(
+    String desiredName, {
+    String? thumbnail,
+  }) async {
+    var candidate = desiredName;
+    var index = 2;
+    while (true) {
+      try {
+        await saveCreatedPlaylist(candidate, thumbnail: thumbnail);
+        return candidate;
+      } catch (_) {
+        candidate = '$desiredName ($index)';
+        index++;
+      }
+    }
+  }
+
+  /// Live progress of a background import for [playlistName], or null.
+  PlaylistImportProgress? getImportProgress(String playlistName) =>
+      _importProgress[playlistName];
+
+  bool isImportingPlaylist(String playlistName) {
+    final progress = _importProgress[playlistName];
+    return progress != null && !progress.done;
+  }
+
+  /// Matches [tracks] to YouTube Music and appends them to [playlistName] as
+  /// they are found, so the playlist can be opened while this runs.
+  Future<void> importSpotifyTracksIntoPlaylist(
+    String playlistName,
+    List<SpotifyTrack> tracks, {
+    required int totalTracks,
+    int alreadyMatched = 0,
+  }) async {
+    if (tracks.isEmpty) return;
+
+    final progress = PlaylistImportProgress(
+      total: totalTracks,
+      matched: alreadyMatched,
+    );
+    _importProgress[playlistName] = progress;
+    notifyListeners();
+
+    try {
+      await SpotifyTrackMatcher().matchAll(
+        tracks,
+        onMatched: (song) async {
+          await saveSongToPlaylist(playlistName, song);
+          progress.matched++;
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      debugPrint('Background Spotify import failed for $playlistName: $e');
+    } finally {
+      progress.done = true;
+      notifyListeners();
+    }
   }
 
   Future<void> deleteCreatedPlaylist(String name) async {
