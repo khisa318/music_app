@@ -13,6 +13,7 @@ import '../widgets/voice_search_overlay.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
@@ -270,6 +271,32 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
+  Future<void> _onCategoryTapped(String query) async {
+    _focusNode.unfocus();
+
+    if (_searchMode != SearchMode.youtubeMusic) {
+      setState(() {
+        _searchMode = SearchMode.youtubeMusic;
+      });
+
+      _onModeChanged();
+    }
+
+    _searchController.text = query;
+
+    _showSuggestionsNotifier.value = false;
+
+    await _onSearch(query);
+
+    final songs = _categorizedResultsNotifier.value['Songs'] ?? [];
+
+    if (!mounted || songs.isEmpty) {
+      return;
+    }
+
+    await _playSong(songs.first);
+  }
+
   Future<void> _removeSearchHistoryItem(String query) async {
     final updatedHistory = await _services.removeFromSearchHistory(
       _searchHistoryNotifier.value,
@@ -514,10 +541,9 @@ class _SearchScreenState extends State<SearchScreen>
                                     SliverPersistentHeader(
                                       pinned: true,
                                       delegate: _SliverTabBarDelegate(
-                                        child: Container(
-                                          color: Theme.of(
-                                            context,
-                                          ).scaffoldBackgroundColor,
+                                        child: LiquidGlass(
+                                          borderRadius: BorderRadius.zero,
+                                          opacity: isDarkMode ? 0.10 : 0.4,
                                           child: Center(
                                             child: ConstrainedBox(
                                               constraints: BoxConstraints(
@@ -628,6 +654,7 @@ class _SearchScreenState extends State<SearchScreen>
 
               _playSong(song);
             },
+            onCategoryTapped: _onCategoryTapped,
           );
         }
 
