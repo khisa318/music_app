@@ -26,6 +26,11 @@ class DownloadProvider with ChangeNotifier {
   yt_.YoutubeExplode get yt => _yt;
   final _collectionEquality = const DeepCollectionEquality();
 
+  /// How many automatic retries a failed download gets before it is parked
+  /// as permanently failed. Between retries the song is rotated to the back
+  /// of the queue so the remaining downloads are not held up.
+  static const int _maxAutoRetries = 3;
+
   final Map<String, CancelToken?> _downloadCancelTokens = {};
   final Map<String, DownloadProgress> _progressMap = {};
   List<Map<String, dynamic>> _downloadQueue = [];
@@ -96,8 +101,39 @@ class DownloadProvider with ChangeNotifier {
   }
 
   Future<void> _initializeDownloads() async {
+    await _requeueFailedDownloadsWithRemainingRetries();
     await Future.delayed(const Duration(seconds: 2));
     await _processDownloadQueue();
+  }
+
+  /// Re-queues downloads that failed in a previous session and still have
+  /// automatic retries left, so a flaky network at launch cannot permanently
+  /// strand a song the user asked for.
+  Future<void> _requeueFailedDownloadsWithRemainingRetries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+    var changed = false;
+
+    final updatedQueue = queue.map((item) {
+      final Map<String, dynamic> songData = json.decode(item);
+      if (songData['status'] == 'failed') {
+        final retryCount = (songData['retryCount'] as int?) ?? 0;
+        if (retryCount < _maxAutoRetries) {
+          songData['status'] = 'queued';
+          changed = true;
+          debugPrint(
+            'Re-queued previously failed download $retryCount/$_maxAutoRetries '
+            'retries used: ${songData['id']}',
+          );
+        }
+      }
+      return json.encode(songData);
+    }).toList();
+
+    if (changed) {
+      await prefs.setStringList('download_queue', updatedQueue);
+      await loadDownloadQueue();
+    }
   }
 
   Future<void> _processDownloadQueue() async {
@@ -229,7 +265,11 @@ class DownloadProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Failed to start queued download for $videoId: $e');
       _activeDownloads.remove(videoId);
-      await _updateDownloadQueueStatus(videoId, 'failed');
+      if (_isPaused) {
+        await _updateDownloadQueueStatus(videoId, 'paused');
+      } else {
+        await _handleDownloadFailureWithRotation(videoId);
+      }
     }
   }
 
@@ -458,6 +498,7 @@ class DownloadProvider with ChangeNotifier {
               : ''
           ..['duration'] = song.duration.inMilliseconds
           ..['status'] = 'queued'
+          ..['retryCount'] = 0
           ..remove('localPath')
           ..remove('filePath')
           ..remove('error');
@@ -654,42 +695,41 @@ class DownloadProvider with ChangeNotifier {
       final cancelToken = CancelToken();
       _downloadCancelTokens[song.videoId] = cancelToken;
 
+      await dio.download(
+        downloadUrl,
+        filePath,
+        options: totalBytes > 0
+            ? Options(headers: {"Range": 'bytes=0-$totalBytes'})
+            : null,
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) {
+          if (_preparing.contains(videoId)) {
+            _preparing.remove(videoId);
+          }
+          final progress = total > 0 ? received / total : 0.0;
+          updateProgress(song.videoId, progress);
+
+          if (shouldShowNotifications) {
+            if ((progress * 100).round() % 5 == 0 || progress >= 0.95) {
+              final notificationId = _getNotificationId(videoId);
+              DownloadNotificationService().showDownloadProgress(
+                notificationId: notificationId,
+                title: song.name,
+                artist: song.artists.isNotEmpty
+                    ? song.artists[0].name
+                    : 'Unknown Artist',
+                progress: progress,
+                isPaused: false,
+              );
+            }
+          }
+        },
+      );
+
+      debugPrint('Download completed for videoId: $videoId');
+      _preparing.remove(videoId);
+
       try {
-        await dio.download(
-          downloadUrl,
-          filePath,
-          options: totalBytes > 0
-              ? Options(headers: {"Range": 'bytes=0-$totalBytes'})
-              : null,
-          cancelToken: cancelToken,
-          onReceiveProgress: (received, total) {
-            if (_preparing.contains(videoId)) {
-              _preparing.remove(videoId);
-            }
-            final progress = total > 0 ? received / total : 0.0;
-            updateProgress(song.videoId, progress);
-
-            if (shouldShowNotifications) {
-              if ((progress * 100).round() % 5 == 0 || progress >= 0.95) {
-                final notificationId = _getNotificationId(videoId);
-                DownloadNotificationService().showDownloadProgress(
-                  notificationId: notificationId,
-                  title: song.name,
-                  artist: song.artists.isNotEmpty
-                      ? song.artists[0].name
-                      : 'Unknown Artist',
-                  progress: progress,
-                  isPaused: false,
-                );
-              }
-            }
-          },
-        );
-
-        debugPrint('Download completed for videoId: $videoId');
-        _preparing.remove(videoId);
-
-        try {
         await _writeMetadataToFile(song, filePath, downloadDir);
       } catch (e) {
         debugPrint(
@@ -735,29 +775,71 @@ class DownloadProvider with ChangeNotifier {
       }
 
       debugPrint('Updated queue status to "completed" for videoId: $videoId');
-      } catch (e) {
-        debugPrint('Download failed for videoId: $videoId. Exception: $e');
-        _preparing.remove(videoId);
-        if (e is DioException &&
-            e.type == DioExceptionType.cancel &&
-            _isPaused) {
-          await _updateDownloadQueueStatus(song.videoId, 'paused');
-        } else {
-          await _updateDownloadQueueStatus(song.videoId, 'failed');
-        }
-        removeProgress(song.videoId);
-        _downloadCancelTokens.remove(song.videoId);
-        notifyListeners();
-        rethrow;
-      }
     } catch (e) {
       debugPrint('Download failed for videoId: $videoId. Exception: $e');
       _preparing.remove(videoId);
-      await _updateDownloadQueueStatus(song.videoId, 'failed');
+      if (e is DioException &&
+          e.type == DioExceptionType.cancel &&
+          _isPaused) {
+        await _updateDownloadQueueStatus(song.videoId, 'paused');
+      } else {
+        await _handleDownloadFailureWithRotation(videoId);
+      }
       removeProgress(song.videoId);
+      _downloadCancelTokens.remove(song.videoId);
       notifyListeners();
       rethrow;
     }
+  }
+
+  /// Handles a failed download by rotating it to the back of the queue for
+  /// another attempt, until [_maxAutoRetries] is exhausted.
+  ///
+  /// Rotation is the point: a single bad stream must not block the rest of
+  /// the queue. The failed song goes to the end so everything else gets a
+  /// turn first, and by the time it comes around the stream may well resolve.
+  Future<void> _handleDownloadFailureWithRotation(String videoId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+
+    Map<String, dynamic>? target;
+    for (final item in queue) {
+      final Map<String, dynamic> songData = json.decode(item);
+      if (songData['id'] == videoId) {
+        target = songData;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    final retryCount = (target['retryCount'] as int?) ?? 0;
+
+    if (retryCount >= _maxAutoRetries) {
+      debugPrint(
+        'Download failed permanently after $retryCount retries: $videoId',
+      );
+      await _updateDownloadQueueStatus(videoId, 'failed');
+      return;
+    }
+
+    // Move the entry to the front of the stored list, which [loadDownloadQueue]
+    // reverses into the back of the in-memory queue - i.e. it retries last.
+    final updatedQueue = queue.where((item) {
+      final Map<String, dynamic> songData = json.decode(item);
+      return songData['id'] != videoId;
+    }).toList();
+
+    target
+      ..['status'] = 'queued'
+      ..['retryCount'] = retryCount + 1;
+    updatedQueue.insert(0, json.encode(target));
+
+    await prefs.setStringList('download_queue', updatedQueue);
+    debugPrint(
+      'Re-queued $videoId for retry ${retryCount + 1}/$_maxAutoRetries '
+      '(moved to back of queue)',
+    );
+    await loadDownloadQueue();
   }
 
   Future<void> _updateDownloadQueueStatus(
