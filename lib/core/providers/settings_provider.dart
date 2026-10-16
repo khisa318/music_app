@@ -76,7 +76,7 @@ class SettingsProvider with ChangeNotifier {
   int? _backupAccentColorValue;
 
   bool _sleepTimerFadeEnabled = false;
-  int _maxConcurrentDownloads = 1;
+  int _maxConcurrentDownloads = 3;
   String _updateChannel = 'stable';
 
   bool _loggingOnStartup = true;
@@ -509,7 +509,7 @@ class SettingsProvider with ChangeNotifier {
 
     _sleepTimerFadeEnabled = (box.get(_sleepTimerFadeKey) as bool?) ?? false;
     _maxConcurrentDownloads =
-        (box.get(_maxConcurrentDownloadsKey) as int?) ?? 1;
+        (box.get(_maxConcurrentDownloadsKey) as int?) ?? 3;
     _wifiOnlyDownloads = (box.get(_wifiOnlyDownloadsKey) as bool?) ?? false;
     _audioCacheEnabled = (box.get(_audioCacheEnabledKey) as bool?) ?? true;
     _updateChannel = (box.get(_updateChannelKey) as String?) ?? 'stable';

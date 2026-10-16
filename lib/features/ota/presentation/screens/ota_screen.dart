@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -664,6 +666,7 @@ class _OTAScreenState extends State<OTAScreen>
     required bool isPaused,
   }) {
     final progress = otaProvider.downloadProgress;
+    final percentage = progress != null ? progress.percentage / 100.0 : 0.0;
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       child: Padding(
@@ -671,66 +674,72 @@ class _OTAScreenState extends State<OTAScreen>
         child: Column(
           children: [
             const SizedBox(height: AppDimens.spacingXl),
-            Icon(
+            Text(
               isPaused
-                  ? Icons.pause_circle_filled_rounded
-                  : Icons.cloud_download_rounded,
-              color: accentColor,
-              size: AppDimens.iconHuge,
+                  ? 'ota_download_paused'.tr()
+                  : otaProvider.isBackgroundDownload
+                  ? 'Downloading update in background…'
+                  : 'ota_downloading_update'.tr(),
+              style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
             ),
+            if (otaProvider.isBackgroundDownload) ...[
+              const SizedBox(height: AppDimens.spacingSm),
+              Text(
+                'You can keep using the app. We will prompt you to install '
+                'when it finishes.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
+                  color: MainScreenColors.getTextColor(
+                    isDarkMode,
+                  ).withValues(alpha: AppDimens.opacityMuted),
+                ),
+              ),
+            ],
             const SizedBox(height: AppDimens.spacingXxxl),
             SizedBox(
               width: AppDimens.progressCircleLarge,
               height: AppDimens.progressCircleLarge,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: AppDimens.progressCircleLarge,
-                    height: AppDimens.progressCircleLarge,
-                    child: CircularProgressIndicator(
-                      // A paused download is not moving, so the spinner has to
-                      // stop too. Leaving it animating would claim work that is
-                      // not happening.
-                      value: progress != null ? progress.percentage / 100 : 0,
-                      strokeWidth: AppDimens.progressStrokeLg,
-                      strokeCap: StrokeCap.round,
-                      color: accentColor,
-                      backgroundColor: accentColor.withValues(alpha: 0.15),
+              child: _AnimatedDownloadRing(
+                progress: percentage,
+                accentColor: accentColor,
+                isPaused: isPaused,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      progress != null
+                          ? '${progress.percentage.toInt()}%'
+                          : '0%',
+                      style: AppTextStyles.display(isDarkMode: isDarkMode),
                     ),
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                    if (progress != null)
                       Text(
-                        progress != null
-                            ? '${progress.percentage.toInt()}%'
-                            : '0%',
-                        style: AppTextStyles.display(isDarkMode: isDarkMode),
-                      ),
-                      if (progress != null)
-                        Text(
-                          '${progress.formattedDownloaded} / ${progress.formattedTotal}',
-                          style: AppTextStyles.bodyMd(isDarkMode: isDarkMode)
-                              .copyWith(
-                                color: MainScreenColors.getTextColor(
-                                  isDarkMode,
-                                ).withValues(alpha: AppDimens.opacityMuted),
-                              ),
+                        '${progress.formattedDownloaded} / ${progress.formattedTotal}',
+                        style: AppTextStyles.bodyMd(
+                          isDarkMode: isDarkMode,
+                        ).copyWith(
+                          color: MainScreenColors.getTextColor(
+                            isDarkMode,
+                          ).withValues(alpha: AppDimens.opacityMuted),
                         ),
+                      ),
+                    if (progress != null &&
+                        progress.downloadSpeed != '0 KB/s') ...[
+                      const SizedBox(height: AppDimens.spacingXxs),
+                      Text(
+                        '${progress.downloadSpeed} • ${progress.eta}',
+                        style: AppTextStyles.caption(
+                          isDarkMode: isDarkMode,
+                        ).copyWith(
+                          color: accentColor.withValues(alpha: 0.8),
+                        ),
+                      ),
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: AppDimens.spacingXxxl),
-            Text(
-              isPaused
-                  ? 'ota_download_paused'.tr()
-                  : 'ota_downloading_update'.tr(),
-              style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
-            ),
-            const SizedBox(height: AppDimens.buttonHeightMedium),
 
             // Pause / Resume and Cancel sit side by side. Cancel stays
             // destructive-looking in both states because it throws the saved
@@ -832,6 +841,10 @@ class _OTAScreenState extends State<OTAScreen>
     bool isDarkMode,
     Color accentColor,
   ) {
+    if (otaProvider.error == OTAError.permissionError) {
+      return _buildPermissionError(otaProvider, isDarkMode, accentColor);
+    }
+
     return _CenteredMessage(
       isDarkMode: isDarkMode,
       accentColor: accentColor,
@@ -846,6 +859,154 @@ class _OTAScreenState extends State<OTAScreen>
           otaProvider.reset();
           otaProvider.checkForUpdates(showNoUpdateMessage: true);
         },
+      ),
+    );
+  }
+
+  /// Android (especially Samsung) blocks installing an APK from an app the
+  /// user has not explicitly allowed to install unknown apps. The system
+  /// permission dialog can be denied permanently, leaving the in-app retry
+  /// stuck in a loop, so this shows exactly where to flip the switch and
+  /// offers a direct jump to the settings screen.
+  Widget _buildPermissionError(
+    OTAProvider otaProvider,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(AppDimens.paddingXl),
+      child: Column(
+        children: [
+          const SizedBox(height: AppDimens.spacingXl),
+          Container(
+            padding: const EdgeInsets.all(AppDimens.paddingXxl),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.gpp_maybe_rounded,
+              color: Colors.orange,
+              size: AppDimens.iconStatus,
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingXxl),
+          Text(
+            'Install blocked by Android',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
+          ),
+          const SizedBox(height: AppDimens.spacingLg),
+          Text(
+            otaProvider.errorMessage ?? 'Android blocked the install.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.subtitle(isDarkMode: isDarkMode).copyWith(
+              color: MainScreenColors.getTextColor(
+                isDarkMode,
+              ).withValues(alpha: AppDimens.opacityMuted),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingXxl),
+          _ThemedSurface(
+            isDarkMode: isDarkMode,
+            accentColor: accentColor,
+            padding: const EdgeInsets.all(AppDimens.paddingLg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'To allow the update:',
+                  style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
+                ),
+                const SizedBox(height: AppDimens.spacingMd),
+                _buildPermissionStep(
+                  '1',
+                  'Open Settings › Apps › Special access',
+                  isDarkMode,
+                  accentColor,
+                ),
+                _buildPermissionStep(
+                  '2',
+                  'Tap "Install unknown apps" (Samsung: "Install unknown apps" '
+                  'under Special access)',
+                  isDarkMode,
+                  accentColor,
+                ),
+                _buildPermissionStep(
+                  '3',
+                  'Select MusiX and turn on "Allow from this source"',
+                  isDarkMode,
+                  accentColor,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingXxl),
+          SizedBox(
+            width: double.infinity,
+            child: _PrimaryButton(
+              label: 'Open install settings',
+              icon: Icons.settings_rounded,
+              onPressed: () => otaProvider.openInstallSettings(),
+            ),
+          ),
+          const SizedBox(height: AppDimens.spacingMd),
+          SizedBox(
+            width: double.infinity,
+            child: _SecondaryButton(
+              label: 'ota_try_again'.tr(),
+              icon: Icons.refresh_rounded,
+              accentColor: accentColor,
+              isDarkMode: isDarkMode,
+              onPressed: () => otaProvider.installUpdate(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionStep(
+    String number,
+    String text,
+    bool isDarkMode,
+    Color accentColor,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.spacingSm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              number,
+              style: AppTextStyles.caption(
+                isDarkMode: isDarkMode,
+              ).copyWith(color: accentColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: AppDimens.spacingMd),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
+                color: MainScreenColors.getTextColor(
+                  isDarkMode,
+                ).withValues(alpha: AppDimens.opacityMuted),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1165,7 +1326,6 @@ class _CenteredMessage extends StatelessWidget {
     this.action,
     this.showSpinner = false,
   });
-
   final bool isDarkMode;
   final Color accentColor;
   final String title;
@@ -1239,4 +1399,160 @@ class _CenteredMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A progress ring that keeps a slow sweeping glow and a rotating "downloading"
+/// comet while active, and freezes completely when paused so it never claims
+/// work that is not happening.
+class _AnimatedDownloadRing extends StatefulWidget {
+  const _AnimatedDownloadRing({
+    required this.progress,
+    required this.accentColor,
+    required this.isPaused,
+    required this.child,
+  });
+
+  /// 0..1.
+  final double progress;
+  final Color accentColor;
+  final bool isPaused;
+  final Widget child;
+
+  @override
+  State<_AnimatedDownloadRing> createState() => _AnimatedDownloadRingState();
+}
+
+class _AnimatedDownloadRingState extends State<_AnimatedDownloadRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    if (!widget.isPaused) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedDownloadRing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPaused && _controller.isAnimating) {
+      _controller.stop();
+    } else if (!widget.isPaused && !_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _DownloadRingPainter(
+            progress: widget.progress,
+            accentColor: widget.accentColor,
+            angle: _controller.value * 2 * math.pi,
+            pulse: _controller.value,
+            isPaused: widget.isPaused,
+          ),
+          child: Center(child: child),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _DownloadRingPainter extends CustomPainter {
+  _DownloadRingPainter({
+    required this.progress,
+    required this.accentColor,
+    required this.angle,
+    required this.pulse,
+    required this.isPaused,
+  });
+
+  final double progress;
+  final Color accentColor;
+  final double angle;
+  final double pulse;
+  final bool isPaused;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - AppDimens.progressStrokeLg;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Soft breathing glow behind the ring.
+    if (!isPaused) {
+      final glowAlpha = 0.08 + (math.sin(pulse * 2 * math.pi) + 1) / 2 * 0.10;
+      canvas.drawCircle(
+        center,
+        radius + AppDimens.progressStrokeLg,
+        Paint()
+          ..color = accentColor.withValues(alpha: glowAlpha)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      );
+    }
+
+    // Track.
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = AppDimens.progressStrokeLg
+        ..color = accentColor.withValues(alpha: 0.14),
+    );
+
+    // Progress arc, top to bottom, with a gradient that fades in.
+    if (progress > 0) {
+      final progressPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = AppDimens.progressStrokeLg
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: 0,
+          endAngle: 2 * math.pi,
+          colors: [accentColor.withValues(alpha: 0.5), accentColor],
+          transform: const GradientRotation(-math.pi / 2),
+        ).createShader(rect);
+      canvas.drawArc(
+        rect,
+        -math.pi / 2,
+        2 * math.pi * progress.clamp(0.0, 1.0),
+        false,
+        progressPaint,
+      );
+    }
+
+    // Rotating comet that signals active transfer.
+    if (!isPaused) {
+      final cometPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = AppDimens.progressStrokeLg
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: 0,
+          endAngle: 2 * math.pi,
+          colors: [accentColor.withValues(alpha: 0.0), accentColor],
+          transform: GradientRotation(angle),
+        ).createShader(rect);
+      canvas.drawArc(rect, angle, math.pi * 0.35, false, cometPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DownloadRingPainter oldDelegate) => true;
 }
