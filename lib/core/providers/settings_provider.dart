@@ -47,6 +47,8 @@ class SettingsProvider with ChangeNotifier {
   static const String _volumeLevelKey = 'volumeLevel';
   static const String _gaplessPlaybackKey = 'gaplessPlayback';
   static const String _reduceEffectsKey = 'reduceEffects';
+  static const String _crossfadeEnabledKey = 'crossfadeEnabled';
+  static const String _crossfadeDurationKey = 'crossfadeDuration';
 
   String _streamingQuality = 'High';
   String _downloadingQuality = 'High';
@@ -86,6 +88,8 @@ class SettingsProvider with ChangeNotifier {
   bool _audioCacheEnabled = true;
   bool _updateCheckEnabled = true;
   bool _reduceEffectsEnabled = false;
+  bool _crossfadeEnabled = false;
+  int _crossfadeDuration = 5;
 
   List<String> _includedFolders = [];
   List<String> _excludedFolders = [];
@@ -133,6 +137,8 @@ class SettingsProvider with ChangeNotifier {
   bool get wifiOnlyDownloads => _wifiOnlyDownloads;
   bool get audioCacheEnabled => _audioCacheEnabled;
   bool get reduceEffectsEnabled => _reduceEffectsEnabled;
+  bool get crossfadeEnabled => _crossfadeEnabled;
+  int get crossfadeDuration => _crossfadeDuration;
 
   /// The mode the app is actually rendered in, always resolved to light or
   /// dark.
@@ -307,6 +313,18 @@ class SettingsProvider with ChangeNotifier {
   set reduceEffectsEnabled(bool value) {
     _reduceEffectsEnabled = value;
     _saveToPrefs(_reduceEffectsKey, value);
+    notifyListeners();
+  }
+
+  set crossfadeEnabled(bool value) {
+    _crossfadeEnabled = value;
+    _saveToPrefs(_crossfadeEnabledKey, value);
+    notifyListeners();
+  }
+
+  set crossfadeDuration(int value) {
+    _crossfadeDuration = value.clamp(3, 12);
+    _saveToPrefs(_crossfadeDurationKey, _crossfadeDuration);
     notifyListeners();
   }
 
@@ -518,6 +536,8 @@ class SettingsProvider with ChangeNotifier {
         .clamp(0.0, 1.5);
     _gaplessPlaybackEnabled = (box.get(_gaplessPlaybackKey) as bool?) ?? true;
     _reduceEffectsEnabled = (box.get(_reduceEffectsKey) as bool?) ?? false;
+    _crossfadeEnabled = (box.get(_crossfadeEnabledKey) as bool?) ?? false;
+    _crossfadeDuration = (box.get(_crossfadeDurationKey) as int?) ?? 5;
 
     notifyListeners();
   }

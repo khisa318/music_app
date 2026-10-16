@@ -1394,7 +1394,7 @@ class PlayerService {
   // ===========================================================================
 
   Future<void> _handlePlaybackCompletion() async {
-    if (_isHandlingCompletion) {
+    if (_isHandlingCompletion || _mediaKitAdapter.isCrossfading) {
       return;
     }
 
@@ -1520,7 +1520,7 @@ class PlayerService {
     try {
       final settings = GetIt.I<SettingsProvider>();
 
-      if (!settings.gaplessPlaybackEnabled) {
+      if (!settings.gaplessPlaybackEnabled && !settings.crossfadeEnabled) {
         return;
       }
     } catch (_) {
@@ -1533,8 +1533,17 @@ class PlayerService {
 
     final remaining = duration - position;
 
-    if (remaining.inSeconds <= _prebufferThresholdSeconds &&
-        remaining.inSeconds > 0) {
+    int prebufferThreshold = _prebufferThresholdSeconds;
+
+    try {
+      final crossfadeSeconds = GetIt.I<SettingsProvider>().crossfadeDuration;
+
+      if (crossfadeSeconds + 5 > prebufferThreshold) {
+        prebufferThreshold = crossfadeSeconds + 5;
+      }
+    } catch (_) {}
+
+    if (remaining.inSeconds <= prebufferThreshold && remaining.inSeconds > 0) {
       final nextSong = queueProvider.peekNext();
 
       if (nextSong == null) {
@@ -1548,6 +1557,144 @@ class PlayerService {
       _prebufferStarted = true;
 
       _prebufferNextTrack(nextSong);
+    }
+
+    _checkAndTriggerCrossfade(remaining);
+  }
+
+  void _checkAndTriggerCrossfade(Duration remaining) {
+    if (_mediaKitAdapter.isCrossfading) {
+      return;
+    }
+
+    if (remaining <= Duration.zero) {
+      return;
+    }
+
+    if (!_isPlaying) {
+      return;
+    }
+
+    if (_loopMode == RepeatMode.one) {
+      return;
+    }
+
+    if (!_prebufferStarted || _prebufferedSong == null) {
+      return;
+    }
+
+    if (!_mediaKitAdapter.isNextTrackReady) {
+      return;
+    }
+
+    int crossfadeSeconds;
+
+    try {
+      final settings = GetIt.I<SettingsProvider>();
+
+      if (!settings.crossfadeEnabled) {
+        return;
+      }
+
+      crossfadeSeconds = settings.crossfadeDuration;
+    } catch (_) {
+      return;
+    }
+
+    if (remaining.inSeconds > crossfadeSeconds) {
+      return;
+    }
+
+    final nextSong = queueProvider.peekNext();
+
+    if (nextSong == null) {
+      return;
+    }
+
+    if (playerProvider.currentLocalSong != null) {
+      return;
+    }
+
+    if (_prebufferedSong!.videoId != nextSong.videoId) {
+      return;
+    }
+
+    unawaited(_startCrossfade(nextSong, Duration(seconds: crossfadeSeconds)));
+  }
+
+  Future<void> _startCrossfade(SongInfo nextSong, Duration duration) async {
+    if (_mediaKitAdapter.isCrossfading) {
+      return;
+    }
+
+    debugPrint('[Crossfade] Starting ${duration.inSeconds}s fade to '
+        '${nextSong.name}');
+
+    await _recordCurrentPlaybackEnd();
+
+    final swapped = await _mediaKitAdapter.crossfadeToPrebuffered(
+      targetVolume: _volume,
+      duration: duration,
+    );
+
+    if (!swapped) {
+      debugPrint('[Crossfade] Swap failed; normal completion will take over');
+      return;
+    }
+
+    try {
+      queueProvider.getNextSong();
+
+      isExplicitlySettingSong = true;
+
+      playerProvider.setCurrentSong(nextSong);
+
+      if (GetIt.I.isRegistered<EqualizerService>()) {
+        unawaited(GetIt.I<EqualizerService>().bindPlayer(_mediaKitAdapter));
+      }
+
+      _processingState = ProcessingState.ready;
+
+      _duration = nextSong.duration;
+
+      _durationController.add(_duration);
+
+      _emitState();
+
+      _currentStatsSongId = nextSong.videoId;
+
+      _currentStatsSongTitle = nextSong.name;
+
+      _currentStatsSongArtist = nextSong.artists
+          .map((a) => a.name)
+          .join(', ');
+
+      _currentStatsSessionStartPosition = 0;
+
+      statsProvider.recordPlayStart(
+        _currentStatsSongId!,
+        _currentStatsSongTitle!,
+        _currentStatsSongArtist!,
+        0,
+      );
+
+      updateBackgroundColor(
+        nextSong.thumbnails.isNotEmpty ? nextSong.thumbnails.first.url : null,
+      );
+
+      _prebufferStarted = false;
+
+      _prebufferedSong = null;
+
+      await QueueStorage.clearPosition();
+
+      isExplicitlySettingSong = false;
+    } catch (e) {
+      debugPrint('[Crossfade] Post-swap handling failed: $e');
+
+      isExplicitlySettingSong = false;
+
+      await playNext();
     }
   }
 

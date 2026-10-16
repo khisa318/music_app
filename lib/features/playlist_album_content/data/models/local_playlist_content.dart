@@ -7,12 +7,12 @@ import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 /// Hive instead of on YouTube can reuse the exact same detail screen.
 class LocalPlaylistContent {
   /// Hive key the playlist's songs are stored under.
-  final String playlistName;
+  String playlistName;
 
-  final String name;
+  String name;
   final String thumbnailUrl;
 
-  const LocalPlaylistContent({
+  LocalPlaylistContent({
     required this.playlistName,
     required this.name,
     required this.thumbnailUrl,

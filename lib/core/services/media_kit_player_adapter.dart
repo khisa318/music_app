@@ -29,6 +29,10 @@ class MediaKitPlayerAdapter {
   StreamSubscription<bool>? _completedSub;
   StreamSubscription<bool>? _bufferingSub;
 
+  bool _crossfading = false;
+  bool _crossfadeCancelRequested = false;
+  Completer<void>? _crossfadeCompleter;
+
   MediaKitPlayerAdapter({Player? player})
     : _player =
           player ??
@@ -43,6 +47,8 @@ class MediaKitPlayerAdapter {
   Player get rawPlayer => _player;
 
   bool get isNextTrackReady => _nextPlayerReady;
+
+  bool get isCrossfading => _crossfading;
 
   Future<void> openUri(String uri, {bool play = false}) async {
     _cancelPrebuffer();
@@ -59,10 +65,12 @@ class MediaKitPlayerAdapter {
   }
 
   Future<void> pause() async {
+    await cancelCrossfade();
     await _player.pause();
   }
 
   Future<void> stop() async {
+    await cancelCrossfade();
     await _player.stop();
   }
 
@@ -138,6 +146,112 @@ class MediaKitPlayerAdapter {
 
     debugPrint('[Prebuffer] Swapped to prebuffered player');
     return true;
+  }
+
+  /// Plays the prebuffered player from silence while fading the current
+  /// player out, then promotes the prebuffered player to primary.
+  ///
+  /// Returns false (leaving state untouched) when there is nothing
+  /// prebuffered or when [cancelCrossfade] interrupts the ramp.
+  Future<bool> crossfadeToPrebuffered({
+    required double targetVolume,
+    required Duration duration,
+  }) async {
+    if (_crossfading) return false;
+    if (!_nextPlayerReady || _nextPlayer == null) return false;
+    if (duration <= Duration.zero) return false;
+
+    _crossfading = true;
+    _crossfadeCancelRequested = false;
+    final completer = Completer<void>();
+    _crossfadeCompleter = completer;
+
+    final oldPlayer = _player;
+    final nextPlayer = _nextPlayer!;
+    final base = targetVolume.clamp(0.0, 1.5);
+
+    try {
+      await nextPlayer.setVolume(0);
+      await nextPlayer.play();
+
+      const steps = 20;
+      final stepMs = duration.inMilliseconds ~/ steps;
+
+      for (int i = 1; i <= steps; i++) {
+        if (_crossfadeCancelRequested) break;
+
+        final t = i / steps;
+        try {
+          await oldPlayer.setVolume(base * (1 - t) * 100.0);
+          await nextPlayer.setVolume(base * t * 100.0);
+        } catch (_) {}
+
+        if (i < steps) {
+          await Future.delayed(Duration(milliseconds: stepMs));
+        }
+      }
+
+      if (_crossfadeCancelRequested) {
+        try {
+          await oldPlayer.setVolume(base * 100.0);
+          await nextPlayer.stop();
+          await nextPlayer.dispose();
+        } catch (_) {}
+
+        if (_nextPlayer == nextPlayer) {
+          _nextPlayer = null;
+          _nextPlayerReady = false;
+        }
+
+        debugPrint('[Crossfade] Cancelled');
+        return false;
+      }
+
+      _player = nextPlayer;
+      _nextPlayer = null;
+      _nextPlayerReady = false;
+
+      _bindPlayerStreams(_player);
+
+      try {
+        await _player.setVolume(base * 100.0);
+      } catch (_) {}
+
+      unawaited(
+        Future.delayed(const Duration(milliseconds: 200), () async {
+          try {
+            await oldPlayer.stop();
+            await oldPlayer.dispose();
+          } catch (_) {}
+        }),
+      );
+
+      debugPrint('[Crossfade] Swapped to crossfaded player');
+      return true;
+    } catch (e) {
+      debugPrint('[Crossfade] Failed: $e');
+      return false;
+    } finally {
+      _crossfading = false;
+      _crossfadeCancelRequested = false;
+      _crossfadeCompleter = null;
+      if (!completer.isCompleted) completer.complete();
+    }
+  }
+
+  /// Interrupts an in-progress [crossfadeToPrebuffered] ramp, restoring the
+  /// current player's volume and disposing the half-faded next player.
+  Future<void> cancelCrossfade() async {
+    if (!_crossfading) return;
+
+    _crossfadeCancelRequested = true;
+
+    final completer = _crossfadeCompleter;
+    if (completer != null && !completer.isCompleted) {
+      try {
+        await completer.future.timeout(const Duration(milliseconds: 500));
+      } catch (_) {}
+    }
   }
 
   void _cancelPrebuffer() {

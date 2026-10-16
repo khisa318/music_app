@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/search_screen_shimmer.dart';
@@ -14,10 +15,14 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/widgets/liquid_glass.dart';
+import '../../../../core/providers/connectivity_provider.dart';
+import '../../../../core/providers/download_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../shared/components/app_empty_state.dart';
 
+import '../../../library/data/providers/library_provider.dart';
 import '../../data/search_screen_services.dart';
 import '../../data/voice_search_service.dart';
 
@@ -40,6 +45,8 @@ class _YouTubeSongWrapper {
   int get duration => _video.duration?.inSeconds ?? 0;
 
   bool get isYouTube => true;
+
+  dynamic get offlineSong => _video is _OfflineSongWrapper ? _video : null;
 }
 
 class _YouTubeArtistWrapper {
@@ -65,6 +72,66 @@ class _YouTubeThumbnailWrapper {
   int get width => _width;
 
   int get height => _height;
+}
+
+class _OfflineIdWrapper {
+  final String value;
+
+  _OfflineIdWrapper(this.value);
+}
+
+class _OfflineArtistWrapper {
+  final String name;
+  final String artistId;
+
+  _OfflineArtistWrapper(this.name, this.artistId);
+}
+
+class _OfflineThumbnailWrapper {
+  final String url;
+  final int width;
+  final int height;
+
+  _OfflineThumbnailWrapper(this.url, {this.width = 480, this.height = 360});
+
+  String get highResUrl => url;
+
+  String get lowResUrl => url;
+}
+
+class _OfflineSongWrapper {
+  final Map<String, dynamic> _song;
+  final bool isLocal;
+
+  _OfflineSongWrapper(this._song, {this.isLocal = false});
+
+  String get videoId => _song['id']?.toString() ?? '';
+
+  _OfflineIdWrapper get id => _OfflineIdWrapper(videoId);
+
+  _OfflineIdWrapper get channelId =>
+      _OfflineIdWrapper(_song['artistId']?.toString() ?? '');
+
+  String get name => _song['title']?.toString() ?? 'Unknown Title';
+
+  String get title => name;
+
+  String get author => artist.name;
+
+  _OfflineArtistWrapper get artist => _OfflineArtistWrapper(
+    _song['artist']?.toString() ?? 'Unknown Artist',
+    _song['artistId']?.toString() ?? '',
+  );
+
+  List<_OfflineThumbnailWrapper> get thumbnails => [
+    _OfflineThumbnailWrapper(_song['thumbnail']?.toString() ?? ''),
+  ];
+
+  Duration get duration => Duration(
+    seconds: (_song['duration'] as num?)?.toInt() ?? 0,
+  );
+
+  Map<String, dynamic> get songData => _song;
 }
 
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
@@ -142,6 +209,10 @@ class _SearchScreenState extends State<SearchScreen>
   final ValueNotifier<bool> _isLoadingNotifier = ValueNotifier<bool>(false);
 
   final ValueNotifier<bool> _hasErrorNotifier = ValueNotifier<bool>(false);
+
+  final ValueNotifier<bool> _showOfflineResultsNotifier = ValueNotifier<bool>(
+    false,
+  );
 
   Timer? _debounceTimer;
 

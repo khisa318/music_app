@@ -12,6 +12,7 @@ import 'package:metadata_god/metadata_god.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
+import 'package:disk_space_plus/disk_space_plus.dart';
 import '../services/audio_url_isolate.dart';
 import '../services/local_songs_service.dart';
 import '../../shared/components/app_snackbar.dart';
@@ -31,20 +32,44 @@ class DownloadProvider with ChangeNotifier {
   /// of the queue so the remaining downloads are not held up.
   static const int _maxAutoRetries = 3;
 
+  /// Public mirror of [_maxAutoRetries] so the UI can render "Retry 2/3"
+  /// without duplicating the constant.
+  static int get maxAutoRetries => _maxAutoRetries;
+
   final Map<String, CancelToken?> _downloadCancelTokens = {};
   final Map<String, DownloadProgress> _progressMap = {};
   List<Map<String, dynamic>> _downloadQueue = [];
   List<Map<String, dynamic>> _downloadedSongs = [];
   final Set<String> _preparing = {};
   final Set<String> _activeDownloads = {};
+
+  /// Video ids whose in-flight download was cancelled on purpose (per-item
+  /// pause/cancel/remove) rather than by a network failure. The download
+  /// error path uses this to skip the automatic retry rotation.
+  final Set<String> _userCancelledDownloads = {};
+
+  /// Partial file currently being written for an active download, so a
+  /// cancel or remove can delete the half-finished file instead of leaking it.
+  final Map<String, String> _inFlightFilePaths = {};
   final Map<String, int> _notificationIds = {};
   int _nextNotificationId = 1000;
   bool _isPaused = false;
   bool _isProcessingQueue = false;
   late final ConnectivityProvider? _connectivityProvider;
 
+  /// Tracks the last connectivity state seen by [_handleConnectivityChanged]
+  /// so the queue is only resumed on a transition back online instead of on
+  /// every notification the connectivity provider emits.
+  bool _wasConnected = false;
+
+  /// Throttles reconnect-driven resumes so a flapping network cannot requeue
+  /// and restart the queue repeatedly in quick succession.
+  DateTime? _lastReconnectResumeAt;
+  static const Duration _reconnectResumeCooldown = Duration(seconds: 5);
+
   DownloadProvider() {
     _connectivityProvider = _getConnectivityProvider();
+    _wasConnected = _connectivityProvider?.isConnected ?? false;
     _connectivityProvider?.addListener(_handleConnectivityChanged);
     loadDownloadedSongs();
     loadDownloadQueue();
@@ -66,13 +91,45 @@ class DownloadProvider with ChangeNotifier {
     }
   }
 
+  /// Resumes queued work whenever the device regains a usable connection,
+  /// on Wi-Fi or mobile data alike. The Wi-Fi-only rule is kept intact: when
+  /// [SettingsProvider.wifiOnlyDownloads] is on, a mobile connection is not
+  /// enough and processing waits for Wi-Fi. Acting only on a transition to
+  /// connected (plus a short cooldown) keeps a flapping network from looping.
   void _handleConnectivityChanged() {
+    final connectivity = _connectivityProvider;
+    if (connectivity == null) return;
+
+    final isConnected = connectivity.isConnected;
+    final wasConnected = _wasConnected;
+    _wasConnected = isConnected;
+
+    if (!isConnected || wasConnected) return;
+
+    final now = DateTime.now();
+    if (_lastReconnectResumeAt != null &&
+        now.difference(_lastReconnectResumeAt!) < _reconnectResumeCooldown) {
+      return;
+    }
+    _lastReconnectResumeAt = now;
+
     final settingsProvider = GetIt.I<SettingsProvider>();
-    if (settingsProvider.wifiOnlyDownloads &&
-        _connectivityProvider?.isWifiConnected == true &&
-        !_isPaused &&
-        !_isProcessingQueue) {
-      unawaited(_processDownloadQueue());
+    if (settingsProvider.wifiOnlyDownloads && !connectivity.isWifiConnected) {
+      return;
+    }
+
+    if (_isPaused || _isProcessingQueue) return;
+
+    unawaited(_resumeAfterReconnect());
+  }
+
+  /// Re-queues downloads that failed while offline (when they still have
+  /// automatic retries left) and restarts queue processing once the device is
+  /// back online on an allowed connection.
+  Future<void> _resumeAfterReconnect() async {
+    await _requeueFailedDownloadsWithRemainingRetries();
+    if (!_isPaused && !_isProcessingQueue) {
+      await _processDownloadQueue();
     }
   }
 
@@ -246,7 +303,7 @@ class DownloadProvider with ChangeNotifier {
     try {
       final artist = Artist(
         name: songData['artist'] ?? 'Unknown Artist',
-        id: '',
+        id: songData['artistId'] ?? '',
       );
       final thumbnail = Thumbnail(
         url: songData['thumbnail'] ?? '',
@@ -258,7 +315,9 @@ class DownloadProvider with ChangeNotifier {
         name: songData['title'] ?? 'Unknown Title',
         artists: [artist],
         thumbnails: [thumbnail],
-        duration: Duration(milliseconds: songData['duration'] ?? 0),
+        duration: Duration(
+          seconds: (songData['duration'] as num?)?.toInt() ?? 0,
+        ),
       );
 
       await _startDownloadWithNotifications(song);
@@ -268,7 +327,10 @@ class DownloadProvider with ChangeNotifier {
       if (_isPaused) {
         await _updateDownloadQueueStatus(videoId, 'paused');
       } else {
-        await _handleDownloadFailureWithRotation(videoId);
+        await _handleDownloadFailureWithRotation(
+          videoId,
+          error: e.toString(),
+        );
       }
     }
   }
@@ -321,12 +383,44 @@ class DownloadProvider with ChangeNotifier {
     return id;
   }
 
+  /// Older builds wrote queued entries with the duration in milliseconds
+  /// while completed entries used seconds. Everything is stored in seconds
+  /// now, so any leftover millisecond value is converted the first time the
+  /// queue is read.
+  static int _normalizeStoredDurationSeconds(dynamic raw) {
+    final value = (raw as num?)?.toInt() ?? 0;
+    if (value <= 0) return 0;
+    // 24h expressed in seconds: no realistic track is that long, but a
+    // millisecond value for anything past ~24 minutes already exceeds it.
+    if (value >= const Duration(days: 1).inSeconds) {
+      return (value / 1000).round();
+    }
+    return value;
+  }
+
   Future<void> loadDownloadQueue() async {
     final prefs = await SharedPreferences.getInstance();
     final queueList = prefs.getStringList('download_queue') ?? [];
 
-    final newDownloadQueue = queueList
-        .map((item) => json.decode(item) as Map<String, dynamic>)
+    var migrated = false;
+    final decodedQueue = queueList.map((item) {
+      final songData = json.decode(item) as Map<String, dynamic>;
+      final normalized = _normalizeStoredDurationSeconds(songData['duration']);
+      if (normalized != songData['duration']) {
+        songData['duration'] = normalized;
+        migrated = true;
+      }
+      return songData;
+    }).toList();
+
+    if (migrated) {
+      await prefs.setStringList(
+        'download_queue',
+        decodedQueue.map(json.encode).toList(),
+      );
+    }
+
+    final newDownloadQueue = decodedQueue
         .where((song) => song['status'] != 'completed')
         .toList()
         .reversed
@@ -351,6 +445,7 @@ class DownloadProvider with ChangeNotifier {
     var removedMissing = false;
 
     for (final song in completedSongs) {
+      song['duration'] = _normalizeStoredDurationSeconds(song['duration']);
       final path = song['localPath'] ?? song['filePath'];
       if (path == null) {
         removedMissing = true;
@@ -391,18 +486,268 @@ class DownloadProvider with ChangeNotifier {
     }
   }
 
-  Future<void> removeDownload(Map<String, dynamic> song) async {
+  /// Stops the in-flight download for [videoId], if any: cancels the Dio
+  /// token, deletes the half-written file and clears progress so nothing
+  /// keeps writing after the entry is gone.
+  Future<void> _cancelInFlightDownload(String videoId) async {
+    final token = _downloadCancelTokens.remove(videoId);
+    final wasActive = token != null || _activeDownloads.contains(videoId);
+    if (wasActive) {
+      // Only mark deliberate cancellations for downloads that are actually
+      // running, so a stale id cannot confuse a later genuine cancel.
+      _userCancelledDownloads.add(videoId);
+    }
+    if (token != null && !token.isCancelled) {
+      token.cancel('Cancelled by user');
+    }
+    _activeDownloads.remove(videoId);
+    _preparing.remove(videoId);
+    await _deleteFileQuietly(_inFlightFilePaths.remove(videoId));
+    removeProgress(videoId);
+  }
+
+  Future<void> _deleteFileQuietly(String? path) async {
+    if (path == null || path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('Failed to delete file $path: $e');
+    }
+  }
+
+  Future<void> _removeQueueEntry(String videoId) async {
     final prefs = await SharedPreferences.getInstance();
     final downloadQueue = prefs.getStringList('download_queue') ?? [];
 
     final updatedQueue = downloadQueue.where((item) {
       final Map<String, dynamic> songData = json.decode(item);
-      return songData['id'] != song['id'];
+      return songData['id'] != videoId;
     }).toList();
 
     await prefs.setStringList('download_queue', updatedQueue);
     await loadDownloadQueue();
     await loadDownloadedSongs();
+  }
+
+  /// Runs [mutate] against the stored queue entry for [videoId] and persists
+  /// the result. Used by the per-item pause/resume/retry actions.
+  Future<void> _mutateQueueItem(
+    String videoId,
+    void Function(Map<String, dynamic> songData) mutate,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+
+    var changed = false;
+    final updatedQueue = queue.map((item) {
+      final songData = json.decode(item) as Map<String, dynamic>;
+      if (songData['id'] == videoId) {
+        mutate(songData);
+        changed = true;
+      }
+      return json.encode(songData);
+    }).toList();
+
+    if (!changed) return;
+    await prefs.setStringList('download_queue', updatedQueue);
+    await loadDownloadQueue();
+    await loadDownloadedSongs();
+  }
+
+  /// Pauses a single queued or in-flight download without touching the rest
+  /// of the queue.
+  Future<void> pauseDownload(String videoId) async {
+    await _cancelInFlightDownload(videoId);
+    await _mutateQueueItem(videoId, (songData) {
+      final status = songData['status'];
+      if (status == 'downloading' ||
+          status == 'queued' ||
+          status == 'preparing') {
+        songData['status'] = 'paused';
+      }
+    });
+    notifyListeners();
+  }
+
+  /// Re-queues a single paused (or parked-as-failed) download.
+  Future<void> resumeDownload(String videoId) async {
+    await _mutateQueueItem(videoId, (songData) {
+      final status = songData['status'];
+      if (status == 'paused' || status == 'failed') {
+        songData['status'] = 'queued';
+        songData.remove('error');
+      }
+    });
+    notifyListeners();
+    if (!_isPaused && !_isProcessingQueue) {
+      unawaited(_processDownloadQueue());
+    }
+  }
+
+  /// Resets a failed download and puts it back at the front of the retry
+  /// rotation with a full retry budget.
+  Future<void> retryDownload(String videoId) async {
+    await _mutateQueueItem(videoId, (songData) {
+      final status = songData['status'];
+      if (status != 'completed' && status != 'downloading') {
+        songData
+          ..['status'] = 'queued'
+          ..['retryCount'] = 0
+          ..remove('error');
+      }
+    });
+    notifyListeners();
+    if (!_isPaused && !_isProcessingQueue) {
+      unawaited(_processDownloadQueue());
+    }
+  }
+
+  /// Re-queues every failed download with a full retry budget and restarts the
+  /// queue, so a batch of failures can be recovered in one tap. Does nothing
+  /// when there is no failed entry.
+  Future<void> retryAllFailed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+
+    var changed = false;
+    final updatedQueue = queue.map((item) {
+      final songData = json.decode(item) as Map<String, dynamic>;
+      if (songData['status'] == 'failed') {
+        songData
+          ..['status'] = 'queued'
+          ..['retryCount'] = 0
+          ..remove('error');
+        changed = true;
+      }
+      return json.encode(songData);
+    }).toList();
+
+    if (!changed) return;
+
+    await prefs.setStringList('download_queue', updatedQueue);
+    await loadDownloadQueue();
+    notifyListeners();
+
+    if (_isPaused) {
+      await resumeAllDownloads();
+    } else if (!_isProcessingQueue) {
+      unawaited(_processDownloadQueue());
+    }
+  }
+
+  /// Cancels a single download: aborts any in-flight transfer and drops the
+  /// entry from the queue entirely.
+  Future<void> cancelDownload(String videoId) async {
+    await _cancelInFlightDownload(videoId);
+    await _removeQueueEntry(videoId);
+    notifyListeners();
+  }
+
+  Future<void> removeDownload(Map<String, dynamic> song) async {
+    final videoId = song['id'] as String?;
+    if (videoId == null || videoId.isEmpty) return;
+    await cancelDownload(videoId);
+  }
+
+  /// Removes every queued (non-completed) entry, cancelling anything that is
+  /// still downloading. Completed downloads are left untouched.
+  Future<void> clearQueue() async {
+    final activeIds = _downloadQueue
+        .map((song) => song['id'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    for (final videoId in activeIds) {
+      await _cancelInFlightDownload(videoId);
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+    final updatedQueue = queue.where((item) {
+      final Map<String, dynamic> songData = json.decode(item);
+      return songData['status'] == 'completed';
+    }).toList();
+
+    await prefs.setStringList('download_queue', updatedQueue);
+    await loadDownloadQueue();
+    notifyListeners();
+  }
+
+  /// Deletes every completed download (files included) from storage.
+  Future<void> clearCompletedDownloads() async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = prefs.getStringList('download_queue') ?? [];
+
+    final updatedQueue = <String>[];
+    for (final item in queue) {
+      final Map<String, dynamic> songData = json.decode(item);
+      if (songData['status'] == 'completed') {
+        await _deleteFileQuietly(
+          (songData['localPath'] ?? songData['filePath']) as String?,
+        );
+        continue;
+      }
+      updatedQueue.add(item);
+    }
+
+    await prefs.setStringList('download_queue', updatedQueue);
+    await loadDownloadQueue();
+    await loadDownloadedSongs();
+    notifyListeners();
+  }
+
+  /// Clears the queue and the completed downloads in one go.
+  Future<void> clearAllDownloads() async {
+    await clearQueue();
+    await clearCompletedDownloads();
+  }
+
+  /// Resolves the directory downloads are written to, creating it when
+  /// missing.
+  Future<String> getDownloadDirectoryPath() async {
+    final String base;
+    if (Platform.isAndroid) {
+      base = '/storage/emulated/0/Download/MusiX/Downloads';
+    } else {
+      base = '${(await getApplicationDocumentsDirectory()).path}/MusiX/Downloads';
+    }
+    final dir = Directory(base);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return base;
+  }
+
+  /// Total size, in bytes, of every downloaded file currently on disk.
+  Future<int> getTotalDownloadedBytes() async {
+    var total = 0;
+    for (final song in _downloadedSongs) {
+      final path = (song['localPath'] ?? song['filePath']) as String?;
+      if (path == null || path.isEmpty) continue;
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          total += await file.length();
+        }
+      } catch (_) {}
+    }
+    return total;
+  }
+
+  /// Free space, in bytes, on the volume that holds the downloads folder.
+  /// Returns null on platforms where disk_space_plus cannot answer.
+  Future<int?> getFreeDiskSpaceBytes() async {
+    try {
+      final path = await getDownloadDirectoryPath();
+      final freeMb = await DiskSpacePlus().getFreeDiskSpaceForPath(path);
+      if (freeMb == null || freeMb.isNaN || freeMb.isInfinite) return null;
+      return (freeMb * 1024 * 1024).round();
+    } catch (e) {
+      debugPrint('Failed to read free disk space: $e');
+      return null;
+    }
   }
 
   Future<void> deleteDownloadedSong(String songId) async {
@@ -463,9 +808,10 @@ class DownloadProvider with ChangeNotifier {
         'artist': song.artists.isNotEmpty
             ? song.artists[0].name
             : 'Unknown Artist',
+        'artistId': song.artists.isNotEmpty ? song.artists[0].id : '',
         'thumbnail': song.thumbnails.isNotEmpty ? song.thumbnails[0].url : '',
         'status': 'queued',
-        'duration': song.duration.inMilliseconds,
+        'duration': song.duration.inSeconds,
       };
       queue.insert(0, json.encode(newSong));
       await prefs.setStringList('download_queue', queue);
@@ -493,10 +839,11 @@ class DownloadProvider with ChangeNotifier {
           ..['artist'] = song.artists.isNotEmpty
               ? song.artists[0].name
               : 'Unknown Artist'
+          ..['artistId'] = song.artists.isNotEmpty ? song.artists[0].id : ''
           ..['thumbnail'] = song.thumbnails.isNotEmpty
               ? song.thumbnails[0].url
               : ''
-          ..['duration'] = song.duration.inMilliseconds
+          ..['duration'] = song.duration.inSeconds
           ..['status'] = 'queued'
           ..['retryCount'] = 0
           ..remove('localPath')
@@ -616,21 +963,7 @@ class DownloadProvider with ChangeNotifier {
     final videoId = song.videoId;
     try {
       debugPrint('Starting download process for videoId: $videoId');
-      Directory downloadBaseDir;
-      if (Platform.isAndroid) {
-        downloadBaseDir = Directory(
-          "/storage/emulated/0/Download/MusiX/Downloads",
-        );
-      } else {
-        downloadBaseDir = Directory(
-          '${(await getApplicationDocumentsDirectory()).path}/MusiX/Downloads',
-        );
-      }
-
-      final downloadDir = downloadBaseDir;
-      if (!await downloadDir.exists()) {
-        await downloadDir.create(recursive: true);
-      }
+      final downloadDir = Directory(await getDownloadDirectoryPath());
 
       await _updateDownloadQueueStatus(song.videoId, 'downloading');
       debugPrint('Updated queue status to "downloading" for videoId: $videoId');
@@ -685,6 +1018,7 @@ class DownloadProvider with ChangeNotifier {
         downloadDir,
       );
       final filePath = '${downloadDir.path}/$uniqueFileName';
+      _inFlightFilePaths[videoId] = filePath;
 
       final dio = Dio(
         BaseOptions(
@@ -761,7 +1095,8 @@ class DownloadProvider with ChangeNotifier {
       );
 
       removeProgress(song.videoId);
-      _downloadCancelTokens.remove(song.videoId);
+      _downloadCancelTokens.remove(videoId);
+      _inFlightFilePaths.remove(videoId);
 
       if (shouldShowNotifications) {
         final notificationId = _getNotificationId(videoId);
@@ -778,17 +1113,31 @@ class DownloadProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Download failed for videoId: $videoId. Exception: $e');
       _preparing.remove(videoId);
-      if (e is DioException &&
-          e.type == DioExceptionType.cancel &&
-          _isPaused) {
-        await _updateDownloadQueueStatus(song.videoId, 'paused');
+      final wasUserCancelled = _userCancelledDownloads.remove(videoId);
+      final partialPath = _inFlightFilePaths.remove(videoId);
+      final isCancel =
+          e is DioException && e.type == DioExceptionType.cancel;
+
+      if (isCancel && (wasUserCancelled || _isPaused)) {
+        // Deliberate stop: the caller (pause/cancel/remove) already set the
+        // queue status; just clean up the partial file and leave it there.
+        await _deleteFileQuietly(partialPath);
+        if (!wasUserCancelled && _isPaused) {
+          await _updateDownloadQueueStatus(song.videoId, 'paused');
+        }
       } else {
-        await _handleDownloadFailureWithRotation(videoId);
+        await _deleteFileQuietly(partialPath);
+        await _handleDownloadFailureWithRotation(
+          videoId,
+          error: e.toString(),
+        );
       }
       removeProgress(song.videoId);
-      _downloadCancelTokens.remove(song.videoId);
+      _downloadCancelTokens.remove(videoId);
       notifyListeners();
-      rethrow;
+      if (!isCancel || (!wasUserCancelled && !_isPaused)) {
+        rethrow;
+      }
     }
   }
 
@@ -798,7 +1147,10 @@ class DownloadProvider with ChangeNotifier {
   /// Rotation is the point: a single bad stream must not block the rest of
   /// the queue. The failed song goes to the end so everything else gets a
   /// turn first, and by the time it comes around the stream may well resolve.
-  Future<void> _handleDownloadFailureWithRotation(String videoId) async {
+  Future<void> _handleDownloadFailureWithRotation(
+    String videoId, {
+    String? error,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final queue = prefs.getStringList('download_queue') ?? [];
 
@@ -818,7 +1170,11 @@ class DownloadProvider with ChangeNotifier {
       debugPrint(
         'Download failed permanently after $retryCount retries: $videoId',
       );
-      await _updateDownloadQueueStatus(videoId, 'failed');
+      await _updateDownloadQueueStatus(
+        videoId,
+        'failed',
+        additionalData: {'error': error ?? 'Download failed'},
+      );
       return;
     }
 
@@ -831,7 +1187,8 @@ class DownloadProvider with ChangeNotifier {
 
     target
       ..['status'] = 'queued'
-      ..['retryCount'] = retryCount + 1;
+      ..['retryCount'] = retryCount + 1
+      ..['error'] = error ?? 'Download failed';
     updatedQueue.insert(0, json.encode(target));
 
     await prefs.setStringList('download_queue', updatedQueue);
@@ -854,6 +1211,12 @@ class DownloadProvider with ChangeNotifier {
       final Map<String, dynamic> songData = json.decode(item);
       if (songData['id'] == videoId) {
         songData['status'] = status;
+        if (status == 'completed') {
+          // A finished download has no lingering failure state to show.
+          songData
+            ..remove('error')
+            ..['retryCount'] = 0;
+        }
         if (additionalData != null) {
           songData.addAll(additionalData);
         }
