@@ -282,6 +282,13 @@ class PlayerProvider extends ChangeNotifier {
     _fetchAndSetVideoDetails(cleanedSong.videoId);
   }
 
+  void clearCurrentSong() {
+    _currentSong = null;
+    _lastPlayedSong = null;
+    _currentVideoDetails = null;
+    notifyListeners();
+  }
+
   Future<void> _fetchAndSetVideoDetails(String videoId) async {
     try {
       final videoInfo = await _videoInfoProvider.getVideoInfo(videoId);
