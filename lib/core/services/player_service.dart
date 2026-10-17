@@ -468,6 +468,17 @@ class PlayerService {
 
     await _setAudioSessionActive(true);
 
+    // If the current song previously failed to load (e.g. YouTube blocked the
+    // stream) but is still marked as current, blindly resuming the media kit
+    // would play a stale/different track while the UI shows the failed song's
+    // title. Re-resolve the current song so title and playback stay in sync.
+    if (_processingState == ProcessingState.idle &&
+        playerProvider.currentSong != null &&
+        playerProvider.currentLocalSong == null) {
+      await playSong(playerProvider.currentSong!);
+      return;
+    }
+
     await _mediaKitAdapter.play();
 
     _processingState = ProcessingState.ready;
@@ -755,6 +766,11 @@ class PlayerService {
     _isPlaying = false;
 
     _emitState();
+
+    // The current song failed and nothing will play it: clear it so the UI
+    // title does not stay stuck on a dead/failed song. If there is a next
+    // song, playSong() below re-sets _currentSong to it.
+    playerProvider.clearCurrentSong();
 
     // -------------------------------------------------------------------------
     // IMPORTANT:
