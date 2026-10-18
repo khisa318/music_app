@@ -148,6 +148,12 @@ class PlayerService {
 
   SongInfo? _prebufferedSong;
 
+  /// Identifier of the track media_kit currently has loaded, or null when
+  /// nothing valid is loaded. Used to keep the actually-playing audio in sync
+  /// with [PlayerProvider.currentSong] (the title shown in the UI) so we never
+  /// resume a stale track after a playback failure.
+  String? _loadedSongId;
+
   AudioSession? _audioSession;
 
   Timer? _progressSyncTimer;
@@ -468,15 +474,29 @@ class PlayerService {
 
     await _setAudioSessionActive(true);
 
-    // If the current song previously failed to load (e.g. YouTube blocked the
-    // stream) but is still marked as current, blindly resuming the media kit
-    // would play a stale/different track while the UI shows the failed song's
-    // title. Re-resolve the current song so title and playback stay in sync.
-    if (_processingState == ProcessingState.idle &&
-        playerProvider.currentSong != null &&
-        playerProvider.currentLocalSong == null) {
-      await playSong(playerProvider.currentSong!);
-      return;
+    final currentSong = playerProvider.currentSong;
+    final hasLocalSong = playerProvider.currentLocalSong != null;
+
+    if (!hasLocalSong) {
+      // Nothing valid is loaded (e.g. the previous song failed and was
+      // cleared). Resuming media_kit here would play whatever stale track it
+      // still holds while the UI shows a different title. Do nothing instead.
+      if (currentSong == null) {
+        debugPrint('[PlayerService] play() ignored: no current song');
+        return;
+      }
+
+      // The UI's current song is not the track media_kit actually has loaded
+      // (stale source after a failure). Re-resolve it so the title and the
+      // audio stay in sync instead of blindly resuming the wrong track.
+      if (_loadedSongId != currentSong.videoId) {
+        debugPrint(
+          '[PlayerService] play() re-resolving mismatched track '
+          '${currentSong.name}',
+        );
+        await playSong(currentSong);
+        return;
+      }
     }
 
     await _mediaKitAdapter.play();
@@ -522,6 +542,8 @@ class PlayerService {
     _wasPlayingBeforeInterruption = false;
 
     _processingState = ProcessingState.idle;
+
+    _loadedSongId = null;
 
     _position = Duration.zero;
 
@@ -645,6 +667,9 @@ class PlayerService {
         unawaited(GetIt.I<EqualizerService>().applyToBoundPlayer());
       }
 
+      // media_kit now holds this track, so it is safe to resume/seek it later.
+      _loadedSongId = song.videoId;
+
       _duration = song.duration;
 
       _durationController.add(_duration);
@@ -653,6 +678,10 @@ class PlayerService {
 
       _emitState();
     } catch (e) {
+      // The open did not complete, so media_kit must not be treated as holding
+      // a valid track (it may still hold the previous song or a broken one).
+      _loadedSongId = null;
+
       _processingState = ProcessingState.idle;
 
       _emitState();
@@ -772,6 +801,17 @@ class PlayerService {
     // song, playSong() below re-sets _currentSong to it.
     playerProvider.clearCurrentSong();
 
+    // media_kit still holds the previously playing track. Stop it and forget
+    // the loaded id so a later play() cannot resume that stale audio while the
+    // UI shows a different (or no) title.
+    try {
+      await _mediaKitAdapter.stop();
+    } catch (e) {
+      debugPrint('Failed to stop stale media after failure: $e');
+    }
+
+    _loadedSongId = null;
+
     // -------------------------------------------------------------------------
     // IMPORTANT:
     //
@@ -836,6 +876,8 @@ class PlayerService {
     await _setAudioSessionActive(true);
 
     await _mediaKitAdapter.openPath(filePath, play: true);
+
+    _loadedSongId = songData['id']?.toString();
 
     _processingState = ProcessingState.ready;
 
@@ -1284,6 +1326,20 @@ class PlayerService {
             return;
           }
 
+          // Never resume a stale track: media_kit may still hold a previous
+          // song if the current one failed to load.
+          final currentSong = playerProvider.currentSong;
+          final hasLocalSong = playerProvider.currentLocalSong != null;
+
+          if (!hasLocalSong &&
+              (currentSong == null ||
+                  _loadedSongId != currentSong.videoId)) {
+            debugPrint(
+              '[AudioSession] skipping resume: no matching loaded track',
+            );
+            return;
+          }
+
           await _mediaKitAdapter.play();
 
           _isPlaying = true;
@@ -1368,6 +1424,8 @@ class PlayerService {
           final swapped = await _mediaKitAdapter.swapToPrebuffered();
 
           if (swapped) {
+            _loadedSongId = nextSong.videoId;
+
             if (GetIt.I.isRegistered<EqualizerService>()) {
               unawaited(
                 GetIt.I<EqualizerService>().bindPlayer(_mediaKitAdapter),
