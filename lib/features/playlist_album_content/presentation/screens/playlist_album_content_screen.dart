@@ -1087,13 +1087,21 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     );
   }
 
-  Future<void> _onReorder(int oldIndex, int newIndex) async {
+  Future<void> _onReorderItem(int oldIndex, int newIndex) async {
     if (!_isLocal) return;
     final songs = _provider.songs;
     if (oldIndex >= songs.length || newIndex > songs.length) return;
-    final song = songs[oldIndex];
     final library = _libraryProvider;
-    await library.reorderPlaylistSongs(_playlistName, oldIndex, newIndex);
+
+    // onReorderItem already accounts for the removed item. reorderPlaylistSongs
+    // still expects the raw ReorderableListView index, which is one higher when
+    // moving an item down, so undo that adjustment before handing it over.
+    final candidate = newIndex > oldIndex ? newIndex + 1 : newIndex;
+    final rawNewIndex = candidate < 0
+        ? 0
+        : (candidate > songs.length ? songs.length : candidate);
+
+    await library.reorderPlaylistSongs(_playlistName, oldIndex, rawNewIndex);
     if (mounted) {
       await _provider.refreshLocalSongs(library, force: true);
       setState(() {});
@@ -1148,7 +1156,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                     );
                   },
                   itemCount: _provider.songs.length + 1,
-                  onReorder: _onReorder,
+                  onReorderItem: _onReorderItem,
                 )
               : SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
@@ -1289,7 +1297,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                         );
                       },
                       itemCount: _provider.songs.length + 1,
-                      onReorder: _onReorder,
+                      onReorderItem: _onReorderItem,
                     )
                   : SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {

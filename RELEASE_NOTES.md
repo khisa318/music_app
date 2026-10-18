@@ -7,7 +7,6 @@
 - Downloads now recover on their own. If one fails, it rotates to the back of the queue and is retried automatically instead of stopping everything.
 - Rename the playlists you've created and set a playlist's cover from its top song. Each playlist also suggests more music you can add at the end.
 - Fine-tune lyrics timing: nudge any song's lyrics earlier or later in 0.25s steps so they line up perfectly. The adjustment is remembered per song.
-- Songs you've downloaded now show up in search, so your offline library is easy to find without a connection.
 
 ## Fixed
 
