@@ -98,17 +98,24 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
 
     final info = ota.updateInfo;
 
+    // An automatic update is only begun over a connection the user allows:
+    // with "Wi-Fi only downloads" on, we wait for Wi-Fi; otherwise any network
+    // is fine. The download itself stays slow and throttled so it never
+    // competes with streaming, and it resumes from disk after the app dies.
+    final networkAllowsAutoDownload =
+        !settings.wifiOnlyDownloads || connectivity.isWifiConnected;
+
     if (settings.updateCheckEnabled &&
         ota.status == OTAStatus.updateAvailable &&
         info != null &&
-        connectivity.isWifiConnected &&
+        networkAllowsAutoDownload &&
         info.latestVersion != _autoDownloadedVersion) {
       _autoDownloadedVersion = info.latestVersion;
 
-      // Start the download *before* suppressing the launch dialog: downloadUpdate
-      // flips the status synchronously, which stops this listener from firing
-      // again for the same update.
-      unawaited(ota.downloadUpdate());
+      // Start the download *before* suppressing the launch dialog:
+      // startBackgroundDownload flips the status synchronously, which stops
+      // this listener from firing again for the same update.
+      unawaited(ota.startBackgroundDownload());
       if (!ota.isUpdateUIShown) ota.setUpdateUIShown(true);
     }
 
@@ -149,7 +156,11 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   Widget build(BuildContext context) {
     return Consumer<OTAProvider>(
       builder: (context, otaProvider, child) {
-        if (otaProvider.hasUpdate &&
+        // Only the "an update is available" case raises the full prompt. Once
+        // a download is running or finished, progress lives in the home banner
+        // and the install prompt, so the update dialog must not reappear on
+        // top of them.
+        if (otaProvider.status == OTAStatus.updateAvailable &&
             otaProvider.updateInfo != null &&
             !otaProvider.isUpdateUIShown &&
             !otaProvider.isOTAScreenActive) {

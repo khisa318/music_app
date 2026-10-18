@@ -394,19 +394,20 @@ class OTAProvider extends ChangeNotifier {
         return;
       }
 
-      // Fresh update, or a partial left by an interrupted/killed session:
-      // either way the slow background download picks up from the partial
-      // file when one exists.
+      // Fresh update, or a partial left by an interrupted/killed session: the
+      // throttled background download picks up from the partial file when one
+      // exists. Starting it is left to the UI coordinator, which is where the
+      // Wi-Fi / "Wi-Fi only downloads" policy is known, so an automatic update
+      // is never begun over a connection the user asked us to avoid.
       final inflight = await _readInflightVersion();
       final hasPartial = await _downloadService.hasPartial(
         info.apkAssetName,
       );
       debugPrint(
-        '[Update] starting background download '
-        '(inflight match: ${inflight == info.latestVersion}, '
+        '[Update] update available; UI will start the throttled background '
+        'download (inflight match: ${inflight == info.latestVersion}, '
         'partial on disk: $hasPartial)',
       );
-      unawaited(startBackgroundDownload());
     } catch (error) {
       debugPrint('[Update] background restore failed: $error');
     }
