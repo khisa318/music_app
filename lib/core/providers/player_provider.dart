@@ -282,13 +282,6 @@ class PlayerProvider extends ChangeNotifier {
     _fetchAndSetVideoDetails(cleanedSong.videoId);
   }
 
-  void clearCurrentSong() {
-    _currentSong = null;
-    _lastPlayedSong = null;
-    _currentVideoDetails = null;
-    notifyListeners();
-  }
-
   Future<void> _fetchAndSetVideoDetails(String videoId) async {
     try {
       final videoInfo = await _videoInfoProvider.getVideoInfo(videoId);
@@ -351,6 +344,18 @@ class PlayerProvider extends ChangeNotifier {
 
     _queueProvider.clearQueue();
 
+    notifyListeners();
+  }
+
+  /// Clears the current song without touching the queue. Used when a play
+  /// attempt fails and there is no previous song to restore, so the player UI
+  /// never shows a title for audio that is not actually playing.
+  void clearCurrentSong() {
+    _currentSong = null;
+    _currentLocalSong = null;
+    _lastPlayedSong = null;
+    _favoriteSongProvider.setCurrentSong(null);
+    _currentVideoDetails = null;
     notifyListeners();
   }
 
