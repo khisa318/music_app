@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
@@ -7,6 +9,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/models/ota_model.dart';
+import '../../../../core/providers/connectivity_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -15,6 +18,7 @@ import '../../../../core/widgets/liquid_glass.dart';
 import '../../../home/presentation/screens/home_screen.dart';
 import '../../../ota/data/providers/ota_provider.dart';
 import '../../../ota/presentation/widgets/ota_dialog.dart';
+import '../../../ota/presentation/widgets/ota_install_dialog.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
@@ -34,20 +38,95 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
     initialIndex: 0,
   );
 
+  OTAProvider? _otaProvider;
+  ConnectivityProvider? _connectivityProvider;
+  SettingsProvider? _settingsProvider;
+
+  /// The version already auto-downloaded on Wi-Fi. Guards against the download
+  /// restarting itself the moment the user cancels it (cancel returns the
+  /// status to `updateAvailable`, which would otherwise re-trigger the flow).
+  String? _autoDownloadedVersion;
+
+  /// Whether the "update ready to install" prompt was already shown for the
+  /// current download, so completing one download never nags twice.
+  bool _installPromptShown = false;
+
+  OTAStatus? _lastOtaStatus;
+
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final settingsProvider = Provider.of<SettingsProvider>(
+      if (!mounted) return;
+
+      _settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+      _otaProvider = Provider.of<OTAProvider>(context, listen: false);
+      _connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
       );
 
-      if (settingsProvider.updateCheckEnabled) {
-        Provider.of<OTAProvider>(context, listen: false).checkForUpdates();
+      _lastOtaStatus = _otaProvider!.status;
+      _otaProvider!.addListener(_onOtaChanged);
+      _connectivityProvider!.addListener(_onOtaChanged);
+
+      if (_settingsProvider!.updateCheckEnabled) {
+        _otaProvider!.checkForUpdates();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _otaProvider?.removeListener(_onOtaChanged);
+    _connectivityProvider?.removeListener(_onOtaChanged);
+    super.dispose();
+  }
+
+  /// Starts a Wi-Fi download for a freshly discovered update and prompts to
+  /// install once it lands. Everything else (off Wi-Fi, a paused or failed
+  /// download) is left to the home banner and the update dialog.
+  void _onOtaChanged() {
+    final ota = _otaProvider;
+    final settings = _settingsProvider;
+    final connectivity = _connectivityProvider;
+    if (ota == null || settings == null || connectivity == null) return;
+
+    final info = ota.updateInfo;
+
+    if (settings.updateCheckEnabled &&
+        ota.status == OTAStatus.updateAvailable &&
+        info != null &&
+        connectivity.isWifiConnected &&
+        info.latestVersion != _autoDownloadedVersion) {
+      _autoDownloadedVersion = info.latestVersion;
+
+      // Start the download *before* suppressing the launch dialog: downloadUpdate
+      // flips the status synchronously, which stops this listener from firing
+      // again for the same update.
+      unawaited(ota.downloadUpdate());
+      if (!ota.isUpdateUIShown) ota.setUpdateUIShown(true);
+    }
+
+    if (ota.status == OTAStatus.downloaded &&
+        _lastOtaStatus != OTAStatus.downloaded &&
+        !ota.isOTAScreenActive &&
+        !_installPromptShown) {
+      _installPromptShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) OTAInstallDialog.show(context);
+      });
+    }
+
+    if (ota.status != OTAStatus.downloaded) {
+      _installPromptShown = false;
+    }
+
+    _lastOtaStatus = ota.status;
   }
 
   // ---------------------------------------------------------------------------
