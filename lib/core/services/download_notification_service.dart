@@ -390,6 +390,61 @@ class DownloadNotificationService {
     } catch (_) {}
   }
 
+  /// In-app update finished downloading; prompts the user to install.
+  Future<void> showUpdateReady({required String version}) async {
+    if (!await _canPostNotifications()) {
+      return;
+    }
+
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          _completeChannelId,
+          _completeChannelName,
+          channelDescription: _completeChannelDescription,
+
+          importance: Importance.high,
+          priority: Priority.high,
+
+          ongoing: false,
+          autoCancel: true,
+
+          showWhen: true,
+          channelShowBadge: true,
+
+          enableVibration: true,
+          playSound: true,
+
+          icon: '@mipmap/ic_launcher',
+        );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const LinuxNotificationDetails linuxDetails = LinuxNotificationDetails();
+
+    const WindowsNotificationDetails windowsDetails =
+        WindowsNotificationDetails();
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      linux: linuxDetails,
+      windows: windowsDetails,
+    );
+
+    try {
+      await _notifications.show(
+        id: 9001,
+        title: 'Update ready to install',
+        body: 'MusiX $version has been downloaded.\nTap to install.',
+        notificationDetails: details,
+      );
+    } catch (_) {}
+  }
+
   Future<void> cancelNotification(int notificationId) async {
     if (!await _canPostNotifications()) {
       return;

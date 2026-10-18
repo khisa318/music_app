@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../screens/player_ui.dart';
 
@@ -45,6 +47,14 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
   bool _showPlainLyrics = false;
   StreamSubscription<Duration>? _positionSubscription;
 
+  static const String _offsetPrefPrefix = 'lyrics_sync_offset_';
+  static const double _offsetStepSeconds = 0.25;
+  static const double _maxOffsetSeconds = 10.0;
+
+  double _offsetSeconds = 0.0;
+  String? _loadedOffsetKey;
+  Duration _lastPosition = Duration.zero;
+
   late LyricsProvider _lyricsProvider;
   late PlayerProvider _playerProvider;
 
@@ -54,6 +64,7 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     _scrollController.addListener(_onUserScroll);
 
     _positionSubscription = widget.positionStream.listen((position) {
+      _lastPosition = position;
       if (!_userScrolling && !_showPlainLyrics) {
         _updateCurrentLine(position);
       }
@@ -72,6 +83,7 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     _playerProvider.addListener(_onPlayerProviderChanged);
 
     _parseLyrics();
+    _syncOffsetForCurrentSong();
   }
 
   void _onLyricsProviderChanged() {
@@ -80,6 +92,76 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
 
   void _onPlayerProviderChanged() {
     _parseLyrics();
+    _syncOffsetForCurrentSong();
+  }
+
+  String _songKey(PlayerProvider player) {
+    final remoteId = player.currentSong?.videoId;
+    if (remoteId != null && remoteId.isNotEmpty) return remoteId;
+    final localId = player.currentLocalSong?['id'];
+    if (localId != null) {
+      final id = localId.toString();
+      if (id.isNotEmpty) return id;
+    }
+    return '';
+  }
+
+  Future<void> _syncOffsetForCurrentSong() async {
+    final key = _songKey(_playerProvider);
+    if (key == _loadedOffsetKey) return;
+    _loadedOffsetKey = key;
+
+    double value = 0.0;
+    if (key.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      value = prefs.getDouble('$_offsetPrefPrefix$key') ?? 0.0;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _offsetSeconds = value;
+    });
+    _updateCurrentLine(_lastPosition);
+  }
+
+  Future<void> _persistOffset() async {
+    final key = _songKey(_playerProvider);
+    if (key.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (_offsetSeconds == 0.0) {
+      await prefs.remove('$_offsetPrefPrefix$key');
+    } else {
+      await prefs.setDouble('$_offsetPrefPrefix$key', _offsetSeconds);
+    }
+  }
+
+  void _nudgeOffset(double delta) {
+    final next = ((_offsetSeconds + delta).clamp(
+      -_maxOffsetSeconds,
+      _maxOffsetSeconds,
+    ) * 100).round() / 100;
+    if (next == _offsetSeconds) return;
+    setState(() {
+      _offsetSeconds = next;
+    });
+    _persistOffset();
+    _updateCurrentLine(_lastPosition);
+  }
+
+  void _resetOffset() {
+    if (_offsetSeconds == 0.0) return;
+    setState(() {
+      _offsetSeconds = 0.0;
+    });
+    _persistOffset();
+    _updateCurrentLine(_lastPosition);
+  }
+
+  String _formatOffset() {
+    final String sign = _offsetSeconds > 0
+        ? '+'
+        : (_offsetSeconds < 0 ? '-' : '');
+    return '$sign${_offsetSeconds.abs().toStringAsFixed(2)}s';
   }
 
   void _parseLyrics() {
@@ -155,8 +237,11 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
       return;
     }
 
+    final adjustedPosition =
+        position - Duration(milliseconds: (_offsetSeconds * 1000).round());
+
     int newLineIndex = _parsedLyrics.indexWhere(
-      (line) => line.timestamp != null && line.timestamp! > position,
+      (line) => line.timestamp != null && line.timestamp! > adjustedPosition,
     );
 
     if (newLineIndex == -1) {
@@ -242,6 +327,74 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     }
     final single = error.replaceAll('\n', ' ').trim();
     return single.length <= 140 ? single : '${single.substring(0, 136)}...';
+  }
+
+  Widget _buildOffsetControl(Color accentColor, double textScale) {
+    final double labelScale = textScale > 1.0
+        ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
+        : 1.0;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+          width: AppDimens.borderWidthThin,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.remove_rounded,
+              color: Colors.white,
+              size: AppDimens.iconXs,
+            ),
+            tooltip: 'lyrics_offset_earlier'.tr(),
+            onPressed: () => _nudgeOffset(-_offsetStepSeconds),
+            padding: EdgeInsets.all(AppDimens.spacingS),
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+          ),
+          GestureDetector(
+            onTap: _resetOffset,
+            behavior: HitTestBehavior.opaque,
+            child: Tooltip(
+              message: 'lyrics_offset_reset'.tr(),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppDimens.spacingSm),
+                child: Text(
+                  _formatOffset(),
+                  textScaler: TextScaler.linear(labelScale),
+                  style:
+                      AppTextStyles.caption(
+                        isDarkMode: true,
+                        color: _offsetSeconds == 0.0
+                            ? Colors.white.withValues(alpha: 0.7)
+                            : accentColor,
+                      ).copyWith(
+                        fontWeight: AppTextStyles.weightSemiBold,
+                      ),
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.add_rounded,
+              color: Colors.white,
+              size: AppDimens.iconXs,
+            ),
+            tooltip: 'lyrics_offset_later'.tr(),
+            onPressed: () => _nudgeOffset(_offsetStepSeconds),
+            padding: EdgeInsets.all(AppDimens.spacingS),
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _buildLyricsLines() {
@@ -540,25 +693,43 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
 
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          width: AppDimens.borderWidthThin,
-                        ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppDimens.spacingMd,
                       ),
-                      child: IconButton(
-                        icon: Icon(
-                          _showPlainLyrics
-                              ? Icons.format_list_bulleted
-                              : Icons.lyrics_outlined,
-                          color: Colors.white,
-                          size: AppDimens.iconSm,
-                        ),
-                        onPressed: _togglePlainLyrics,
-                        padding: EdgeInsets.all(AppDimens.spacingS),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if ((_lyricsProvider.lyricsResponse?.isSynced ??
+                                  false) &&
+                              !_showPlainLyrics)
+                            _buildOffsetControl(accentColor, textScale)
+                          else
+                            const SizedBox.shrink(),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(
+                                AppDimens.radiusSm,
+                              ),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                width: AppDimens.borderWidthThin,
+                              ),
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                _showPlainLyrics
+                                    ? Icons.format_list_bulleted
+                                    : Icons.lyrics_outlined,
+                                color: Colors.white,
+                                size: AppDimens.iconSm,
+                              ),
+                              onPressed: _togglePlainLyrics,
+                              padding: EdgeInsets.all(AppDimens.spacingS),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

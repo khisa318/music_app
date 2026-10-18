@@ -74,6 +74,10 @@ class PlayerService {
 
   bool isExplicitlySettingSong = false;
 
+  /// Tracks re-entrant [playSong] calls (the unavailable-song skip chain) so
+  /// the "restore previous song" cleanup only runs at the outermost level.
+  int _playSongNesting = 0;
+
   final StreamController<PlayerState> _playerStateController =
       StreamController<PlayerState>.broadcast();
 
@@ -147,6 +151,12 @@ class PlayerService {
   bool _prebufferStarted = false;
 
   SongInfo? _prebufferedSong;
+
+  /// Identifier of the track media_kit currently has loaded, or null when
+  /// nothing valid is loaded. Used to keep the actually-playing audio in sync
+  /// with [PlayerProvider.currentSong] (the title shown in the UI) so we never
+  /// resume a stale track after a playback failure.
+  String? _loadedSongId;
 
   AudioSession? _audioSession;
 
@@ -468,6 +478,31 @@ class PlayerService {
 
     await _setAudioSessionActive(true);
 
+    final currentSong = playerProvider.currentSong;
+    final hasLocalSong = playerProvider.currentLocalSong != null;
+
+    if (!hasLocalSong) {
+      // Nothing valid is loaded (e.g. the previous song failed and was
+      // cleared). Resuming media_kit here would play whatever stale track it
+      // still holds while the UI shows a different title. Do nothing instead.
+      if (currentSong == null) {
+        debugPrint('[PlayerService] play() ignored: no current song');
+        return;
+      }
+
+      // The UI's current song is not the track media_kit actually has loaded
+      // (stale source after a failure). Re-resolve it so the title and the
+      // audio stay in sync instead of blindly resuming the wrong track.
+      if (_loadedSongId != currentSong.videoId) {
+        debugPrint(
+          '[PlayerService] play() re-resolving mismatched track '
+          '${currentSong.name}',
+        );
+        await playSong(currentSong);
+        return;
+      }
+    }
+
     await _mediaKitAdapter.play();
 
     _processingState = ProcessingState.ready;
@@ -511,6 +546,8 @@ class PlayerService {
     _wasPlayingBeforeInterruption = false;
 
     _processingState = ProcessingState.idle;
+
+    _loadedSongId = null;
 
     _position = Duration.zero;
 
@@ -634,6 +671,9 @@ class PlayerService {
         unawaited(GetIt.I<EqualizerService>().applyToBoundPlayer());
       }
 
+      // media_kit now holds this track, so it is safe to resume/seek it later.
+      _loadedSongId = song.videoId;
+
       _duration = song.duration;
 
       _durationController.add(_duration);
@@ -642,6 +682,10 @@ class PlayerService {
 
       _emitState();
     } catch (e) {
+      // The open did not complete, so media_kit must not be treated as holding
+      // a valid track (it may still hold the previous song or a broken one).
+      _loadedSongId = null;
+
       _processingState = ProcessingState.idle;
 
       _emitState();
@@ -661,90 +705,117 @@ class PlayerService {
     int maxRetries = _maxSongPlaybackAttempts,
     bool skipToNextOnFailure = true,
   }) async {
-    isExplicitlySettingSong = true;
+    final isTopLevelPlay = _playSongNesting == 0;
+    _playSongNesting++;
 
-    _audioInterruptionActive = false;
+    // Snapshot of whatever was current before this attempt. If the new song
+    // cannot be opened and nothing else takes over, the player must fall back
+    // to this - otherwise the UI keeps showing the failed song's title while
+    // the old audio (or silence) is what the user actually gets.
+    final SongInfo? previousSong = playerProvider.currentSong;
+    final Map<String, dynamic>? previousLocalSong =
+        playerProvider.currentLocalSong;
 
-    _wasPlayingBeforeInterruption = false;
+    try {
+      isExplicitlySettingSong = true;
 
-    if (_isPlaying) {
-      await _mediaKitAdapter.pause();
+      _audioInterruptionActive = false;
 
-      _isPlaying = false;
+      _wasPlayingBeforeInterruption = false;
 
-      _emitState();
-    }
+      if (_isPlaying) {
+        await _mediaKitAdapter.pause();
 
-    playerProvider.setCurrentSong(song);
+        _isPlaying = false;
 
-    unawaited(_recordCurrentPlaybackEnd());
+        _emitState();
+      }
 
-    final attempts = maxRetries < 1 ? 1 : maxRetries;
+      playerProvider.setCurrentSong(song);
 
-    for (int attempt = 1; attempt <= attempts; attempt++) {
-      try {
-        debugPrint(
-          '▶ Playing ${song.name} '
-          '(attempt $attempt/$attempts)',
-        );
+      unawaited(_recordCurrentPlaybackEnd());
 
-        await _openSong(song, playWhenReady: true);
+      final attempts = maxRetries < 1 ? 1 : maxRetries;
 
-        _currentStatsSongId = song.videoId;
+      for (int attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          debugPrint(
+            '▶ Playing ${song.name} '
+            '(attempt $attempt/$attempts)',
+          );
 
-        _currentStatsSongTitle = song.name;
+          await _openSong(song, playWhenReady: true);
 
-        _currentStatsSongArtist = song.artists.map((a) => a.name).join(', ');
+          _currentStatsSongId = song.videoId;
 
-        _currentStatsSessionStartPosition =
-            (await getCurrentPosition()).inSeconds;
+          _currentStatsSongTitle = song.name;
 
-        statsProvider.recordPlayStart(
-          _currentStatsSongId!,
-          _currentStatsSongTitle!,
-          _currentStatsSongArtist!,
-          _currentStatsSessionStartPosition!,
-        );
+          _currentStatsSongArtist = song.artists.map((a) => a.name).join(', ');
 
-        isExplicitlySettingSong = false;
+          _currentStatsSessionStartPosition =
+              (await getCurrentPosition()).inSeconds;
 
-        debugPrint('✓ Successfully started ${song.name}');
+          statsProvider.recordPlayStart(
+            _currentStatsSongId!,
+            _currentStatsSongTitle!,
+            _currentStatsSongArtist!,
+            _currentStatsSessionStartPosition!,
+          );
 
-        return true;
-      } catch (e) {
-        debugPrint(
-          '⚠ playSong attempt '
-          '$attempt/$attempts failed for '
-          '${song.name}: $e',
-        );
+          isExplicitlySettingSong = false;
 
-        if (attempt < attempts) {
-          await Future.delayed(const Duration(milliseconds: 300));
+          debugPrint('✓ Successfully started ${song.name}');
+
+          return true;
+        } catch (e) {
+          debugPrint(
+            '⚠ playSong attempt '
+            '$attempt/$attempts failed for '
+            '${song.name}: $e',
+          );
+
+          if (attempt < attempts) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
         }
       }
+
+      // -------------------------------------------------------------------------
+      // BOTH ATTEMPTS FAILED
+      // -------------------------------------------------------------------------
+
+      debugPrint(
+        '⚠ Song unavailable after $attempts attempts: '
+        '${song.name}',
+      );
+
+      isExplicitlySettingSong = false;
+
+      final movedToAnotherSong = await _handleUnavailableSong(
+        song,
+        skipToNext: skipToNextOnFailure,
+      );
+
+      // The whole chain failed: no song in the queue could be opened. Only
+      // the outermost call restores state, so intermediate retries in the
+      // chain do not fight over the previous-song snapshot.
+      if (!movedToAnotherSong && isTopLevelPlay) {
+        await _restorePreviousPlaybackState(previousSong, previousLocalSong);
+      }
+
+      return false;
+    } finally {
+      _playSongNesting--;
     }
-
-    // -------------------------------------------------------------------------
-    // BOTH ATTEMPTS FAILED
-    // -------------------------------------------------------------------------
-
-    debugPrint(
-      '⚠ Song unavailable after $attempts attempts: '
-      '${song.name}',
-    );
-
-    isExplicitlySettingSong = false;
-
-    await _handleUnavailableSong(song, skipToNext: skipToNextOnFailure);
-
-    return false;
   }
 
   // ===========================================================================
   // UNAVAILABLE SONG
   // ===========================================================================
 
-  Future<void> _handleUnavailableSong(
+  /// Returns true when a different song was successfully started as a
+  /// replacement, false when nothing could be played.
+  Future<bool> _handleUnavailableSong(
     SongInfo song, {
     bool skipToNext = true,
   }) async {
@@ -756,6 +827,22 @@ class PlayerService {
 
     _emitState();
 
+    // The current song failed and nothing will play it: clear it so the UI
+    // title does not stay stuck on a dead/failed song. If there is a next
+    // song, playSong() below re-sets _currentSong to it.
+    playerProvider.clearCurrentSong();
+
+    // media_kit still holds the previously playing track. Stop it and forget
+    // the loaded id so a later play() cannot resume that stale audio while the
+    // UI shows a different (or no) title.
+    try {
+      await _mediaKitAdapter.stop();
+    } catch (e) {
+      debugPrint('Failed to stop stale media after failure: $e');
+    }
+
+    _loadedSongId = null;
+
     // -------------------------------------------------------------------------
     // IMPORTANT:
     //
@@ -764,7 +851,7 @@ class PlayerService {
     // -------------------------------------------------------------------------
 
     if (!skipToNext) {
-      return;
+      return false;
     }
 
     final nextSong = queueProvider.getNextSong();
@@ -772,7 +859,15 @@ class PlayerService {
     if (nextSong == null) {
       debugPrint('⚠ No next song available after unavailable song.');
 
-      return;
+      return false;
+    }
+
+    if (nextSong.videoId == song.videoId) {
+      // Only one song in the queue - skipping would just retry the same
+      // broken stream forever.
+      debugPrint('⚠ Next song is the same as the failed song; stopping.');
+
+      return false;
     }
 
     debugPrint(
@@ -788,6 +883,42 @@ class PlayerService {
 
     if (!success) {
       debugPrint('⚠ Next song also failed: ${nextSong.name}');
+    }
+
+    return success;
+  }
+
+  /// Puts the player back into a consistent state after a failed play
+  /// attempt: audio stopped, and the provider showing whichever song was
+  /// current before the attempt (or nothing, if there was none).
+  Future<void> _restorePreviousPlaybackState(
+    SongInfo? previousSong,
+    Map<String, dynamic>? previousLocalSong,
+  ) async {
+    debugPrint(
+      '↩ Restoring previous playback state after failed play '
+      '(previous: ${previousSong?.name ?? previousLocalSong?['title'] ?? 'none'})',
+    );
+
+    try {
+      await _mediaKitAdapter.stop();
+    } catch (e) {
+      debugPrint('Failed to stop player while restoring state: $e');
+    }
+
+    _isPlaying = false;
+    _processingState = ProcessingState.idle;
+    _position = Duration.zero;
+    _duration = null;
+
+    _emitState();
+
+    if (previousLocalSong != null) {
+      playerProvider.updateCurrentLocalSong(previousLocalSong);
+    } else if (previousSong != null) {
+      await playerProvider.setCurrentSong(previousSong);
+    } else {
+      playerProvider.clearCurrentSong();
     }
   }
 
@@ -820,6 +951,8 @@ class PlayerService {
     await _setAudioSessionActive(true);
 
     await _mediaKitAdapter.openPath(filePath, play: true);
+
+    _loadedSongId = songData['id']?.toString();
 
     _processingState = ProcessingState.ready;
 
@@ -1268,6 +1401,20 @@ class PlayerService {
             return;
           }
 
+          // Never resume a stale track: media_kit may still hold a previous
+          // song if the current one failed to load.
+          final currentSong = playerProvider.currentSong;
+          final hasLocalSong = playerProvider.currentLocalSong != null;
+
+          if (!hasLocalSong &&
+              (currentSong == null ||
+                  _loadedSongId != currentSong.videoId)) {
+            debugPrint(
+              '[AudioSession] skipping resume: no matching loaded track',
+            );
+            return;
+          }
+
           await _mediaKitAdapter.play();
 
           _isPlaying = true;
@@ -1319,7 +1466,7 @@ class PlayerService {
   // ===========================================================================
 
   Future<void> _handlePlaybackCompletion() async {
-    if (_isHandlingCompletion) {
+    if (_isHandlingCompletion || _mediaKitAdapter.isCrossfading) {
       return;
     }
 
@@ -1352,6 +1499,8 @@ class PlayerService {
           final swapped = await _mediaKitAdapter.swapToPrebuffered();
 
           if (swapped) {
+            _loadedSongId = nextSong.videoId;
+
             if (GetIt.I.isRegistered<EqualizerService>()) {
               unawaited(
                 GetIt.I<EqualizerService>().bindPlayer(_mediaKitAdapter),
@@ -1445,7 +1594,7 @@ class PlayerService {
     try {
       final settings = GetIt.I<SettingsProvider>();
 
-      if (!settings.gaplessPlaybackEnabled) {
+      if (!settings.gaplessPlaybackEnabled && !settings.crossfadeEnabled) {
         return;
       }
     } catch (_) {
@@ -1458,8 +1607,17 @@ class PlayerService {
 
     final remaining = duration - position;
 
-    if (remaining.inSeconds <= _prebufferThresholdSeconds &&
-        remaining.inSeconds > 0) {
+    int prebufferThreshold = _prebufferThresholdSeconds;
+
+    try {
+      final crossfadeSeconds = GetIt.I<SettingsProvider>().crossfadeDuration;
+
+      if (crossfadeSeconds + 5 > prebufferThreshold) {
+        prebufferThreshold = crossfadeSeconds + 5;
+      }
+    } catch (_) {}
+
+    if (remaining.inSeconds <= prebufferThreshold && remaining.inSeconds > 0) {
       final nextSong = queueProvider.peekNext();
 
       if (nextSong == null) {
@@ -1473,6 +1631,144 @@ class PlayerService {
       _prebufferStarted = true;
 
       _prebufferNextTrack(nextSong);
+    }
+
+    _checkAndTriggerCrossfade(remaining);
+  }
+
+  void _checkAndTriggerCrossfade(Duration remaining) {
+    if (_mediaKitAdapter.isCrossfading) {
+      return;
+    }
+
+    if (remaining <= Duration.zero) {
+      return;
+    }
+
+    if (!_isPlaying) {
+      return;
+    }
+
+    if (_loopMode == RepeatMode.one) {
+      return;
+    }
+
+    if (!_prebufferStarted || _prebufferedSong == null) {
+      return;
+    }
+
+    if (!_mediaKitAdapter.isNextTrackReady) {
+      return;
+    }
+
+    int crossfadeSeconds;
+
+    try {
+      final settings = GetIt.I<SettingsProvider>();
+
+      if (!settings.crossfadeEnabled) {
+        return;
+      }
+
+      crossfadeSeconds = settings.crossfadeDuration;
+    } catch (_) {
+      return;
+    }
+
+    if (remaining.inSeconds > crossfadeSeconds) {
+      return;
+    }
+
+    final nextSong = queueProvider.peekNext();
+
+    if (nextSong == null) {
+      return;
+    }
+
+    if (playerProvider.currentLocalSong != null) {
+      return;
+    }
+
+    if (_prebufferedSong!.videoId != nextSong.videoId) {
+      return;
+    }
+
+    unawaited(_startCrossfade(nextSong, Duration(seconds: crossfadeSeconds)));
+  }
+
+  Future<void> _startCrossfade(SongInfo nextSong, Duration duration) async {
+    if (_mediaKitAdapter.isCrossfading) {
+      return;
+    }
+
+    debugPrint('[Crossfade] Starting ${duration.inSeconds}s fade to '
+        '${nextSong.name}');
+
+    await _recordCurrentPlaybackEnd();
+
+    final swapped = await _mediaKitAdapter.crossfadeToPrebuffered(
+      targetVolume: _volume,
+      duration: duration,
+    );
+
+    if (!swapped) {
+      debugPrint('[Crossfade] Swap failed; normal completion will take over');
+      return;
+    }
+
+    try {
+      queueProvider.getNextSong();
+
+      isExplicitlySettingSong = true;
+
+      playerProvider.setCurrentSong(nextSong);
+
+      if (GetIt.I.isRegistered<EqualizerService>()) {
+        unawaited(GetIt.I<EqualizerService>().bindPlayer(_mediaKitAdapter));
+      }
+
+      _processingState = ProcessingState.ready;
+
+      _duration = nextSong.duration;
+
+      _durationController.add(_duration);
+
+      _emitState();
+
+      _currentStatsSongId = nextSong.videoId;
+
+      _currentStatsSongTitle = nextSong.name;
+
+      _currentStatsSongArtist = nextSong.artists
+          .map((a) => a.name)
+          .join(', ');
+
+      _currentStatsSessionStartPosition = 0;
+
+      statsProvider.recordPlayStart(
+        _currentStatsSongId!,
+        _currentStatsSongTitle!,
+        _currentStatsSongArtist!,
+        0,
+      );
+
+      updateBackgroundColor(
+        nextSong.thumbnails.isNotEmpty ? nextSong.thumbnails.first.url : null,
+      );
+
+      _prebufferStarted = false;
+
+      _prebufferedSong = null;
+
+      await QueueStorage.clearPosition();
+
+      isExplicitlySettingSong = false;
+    } catch (e) {
+      debugPrint('[Crossfade] Post-swap handling failed: $e');
+
+      isExplicitlySettingSong = false;
+
+      await playNext();
     }
   }
 

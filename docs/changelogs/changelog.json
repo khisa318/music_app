@@ -1,5 +1,6 @@
 {
   "versions": [
+    { "version": "1.0.6", "date": "2026-10-18", "file": "v1.0.6.md" },
     { "version": "1.0.5", "date": "2026-10-14", "file": "v1.0.5.md" },
     { "version": "1.0.4", "date": "2026-10-13", "file": "v1.0.4.md" },
     { "version": "1.0.3", "date": "2026-10-12", "file": "v1.0.3.md" },

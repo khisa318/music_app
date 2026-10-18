@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/models/ota_model.dart';
+import '../../../../core/services/download_notification_service.dart';
 import '../models/app_repository.dart';
 import '../services/apk_download_service.dart';
 import '../services/apk_installer_service.dart';
@@ -44,6 +47,19 @@ class OTAProvider extends ChangeNotifier {
   /// prompt reappears on every single launch.
   static const String _skippedVersionKey = 'ota_skipped_version';
 
+  /// Persisted so a finished background download survives app death: the next
+  /// launch goes straight to "ready to install" instead of re-downloading.
+  static const String _readyApkPathKey = 'ota_ready_apk_path';
+  static const String _readyApkVersionKey = 'ota_ready_apk_version';
+
+  /// Persisted while a background download is in flight so the next launch
+  /// knows to resume the partial file.
+  static const String _inflightVersionKey = 'ota_inflight_version';
+
+  /// Background downloads are deliberately slow so they never compete with
+  /// streaming or other network use while the user keeps listening.
+  static const int _backgroundDownloadBytesPerSecond = 250 * 1024;
+
   OTAStatus _status = OTAStatus.idle;
   OTAUpdateInfo? _updateInfo;
   OTADownloadProgress? _downloadProgress;
@@ -56,6 +72,11 @@ class OTAProvider extends ChangeNotifier {
   String _updateChannel = 'stable';
   final List<OTAUpdateInfo> _releaseHistory = <OTAUpdateInfo>[];
   bool _isLoadingHistory = false;
+  bool _isBackgroundDownload = false;
+
+  /// True while the update APK is being downloaded automatically in the
+  /// background (throttled), rather than from an explicit user action.
+  bool get isBackgroundDownload => _isBackgroundDownload;
 
   OTAStatus get status => _status;
   OTAUpdateInfo? get updateInfo => _updateInfo;
@@ -148,6 +169,10 @@ class OTAProvider extends ChangeNotifier {
         _setStatus(OTAStatus.updateAvailable);
         debugPrint('[Update] ${info.versionDelta} available');
 
+        // A previous session may already have this APK on disk (fully or
+        // partially). Restore or resume it so the user never re-downloads.
+        unawaited(_resumeOrRestoreBackgroundFlow(info));
+
       case UpToDateResult():
         _updateInfo = null;
         _finishNoUpdate(showNoUpdateMessage);
@@ -214,71 +239,257 @@ class OTAProvider extends ChangeNotifier {
 
   /// Downloads the APK for the current update, verifies it, and stages it for
   /// the system installer.
-  Future<void> downloadUpdate() async {
+  ///
+  /// Pass [maxBytesPerSecond] to throttle (used by the background flow) and
+  /// [background] to mark this as an automatic download whose completion
+  /// re-prompts the user to install.
+  Future<void> downloadUpdate({
+    int? maxBytesPerSecond,
+    bool background = false,
+  }) async {
     final info = _updateInfo;
     if (info == null || _status == OTAStatus.downloading) return;
+
+    if (background) _isBackgroundDownload = true;
 
     _error = null;
     _errorMessage = null;
     _setStatus(OTAStatus.downloading);
 
-    // Uses the release description the user is already looking at. No second
-    // network round trip, so a flaky connection cannot strand them here.
-    final result = await _downloadService.download(
-      apk: info.apkAsset,
-      checksumAsset: info.checksumAsset,
-      host: _repository.host,
-      onProgress: (progress) {
-        _downloadProgress = progress;
-        notifyListeners();
-      },
-    );
+    try {
+      // Persist the in-flight version so a killed app resumes next launch.
+      await _writeInflightVersion(info.latestVersion);
 
-    if (result.isSuccess) {
-      _downloadProgress = null;
-      _downloadedFilePath = result.filePath;
-      _checksumVerified = result.verified;
-      _setStatus(OTAStatus.downloaded);
-      debugPrint(
-        '[Update] downloaded ${info.apkAssetName} '
-        '(checksum verified: ${result.verified})',
+      // Uses the release description the user is already looking at. No second
+      // network round trip, so a flaky connection cannot strand them here.
+      final result = await _downloadService.download(
+        apk: info.apkAsset,
+        checksumAsset: info.checksumAsset,
+        host: _repository.host,
+        maxBytesPerSecond: maxBytesPerSecond,
+        onProgress: (progress) {
+          _downloadProgress = progress;
+          notifyListeners();
+        },
       );
+
+      if (result.isSuccess) {
+        _downloadProgress = null;
+        _downloadedFilePath = result.filePath;
+        _checksumVerified = result.verified;
+        await _persistReadyApk(info.latestVersion, result.filePath!);
+        await _clearInflightVersion();
+        _setStatus(OTAStatus.downloaded);
+        debugPrint(
+          '[Update] downloaded ${info.apkAssetName} '
+          '(checksum verified: ${result.verified})',
+        );
+
+        if (_isBackgroundDownload) {
+          // The user is elsewhere in the app; re-show the install prompt and
+          // post a notification so the finished download does not go unnoticed.
+          _isUpdateUIShown = false;
+          notifyListeners();
+          unawaited(
+            DownloadNotificationService().showUpdateReady(
+              version: info.latestVersion,
+            ),
+          );
+        }
+        return;
+      }
+
+      switch (result.failure) {
+        case DownloadFailure.paused:
+          // The progress is deliberately left in place: it is how the UI shows
+          // where the user stopped and what resuming will pick up from.
+          _setStatus(OTAStatus.paused);
+        case DownloadFailure.cancelled:
+          _downloadProgress = null;
+          await _clearInflightVersion();
+          _setStatus(OTAStatus.updateAvailable);
+        case DownloadFailure.integrity:
+          _downloadProgress = null;
+          await _clearInflightVersion();
+          _handleError(
+            OTAError.checksumError,
+            'The download did not pass verification and was discarded',
+          );
+        case DownloadFailure.notEnoughSpace:
+          _downloadProgress = null;
+          await _clearInflightVersion();
+          _handleError(
+            OTAError.storageError,
+            'Not enough free storage to download the update',
+          );
+        case DownloadFailure.offline:
+        case DownloadFailure.timeout:
+        case DownloadFailure.server:
+          // Progress is kept so a later Resume still knows how far it got.
+          if (_isBackgroundDownload) {
+            // A background attempt failing on the network is not worth an
+            // error screen: the partial file stays on disk and the next
+            // launch resumes it. Quietly return to "update available".
+            _setStatus(OTAStatus.updateAvailable);
+          } else {
+            _handleError(
+              OTAError.downloadError,
+              'Download failed. Check your connection and try again.',
+            );
+          }
+        case DownloadFailure.unknown:
+        case null:
+          _downloadProgress = null;
+          await _clearInflightVersion();
+          if (_isBackgroundDownload) {
+            _setStatus(OTAStatus.updateAvailable);
+          } else {
+            _handleError(OTAError.downloadError, 'Download failed');
+          }
+      }
+    } finally {
+      _isBackgroundDownload = false;
+    }
+  }
+
+  /// Starts the update download automatically, throttled, without requiring
+  /// the user to sit on the update screen. On completion the install prompt
+  /// is re-shown and a notification is posted.
+  Future<void> startBackgroundDownload() async {
+    final info = _updateInfo;
+    if (info == null) return;
+    if (_status == OTAStatus.downloading || _status == OTAStatus.downloaded) {
       return;
     }
 
-    switch (result.failure) {
-      case DownloadFailure.paused:
-        // The progress is deliberately left in place: it is how the UI shows
-        // where the user stopped and what resuming will pick up from.
-        _setStatus(OTAStatus.paused);
-      case DownloadFailure.cancelled:
-        _downloadProgress = null;
-        _setStatus(OTAStatus.updateAvailable);
-      case DownloadFailure.integrity:
-        _downloadProgress = null;
-        _handleError(
-          OTAError.checksumError,
-          'The download did not pass verification and was discarded',
-        );
-      case DownloadFailure.notEnoughSpace:
-        _downloadProgress = null;
-        _handleError(
-          OTAError.storageError,
-          'Not enough free storage to download the update',
-        );
-      case DownloadFailure.offline:
-      case DownloadFailure.timeout:
-      case DownloadFailure.server:
-        // Progress is kept so a later Resume still knows how far it got.
-        _handleError(
-          OTAError.downloadError,
-          'Download failed. Check your connection and try again.',
-        );
-      case DownloadFailure.unknown:
-      case null:
-        _downloadProgress = null;
-        _handleError(OTAError.downloadError, 'Download failed');
+    debugPrint('[Update] starting slow background download of '
+        '${info.apkAssetName}');
+
+    // Samsung and other OEMs kill background work aggressively; an exempted
+    // app is the difference between "downloaded overnight" and "never
+    // finished". Best-effort: a declined prompt just means a higher chance
+    // the download resumes on the next launch.
+    unawaited(_requestBatteryOptimizationExemption());
+
+    await downloadUpdate(
+      maxBytesPerSecond: _backgroundDownloadBytesPerSecond,
+      background: true,
+    );
+  }
+
+  /// Restores a finished download from a previous session, or resumes a
+  /// partial one, as soon as an update for that same version is confirmed.
+  /// A brand-new update starts the slow background download immediately, so
+  /// the APK is ready by the time the user gets around to installing.
+  Future<void> _resumeOrRestoreBackgroundFlow(OTAUpdateInfo info) async {
+    try {
+      final readyPath = await _loadReadyApk(info.latestVersion);
+      if (readyPath != null) {
+        _downloadedFilePath = readyPath;
+        _checksumVerified = true;
+        _setStatus(OTAStatus.downloaded);
+        _isUpdateUIShown = false;
+        debugPrint('[Update] restored already-downloaded APK for '
+            '${info.latestVersion}');
+        return;
+      }
+
+      // Fresh update, or a partial left by an interrupted/killed session: the
+      // throttled background download picks up from the partial file when one
+      // exists. Starting it is left to the UI coordinator, which is where the
+      // Wi-Fi / "Wi-Fi only downloads" policy is known, so an automatic update
+      // is never begun over a connection the user asked us to avoid.
+      final inflight = await _readInflightVersion();
+      final hasPartial = await _downloadService.hasPartial(
+        info.apkAssetName,
+      );
+      debugPrint(
+        '[Update] update available; UI will start the throttled background '
+        'download (inflight match: ${inflight == info.latestVersion}, '
+        'partial on disk: $hasPartial)',
+      );
+    } catch (error) {
+      debugPrint('[Update] background restore failed: $error');
     }
+  }
+
+  Future<void> _requestBatteryOptimizationExemption() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (!status.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    } catch (error) {
+      debugPrint('[Update] battery optimization request failed: $error');
+    }
+  }
+
+  /// Opens the system screen where the user can allow MusiX to install
+  /// unknown apps. On Samsung this lives under
+  /// Settings > Apps > Special access > Install unknown apps.
+  Future<void> openInstallSettings() =>
+      _installerService.openInstallPermissionSettings();
+
+  // ---------------------------------------------------------------------------
+  // PERSISTED DOWNLOAD STATE
+  // ---------------------------------------------------------------------------
+
+  Future<void> _persistReadyApk(String version, String path) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_readyApkPathKey, path);
+      await prefs.setString(_readyApkVersionKey, version);
+    } catch (error) {
+      debugPrint('[Update] could not persist ready APK: $error');
+    }
+  }
+
+  Future<String?> _loadReadyApk(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(_readyApkVersionKey) != version) return null;
+      final path = prefs.getString(_readyApkPathKey);
+      if (path == null) return null;
+      if (!await File(path).exists()) {
+        await _clearReadyApkPersist();
+        return null;
+      }
+      return path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearReadyApkPersist() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_readyApkPathKey);
+      await prefs.remove(_readyApkVersionKey);
+    } catch (_) {}
+  }
+
+  Future<void> _writeInflightVersion(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_inflightVersionKey, version);
+    } catch (_) {}
+  }
+
+  Future<String?> _readInflightVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_inflightVersionKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearInflightVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_inflightVersionKey);
+    } catch (_) {}
   }
 
   /// Stops the download where it is, keeping what has already been received.
@@ -323,6 +534,7 @@ class OTAProvider extends ChangeNotifier {
       // Remove the staged APK. If the user then backs out of the install the
       // next update attempt just downloads it again.
       await _downloadService.deleteDownloadedFile(path);
+      await _clearReadyApkPersist();
       _downloadedFilePath = null;
       return;
     }
@@ -331,7 +543,8 @@ class OTAProvider extends ChangeNotifier {
       case InstallFailure.permissionDenied:
         _handleError(
           OTAError.permissionError,
-          'MusiX needs permission to install packages',
+          'Android blocked the install. Allow MusiX to install unknown '
+          'apps, then try again.',
         );
       case InstallFailure.notEnoughSpace:
         _handleError(
@@ -361,6 +574,7 @@ class OTAProvider extends ChangeNotifier {
     if (_status == OTAStatus.downloading) {
       _downloadService.cancel();
       _downloadProgress = null;
+      unawaited(_clearInflightVersion());
       _setStatus(OTAStatus.updateAvailable);
       return;
     }
@@ -371,6 +585,7 @@ class OTAProvider extends ChangeNotifier {
       // the user would have no way back to a clean download.
       final info = _updateInfo;
       _downloadProgress = null;
+      unawaited(_clearInflightVersion());
       _setStatus(OTAStatus.updateAvailable);
       if (info != null) {
         unawaited(_downloadService.discardPartial(info.apkAssetName));
@@ -389,6 +604,18 @@ class OTAProvider extends ChangeNotifier {
     } catch (error) {
       // A failure here only means the prompt shows again next launch.
       debugPrint('[Update] could not persist skipped version: $error');
+    }
+
+    // A skipped version should leave nothing behind on disk either: the
+    // partial or finished APK would otherwise be resumed silently.
+    await _clearInflightVersion();
+    final readyPath = await _loadReadyApk(info.latestVersion);
+    if (readyPath != null) {
+      await _downloadService.deleteDownloadedFile(readyPath);
+      await _clearReadyApkPersist();
+      _downloadedFilePath = null;
+    } else {
+      await _downloadService.discardPartial(info.apkAssetName);
     }
 
     _updateInfo = null;
