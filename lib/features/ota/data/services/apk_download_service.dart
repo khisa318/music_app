@@ -105,11 +105,15 @@ class ApkDownloadService {
   /// file is what makes [pause] cheap: the next call sends
   /// `Range: bytes=<already on disk>-` and appends, instead of re-fetching the
   /// whole APK over a connection the user just decided was too slow.
+  ///
+  /// [maxBytesPerSecond] throttles the transfer for background downloads, so
+  /// an auto-update never starves music streaming or other network use.
   Future<DownloadResult> download({
     required ReleaseAsset apk,
     ReleaseAsset? checksumAsset,
     required String host,
     void Function(OTADownloadProgress progress)? onProgress,
+    int? maxBytesPerSecond,
   }) async {
     // Only ever download from our own GitHub repository, over HTTPS.
     if (!apk.isTrustedHost(host) || apk.downloadUrl.scheme != 'https') {
@@ -235,6 +239,15 @@ class ApkDownloadService {
           fetchedThisRun += chunk.length;
           sink.add(chunk);
           emit(received, total);
+
+          if (maxBytesPerSecond != null && maxBytesPerSecond > 0) {
+            final targetMs = (chunk.length / maxBytesPerSecond) * 1000;
+            if (targetMs >= 1) {
+              await Future.delayed(
+                Duration(milliseconds: targetMs.round().clamp(1, 5000)),
+              );
+            }
+          }
         }
 
         await sink.flush();
@@ -325,7 +338,17 @@ class ApkDownloadService {
         await _deleteQuietly(partial);
         return const DownloadResult.failed(DownloadFailure.cancelled);
       } else {
-        await _deleteQuietly(partial);
+        final failure = _classify(error);
+        if (failure == DownloadFailure.offline ||
+            failure == DownloadFailure.timeout ||
+            failure == DownloadFailure.server) {
+          // Keep the partial: a dropped connection must not throw away bytes
+          // a later attempt (or the next launch) can resume from.
+          debugPrint('[Update] network failure ($failure); keeping partial');
+        } else {
+          await _deleteQuietly(partial);
+        }
+        return DownloadResult.failed(failure, error.message);
       }
       return DownloadResult.failed(_classify(error), error.message);
     } on FileSystemException catch (error) {
@@ -399,6 +422,17 @@ class ApkDownloadService {
       await _deleteQuietly(File(p.join(directory.path, '$apkName.part')));
     } catch (error) {
       debugPrint('[Update] could not discard partial: $error');
+    }
+  }
+
+  /// Whether a resumable partial file for [apkName] is already on disk.
+  Future<bool> hasPartial(String apkName) async {
+    try {
+      final directory = await _resolveTargetDirectory();
+      final partial = File(p.join(directory.path, '$apkName.part'));
+      return await partial.exists() && await partial.length() > 0;
+    } catch (_) {
+      return false;
     }
   }
 

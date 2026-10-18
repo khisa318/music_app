@@ -299,6 +299,47 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
     await loadCreatedPlaylists(notify: true);
   }
 
+  /// Renames a created playlist, moving both its metadata and its songs to
+  /// the new key so nothing is orphaned. Throws when the target name is
+  /// already taken.
+  Future<void> renameCreatedPlaylist(String oldName, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty || trimmed == oldName) return;
+
+    final collision =
+        _createdPlaylistsBox.containsKey(trimmed) ||
+        _playlistSongs.containsKey(trimmed);
+    if (collision) {
+      throw Exception('A playlist named "$trimmed" already exists');
+    }
+
+    final createdJson = _createdPlaylistsBox.get(oldName);
+    final songsJson = _playlistSongs.get(oldName);
+
+    if (createdJson != null) {
+      final item = json.decode(createdJson) as Map<String, dynamic>;
+      item['name'] = trimmed;
+      await _createdPlaylistsBox.delete(oldName);
+      await _createdPlaylistsBox.put(trimmed, json.encode(item));
+    }
+    if (songsJson != null) {
+      await _playlistSongs.delete(oldName);
+      await _playlistSongs.put(trimmed, songsJson);
+    }
+
+    await loadCreatedPlaylistsWithThumbnails(notify: true);
+  }
+
+  /// Sets the playlist cover to the picture of the song at the top of the
+  /// playlist.
+  Future<void> setCoverFromTopSong(String playlistName) async {
+    final thumbnail = await getTopSongThumbnail(playlistName);
+    await _applyThumbnail(playlistName, thumbnail);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+  }
+
   Future<void> saveSongToPlaylist(
     String playlistName,
     Map<String, dynamic> song,
@@ -316,20 +357,9 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
     await _playlistSongs.put(playlistName, json.encode(songs));
 
     try {
-      final createdJson = _createdPlaylistsBox.get(playlistName);
-      if (createdJson != null) {
-        final createdItem = json.decode(createdJson) as Map<String, dynamic>;
-        final newThumb =
-            song['thumbnail'] ?? await getLatestSongThumbnail(playlistName);
-        createdItem['thumbnail'] = newThumb;
-        await _createdPlaylistsBox.put(playlistName, json.encode(createdItem));
-        final idx = _createdPlaylists.indexWhere(
-          (p) => p['name'] == playlistName,
-        );
-        if (idx != -1) {
-          _createdPlaylists[idx]['thumbnail'] = newThumb;
-        }
-      }
+      // The cover follows the top song of the playlist.
+      final newThumb = await getTopSongThumbnail(playlistName);
+      await _applyThumbnail(playlistName, newThumb);
     } catch (e) {
       debugPrint(
         'Error updating created playlist thumbnail for $playlistName: $e',
@@ -354,30 +384,8 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
       await _playlistSongs.put(playlistName, json.encode(songs));
 
       try {
-        final latestThumb = await getLatestSongThumbnail(playlistName);
-        final createdJson = _createdPlaylistsBox.get(playlistName);
-        if (createdJson != null) {
-          final createdItem = json.decode(createdJson) as Map<String, dynamic>;
-          if (latestThumb != null) {
-            createdItem['thumbnail'] = latestThumb;
-          } else {
-            createdItem.remove('thumbnail');
-          }
-          await _createdPlaylistsBox.put(
-            playlistName,
-            json.encode(createdItem),
-          );
-          final idx = _createdPlaylists.indexWhere(
-            (p) => p['name'] == playlistName,
-          );
-          if (idx != -1) {
-            if (latestThumb != null) {
-              _createdPlaylists[idx]['thumbnail'] = latestThumb;
-            } else {
-              _createdPlaylists[idx].remove('thumbnail');
-            }
-          }
-        }
+        final latestThumb = await getTopSongThumbnail(playlistName);
+        await _applyThumbnail(playlistName, latestThumb);
       } catch (e) {
         debugPrint(
           'Error updating thumbnail after removal for $playlistName: $e',
@@ -389,6 +397,60 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
       });
     } catch (e) {
       debugPrint('Error removing song from $playlistName: $e');
+    }
+  }
+
+  /// Writes [thumbnail] (or removes the key when null) to the created
+  /// playlist's stored metadata and its in-memory entry.
+  Future<void> _applyThumbnail(String playlistName, String? thumbnail) async {
+    final createdJson = _createdPlaylistsBox.get(playlistName);
+    if (createdJson == null) return;
+
+    final createdItem = json.decode(createdJson) as Map<String, dynamic>;
+    if (thumbnail != null && thumbnail.isNotEmpty) {
+      createdItem['thumbnail'] = thumbnail;
+    } else {
+      createdItem.remove('thumbnail');
+    }
+    await _createdPlaylistsBox.put(playlistName, json.encode(createdItem));
+
+    final idx = _createdPlaylists.indexWhere((p) => p['name'] == playlistName);
+    if (idx != -1) {
+      if (thumbnail != null && thumbnail.isNotEmpty) {
+        _createdPlaylists[idx]['thumbnail'] = thumbnail;
+      } else {
+        _createdPlaylists[idx].remove('thumbnail');
+      }
+    }
+  }
+
+  Future<void> reorderPlaylistSongs(
+    String playlistName,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    final existingJson = _playlistSongs.get(playlistName);
+    if (existingJson == null) return;
+    try {
+      final songs = (json.decode(existingJson) as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .toList();
+      if (oldIndex < 0 ||
+          newIndex < 0 ||
+          oldIndex >= songs.length ||
+          newIndex > songs.length) {
+        return;
+      }
+      if (oldIndex == newIndex) return;
+      final item = songs.removeAt(oldIndex);
+      final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+      songs.insert(insertIndex, item);
+      await _playlistSongs.put(playlistName, json.encode(songs));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    } catch (e) {
+      debugPrint('Error reordering songs in $playlistName: $e');
     }
   }
 
@@ -412,12 +474,19 @@ class PlaylistAlbumLibraryProvider with ChangeNotifier {
     return songs.length;
   }
 
-  Future<String?> getLatestSongThumbnail(String playlistName) async {
+  /// The cover is the picture of the song at the top of the playlist.
+  Future<String?> getTopSongThumbnail(String playlistName) async {
     final songs = await getPlaylistSongs(playlistName);
     if (songs.isEmpty) return null;
 
-    return songs.last['thumbnail'];
+    final thumbnail = songs.first['thumbnail']?.toString();
+    return (thumbnail == null || thumbnail.isEmpty) ? null : thumbnail;
   }
+
+  /// Kept for callers written against the old name. The cover now tracks the
+  /// top song rather than the most recently added one.
+  Future<String?> getLatestSongThumbnail(String playlistName) =>
+      getTopSongThumbnail(playlistName);
 
   Future<void> loadCreatedPlaylistsWithThumbnails({bool notify = true}) async {
     if (notify) {
