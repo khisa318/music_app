@@ -6,8 +6,11 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/models/ota_model.dart';
 import '../../../../core/providers/download_provider.dart';
 import '../../../downloads/presentation/screens/downloads_screen.dart';
+import '../../../ota/data/providers/ota_provider.dart';
+import '../../../ota/presentation/screens/ota_screen.dart';
 
 /// A compact strip pinned under the home app bar that tracks the song download
 /// queue in place, with pause/resume and cancel right there.
@@ -19,8 +22,12 @@ class DownloadTrackerBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DownloadProvider>(
-      builder: (context, provider, _) {
+    return Consumer2<DownloadProvider, OTAProvider>(
+      builder: (context, provider, otaProvider, _) {
+        if (_isOtaActive(otaProvider)) {
+          return _buildOtaBanner(context, otaProvider);
+        }
+
         final queue = provider.downloadQueue
             .where((item) => item['status'] != 'completed')
             .toList(growable: false);
@@ -206,6 +213,242 @@ class DownloadTrackerBanner extends StatelessWidget {
     );
   }
 
+  /// The phases where the app update owns the banner slot: from the moment the
+  /// APK starts downloading until Android's installer reports back. Once the
+  /// install finishes the strip hands the slot back to the song downloads.
+  static const Set<OTAStatus> _otaActiveStatuses = {
+    OTAStatus.downloading,
+    OTAStatus.paused,
+    OTAStatus.downloaded,
+    OTAStatus.installing,
+  };
+
+  bool _isOtaActive(OTAProvider ota) => _otaActiveStatuses.contains(ota.status);
+
+  Widget _buildOtaBanner(BuildContext context, OTAProvider ota) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = Theme.of(context).colorScheme.primary;
+    final textColor = MainScreenColors.getTextColor(isDarkMode);
+
+    final status = ota.status;
+    final progress = ota.downloadProgress;
+    final isPaused = status == OTAStatus.paused;
+    final isReady = status == OTAStatus.downloaded;
+    final isInstalling = status == OTAStatus.installing;
+
+    final double value = isReady
+        ? 1.0
+        : isInstalling
+        ? 0
+        : (progress?.percentage ?? ota.pausedPercentage) / 100;
+    final int percent = (value * 100).clamp(0, 100).toInt();
+
+    final String header = isReady
+        ? 'ota_download_complete'.tr()
+        : isInstalling
+        ? 'ota_installing_update'.tr()
+        : isPaused
+        ? 'ota_download_paused'.tr()
+        : 'ota_downloading_update'.tr();
+
+    final String version = ota.updateInfo?.latestVersion ?? '';
+
+    String meta;
+    if (isReady) {
+      meta = 'ota_ready_to_install_message'.tr();
+    } else if (isInstalling) {
+      meta = 'ota_please_wait_install'.tr();
+    } else if (progress != null) {
+      final parts = <String>[
+        '${progress.formattedDownloaded} / ${progress.formattedTotal}',
+        if (progress.downloadSpeed.isNotEmpty) progress.downloadSpeed,
+        if (progress.eta.isNotEmpty) progress.eta,
+      ];
+      meta = parts.join('  •  ');
+    } else {
+      meta = isPaused ? 'ota_download_paused'.tr() : header;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.paddingLg,
+        AppDimens.spacingSm,
+        AppDimens.paddingLg,
+        AppDimens.spacingXs,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openOtaScreen(context),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          child: Container(
+            padding: const EdgeInsets.all(AppDimens.paddingMd),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accentColor.withValues(alpha: isDarkMode ? 0.18 : 0.10),
+                  accentColor.withValues(alpha: isDarkMode ? 0.07 : 0.04),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+              border: Border.all(
+                color: accentColor.withValues(alpha: 0.25),
+                width: AppDimens.borderWidthThin,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.06),
+                  blurRadius: AppDimens.paddingSm,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.system_update_rounded,
+                      size: AppDimens.iconSm,
+                      color: accentColor,
+                    ),
+                    const SizedBox(width: AppDimens.spacingSm),
+                    Expanded(
+                      child: Text(
+                        header,
+                        style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                            .copyWith(
+                              color: accentColor,
+                              fontWeight: AppTextStyles.weightSemiBold,
+                            ),
+                      ),
+                    ),
+                    if (version.isNotEmpty)
+                      Text(
+                        'v$version',
+                        style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                            .copyWith(
+                              color: textColor.withValues(
+                                alpha: AppDimens.opacityMuted,
+                              ),
+                            ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppDimens.spacingSm),
+                Row(
+                  children: [
+                    _OtaIcon(isDarkMode: isDarkMode, accentColor: accentColor),
+                    const SizedBox(width: AppDimens.spacingMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'MusiX ${version.isEmpty ? '' : 'v$version'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.queueItem(
+                              isDarkMode: isDarkMode,
+                            ),
+                          ),
+                          const SizedBox(height: AppDimens.spacingXxs),
+                          Text(
+                            meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                                .copyWith(
+                                  color: textColor.withValues(
+                                    alpha: AppDimens.opacityMuted,
+                                  ),
+                                ),
+                          ),
+                          const SizedBox(height: AppDimens.spacingSm),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusXxs,
+                            ),
+                            child: LinearProgressIndicator(
+                              value: isInstalling ? null : value,
+                              minHeight: 6,
+                              backgroundColor: accentColor.withValues(
+                                alpha: 0.18,
+                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                accentColor,
+                              ),
+                            ),
+                          ),
+                          if (!isInstalling) ...[
+                            const SizedBox(height: AppDimens.spacingXs),
+                            Text(
+                              '$percent%',
+                              style: AppTextStyles.caption(
+                                isDarkMode: isDarkMode,
+                              ).copyWith(color: accentColor),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppDimens.spacingXs),
+                    if (!isInstalling) ...[
+                      if (isReady)
+                        _RoundIconButton(
+                          icon: Icons.system_update_alt_rounded,
+                          tooltip: 'ota_install_update'.tr(),
+                          color: accentColor,
+                          onPressed: () => ota.installUpdate(),
+                        )
+                      else ...[
+                        _RoundIconButton(
+                          icon: isPaused
+                              ? Icons.play_arrow_rounded
+                              : Icons.pause_rounded,
+                          tooltip: isPaused
+                              ? 'ota_resume_download'.tr()
+                              : 'ota_pause_download'.tr(),
+                          color: accentColor,
+                          onPressed: () {
+                            if (isPaused) {
+                              ota.resumeDownload();
+                            } else {
+                              ota.pauseDownload();
+                            }
+                          },
+                        ),
+                        _RoundIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: 'ota_cancel_download'.tr(),
+                          color: textColor.withValues(
+                            alpha: AppDimens.opacityMuted,
+                          ),
+                          onPressed: () => ota.cancelDownload(),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openOtaScreen(BuildContext context) {
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const OTAScreen()));
+  }
+
   /// Prefers whatever is actually moving right now, then a paused item, then a
   /// queued one, so the strip always narrates the download the user cares about.
   static Map<String, dynamic>? _resolveTracked(
@@ -268,6 +511,31 @@ class _Thumbnail extends StatelessWidget {
         Icons.music_note_rounded,
         size: AppDimens.iconSm,
         color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
+      ),
+    );
+  }
+}
+
+class _OtaIcon extends StatelessWidget {
+  const _OtaIcon({required this.isDarkMode, required this.accentColor});
+
+  final bool isDarkMode;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = AppDimens.thumbnailMini;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: isDarkMode ? 0.22 : 0.14),
+        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+      ),
+      child: Icon(
+        Icons.system_update_rounded,
+        size: AppDimens.iconMd,
+        color: accentColor,
       ),
     );
   }

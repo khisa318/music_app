@@ -103,12 +103,15 @@ class PlaylistAlbumContentProvider extends ChangeNotifier {
   ///
   /// Called while a background Spotify import is still adding tracks so the
   /// open playlist fills in live.
-  Future<void> refreshLocalSongs(PlaylistAlbumLibraryProvider library) async {
+  Future<void> refreshLocalSongs(
+    PlaylistAlbumLibraryProvider library, {
+    bool force = false,
+  }) async {
     final content = _content;
     if (content is! LocalPlaylistContent || _isLoading) return;
 
     final songs = await _readLocalSongs(content, library);
-    if (songs.length == _allSongs.length) return;
+    if (!force && songs.length == _allSongs.length) return;
 
     _songs = songs.take(_initialSongLimit).toList();
     _allSongs = songs;

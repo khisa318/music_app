@@ -13,6 +13,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/download_provider.dart' as dp;
+import '../../../../core/services/related_song_service.dart';
 import '../../data/providers/playlist_album_content_provider.dart';
 import '../../data/models/local_playlist_content.dart';
 import '../widgets/search_song_delegate.dart';
@@ -32,20 +33,35 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   late PlaylistAlbumContentProvider _provider;
   late final PlaylistAlbumLibraryProvider _libraryProvider;
   bool _isLocal = false;
+  String _playlistName = '';
+  final RelatedSongService _relatedSongService = RelatedSongService();
+  List<SongInfo> _suggestions = [];
+  bool _loadingSuggestions = false;
+  bool _hasLoadedSuggestions = false;
 
   @override
   void initState() {
     super.initState();
     _provider = PlaylistAlbumContentProvider();
-    _provider.addListener(() => setState(() {}));
+    _provider.addListener(_onProviderChanged);
     _libraryProvider = Provider.of<PlaylistAlbumLibraryProvider>(
       context,
       listen: false,
     );
     _isLocal = widget.content is LocalPlaylistContent;
-    if (_isLocal) _libraryProvider.addListener(_onLibraryChanged);
+    if (_isLocal) {
+      _playlistName = (widget.content as LocalPlaylistContent).playlistName;
+      _libraryProvider.addListener(_onLibraryChanged);
+    }
     _provider.loadContent(widget.content, libraryProvider: _libraryProvider);
     _provider.checkIfSaved(widget.content, _libraryProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadSuggestions());
+  }
+
+  void _onProviderChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _maybeLoadSuggestions();
   }
 
   /// Local playlists can be written to (removing a song, or a background
@@ -55,8 +71,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     _provider.refreshLocalSongs(_libraryProvider);
   }
 
-  String get _localPlaylistName =>
-      (widget.content as LocalPlaylistContent).playlistName;
+  String get _localPlaylistName => _playlistName;
 
   Future<void> _removeSong(dynamic song) async {
     await _libraryProvider.removeSongFromPlaylist(
@@ -156,6 +171,180 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
 
   Future<void> _loadMoreSongs() async {
     await _provider.loadMoreSongs();
+  }
+
+  Future<void> _renamePlaylist() async {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: _playlistName);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text('Rename playlist'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Playlist name',
+              hintText: 'Enter a new name',
+            ),
+            onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('Rename'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (newName == null ||
+        newName.isEmpty ||
+        newName == _playlistName ||
+        !mounted) {
+      return;
+    }
+
+    try {
+      await _libraryProvider.renameCreatedPlaylist(_playlistName, newName);
+      final content = widget.content as LocalPlaylistContent;
+      if (!mounted) return;
+      content.playlistName = newName;
+      content.name = newName;
+      _playlistName = newName;
+      await _libraryProvider.loadCreatedPlaylistsWithThumbnails();
+      if (!mounted) return;
+      setState(() {});
+      AppSnackBar.showSuccess(context, 'Playlist renamed');
+    } catch (e) {
+      debugPrint('Error renaming playlist: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'A playlist with that name already exists');
+    }
+  }
+
+  Future<void> _setCoverFromTopSong() async {
+    try {
+      await _libraryProvider.setCoverFromTopSong(_playlistName);
+      if (!mounted) return;
+      await _libraryProvider.loadCreatedPlaylistsWithThumbnails();
+      if (!mounted) return;
+      AppSnackBar.showSuccess(context, 'Cover set to top song');
+    } catch (e) {
+      debugPrint('Error setting cover: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'Could not set cover');
+    }
+  }
+
+  void _maybeLoadSuggestions() {
+    if (!mounted ||
+        _hasLoadedSuggestions ||
+        _provider.isLoading ||
+        _provider.songs.isEmpty) {
+      return;
+    }
+    _hasLoadedSuggestions = true;
+    _loadSuggestions();
+  }
+
+  Future<void> _loadSuggestions() async {
+    final seedId = _provider.songs.last.videoId?.toString() ?? '';
+    if (seedId.isEmpty) return;
+
+    setState(() => _loadingSuggestions = true);
+
+    try {
+      final related = await _relatedSongService.getRelatedSongs(seedId);
+      if (!mounted) return;
+      final existingIds = _provider.allSongs
+          .map((s) => s.videoId?.toString())
+          .whereType<String>()
+          .toSet();
+      setState(() {
+        _suggestions = related
+            .where((s) => !existingIds.contains(s.videoId))
+            .take(15)
+            .toList();
+        _loadingSuggestions = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading suggestions: $e');
+      if (!mounted) return;
+      setState(() => _loadingSuggestions = false);
+    }
+  }
+
+  Map<String, dynamic> _songInfoToMap(SongInfo song) {
+    final artist = song.artists.isNotEmpty ? song.artists.first : null;
+    final thumbnail = song.thumbnails.isNotEmpty ? song.thumbnails.first : null;
+    return {
+      'id': song.videoId,
+      'title': song.name,
+      'artist': artist?.name ?? '',
+      'artistId': artist?.id ?? '',
+      'thumbnail': thumbnail?.url ?? '',
+      'duration': song.duration.inSeconds,
+    };
+  }
+
+  Future<void> _addSuggestionToPlaylist(SongInfo song) async {
+    final inPlaylist = _provider.allSongs.any(
+      (s) => s.videoId?.toString() == song.videoId,
+    );
+    if (inPlaylist) {
+      AppSnackBar.showError(context, 'Already in this playlist');
+      return;
+    }
+
+    try {
+      await _libraryProvider.saveSongToPlaylist(
+        _playlistName,
+        _songInfoToMap(song),
+      );
+      if (!mounted) return;
+      setState(() {
+        _suggestions.removeWhere((s) => s.videoId == song.videoId);
+      });
+      AppSnackBar.showSuccess(context, 'Added to playlist');
+    } catch (e) {
+      debugPrint('Error adding suggestion: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'Failed to add song');
+    }
+  }
+
+  Future<void> _playSuggestion(SongInfo song) async {
+    final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
+    final queueProvider = Provider.of<QueueProvider>(context, listen: false);
+    try {
+      await _provider.playSong(
+        song,
+        playerProvider,
+        queueProvider,
+        [..._provider.allSongs.cast<SongInfo>(), song],
+        widget.content.playlistId,
+      );
+    } catch (e) {
+      debugPrint('Error playing suggested song: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'Error playing song');
+    }
   }
 
   static const double _desktopBreakpoint = AppDimens.breakpointDesktop;
@@ -663,6 +852,115 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     );
   }
 
+  Widget _buildSuggestionsSection(bool isDarkMode) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final accentColor = settingsProvider.accentColor;
+
+    if (_loadingSuggestions) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppDimens.spacingXxl,
+          horizontal: AppDimens.paddingLg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Suggested for you',
+              style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
+            ),
+            const SizedBox(height: AppDimens.spacingLg),
+            Center(
+              child: CircularProgressIndicator(
+                strokeWidth: AppDimens.progressStroke,
+                color: accentColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_suggestions.isEmpty) {
+      return const SizedBox(height: AppDimens.spacingXxl);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.spacingXl,
+            AppDimens.paddingLg,
+            AppDimens.spacingSm,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: AppDimens.iconMd,
+                color: accentColor,
+              ),
+              const SizedBox(width: AppDimens.spacingMd),
+              Text(
+                'Suggested for you',
+                style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
+              ),
+            ],
+          ),
+        ),
+        ..._suggestions.map(
+          (song) => ListTile(
+            onTap: () => _playSuggestion(song),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              child: CachedNetworkImage(
+                imageUrl:
+                    song.thumbnails.isNotEmpty ? song.thumbnails.first.url : '',
+                width: AppDimens.thumbnailDefault,
+                height: AppDimens.thumbnailDefault,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => Container(
+                  color: MainScreenColors.getSurfaceColor(isDarkMode),
+                ),
+                errorWidget: (_, _, _) => Container(
+                  color: MainScreenColors.getSurfaceColor(isDarkMode),
+                  child: const Icon(Icons.music_note, size: 20),
+                ),
+              ),
+            ),
+            title: Text(
+              song.name,
+              style: AppTextStyles.queueItem(isDarkMode: isDarkMode),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              song.artists.isNotEmpty ? song.artists.first.name : '',
+              style: AppTextStyles.bodyMd(
+                isDarkMode: isDarkMode,
+                color: MainScreenColors.getTextColor(
+                  isDarkMode,
+                ).withValues(alpha: 0.7),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: _isLocal
+                ? IconButton(
+                    tooltip: 'Add to playlist',
+                    icon: Icon(Icons.add_circle_outline, color: accentColor),
+                    onPressed: () => _addSuggestionToPlaylist(song),
+                  )
+                : null,
+          ),
+        ),
+        const SizedBox(height: AppDimens.bottomDockClearance),
+      ],
+    );
+  }
+
   Widget _buildLoadMoreButton(bool isDarkMode) {
     final bool hasMoreSongs =
         _provider.songs.length < _provider.allSongs.length;
@@ -741,6 +1039,42 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                       ),
                     ),
                   ),
+                  if (_isLocal)
+                    PopupMenuButton<String>(
+                      tooltip: 'Playlist options',
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (value) {
+                        if (value == 'rename') {
+                          _renamePlaylist();
+                        } else if (value == 'set_cover') {
+                          _setCoverFromTopSong();
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return const [
+                          PopupMenuItem(
+                            value: 'rename',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined, size: 20),
+                                SizedBox(width: 10),
+                                Text('Rename playlist'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'set_cover',
+                            child: Row(
+                              children: [
+                                Icon(Icons.image_outlined, size: 20),
+                                SizedBox(width: 10),
+                                Text('Use top song as cover'),
+                              ],
+                            ),
+                          ),
+                        ];
+                      },
+                    ),
                 ],
               ),
               body: Stack(
@@ -753,51 +1087,118 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     );
   }
 
+  Future<void> _onReorderItem(int oldIndex, int newIndex) async {
+    if (!_isLocal) return;
+    final songs = _provider.songs;
+    if (oldIndex >= songs.length || newIndex > songs.length) return;
+    final library = _libraryProvider;
+
+    // onReorderItem already accounts for the removed item. reorderPlaylistSongs
+    // still expects the raw ReorderableListView index, which is one higher when
+    // moving an item down, so undo that adjustment before handing it over.
+    final candidate = newIndex > oldIndex ? newIndex + 1 : newIndex;
+    final rawNewIndex = candidate < 0
+        ? 0
+        : (candidate > songs.length ? songs.length : candidate);
+
+    await library.reorderPlaylistSongs(_playlistName, oldIndex, rawNewIndex);
+    if (mounted) {
+      await _provider.refreshLocalSongs(library, force: true);
+      setState(() {});
+    }
+  }
+
   Widget _buildSongList(PlayerProvider playerProvider, bool isDarkMode) {
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.spacingLg),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              if (index == _provider.songs.length) {
-                return _buildLoadMoreButton(isDarkMode);
-              }
-              final song = _provider.songs[index];
-              final settingsProvider = Provider.of<SettingsProvider>(
-                context,
-                listen: false,
-              );
-              final accentColor = settingsProvider.accentColor;
+          sliver: _isLocal
+              ? SliverReorderableList(
+                  itemBuilder: (context, index) {
+                    if (index == _provider.songs.length) {
+                      return _buildLoadMoreButton(isDarkMode);
+                    }
+                    final song = _provider.songs[index];
+                    final settingsProvider = Provider.of<SettingsProvider>(
+                      context,
+                      listen: false,
+                    );
+                    final accentColor = settingsProvider.accentColor;
 
-              return Builder(
-                builder: (context) {
-                  final isCurrentlyPlaying = context
-                      .select<PlayerProvider, bool>(
-                        (p) => p.currentSong?.videoId == song.videoId,
-                      );
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: isCurrentlyPlaying
-                          ? accentColor.withValues(alpha: 0.2)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                    ),
-                    child: SongListTile(
-                      key: ValueKey('${song.name}_$index'),
-                      song: song,
-                      isPlaying: isCurrentlyPlaying,
-                      onPlay: () => _playSong(song),
-                      onDelete: _isLocal ? () => _removeSong(song) : null,
-                      isDarkMode: isDarkMode,
-                    ),
-                  );
-                },
-              );
-            }, childCount: _provider.songs.length + 1),
-          ),
+                    return Builder(
+                      key: ValueKey(song.videoId?.toString() ?? '${song.name}_$index'),
+                      builder: (context) {
+                        final isCurrentlyPlaying = context
+                            .select<PlayerProvider, bool>(
+                              (p) => p.currentSong?.videoId == song.videoId,
+                            );
+                        return ReorderableDragStartListener(
+                          index: index,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isCurrentlyPlaying
+                                  ? accentColor.withValues(alpha: 0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                            ),
+                            child: SongListTile(
+                              song: song,
+                              isPlaying: isCurrentlyPlaying,
+                              onPlay: () => _playSong(song),
+                              onDelete: () => _removeSong(song),
+                              isDarkMode: isDarkMode,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  itemCount: _provider.songs.length + 1,
+                  onReorderItem: _onReorderItem,
+                )
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    if (index == _provider.songs.length) {
+                      return _buildLoadMoreButton(isDarkMode);
+                    }
+                    final song = _provider.songs[index];
+                    final settingsProvider = Provider.of<SettingsProvider>(
+                      context,
+                      listen: false,
+                    );
+                    final accentColor = settingsProvider.accentColor;
+
+                    return Builder(
+                      builder: (context) {
+                        final isCurrentlyPlaying = context
+                            .select<PlayerProvider, bool>(
+                              (p) => p.currentSong?.videoId == song.videoId,
+                            );
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: isCurrentlyPlaying
+                                ? accentColor.withValues(alpha: 0.2)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                          ),
+                          child: SongListTile(
+                            key: ValueKey('${song.name}_$index'),
+                            song: song,
+                            isPlaying: isCurrentlyPlaying,
+                            onPlay: () => _playSong(song),
+                            onDelete: null,
+                            isDarkMode: isDarkMode,
+                          ),
+                        );
+                      },
+                    );
+                  }, childCount: _provider.songs.length + 1),
+                ),
         ),
+        if (_suggestions.isNotEmpty || _loadingSuggestions)
+          SliverToBoxAdapter(child: _buildSuggestionsSection(isDarkMode)),
         SliverPadding(
           padding: EdgeInsets.only(
             bottom:
@@ -852,47 +1253,95 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
               padding: const EdgeInsets.symmetric(
                 horizontal: AppDimens.spacingLg,
               ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  if (index == _provider.songs.length) {
-                    return _buildLoadMoreButton(isDarkMode);
-                  }
-                  final song = _provider.songs[index];
-                  final settingsProvider = Provider.of<SettingsProvider>(
-                    context,
-                    listen: false,
-                  );
-                  final accentColor = settingsProvider.accentColor;
+              sliver: _isLocal
+                  ? SliverReorderableList(
+                      itemBuilder: (context, index) {
+                        if (index == _provider.songs.length) {
+                          return _buildLoadMoreButton(isDarkMode);
+                        }
+                        final song = _provider.songs[index];
+                        final settingsProvider = Provider.of<SettingsProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final accentColor = settingsProvider.accentColor;
 
-                  return Builder(
-                    builder: (context) {
-                      final isCurrentlyPlaying = context
-                          .select<PlayerProvider, bool>(
-                            (p) => p.currentSong?.videoId == song.videoId,
-                          );
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: isCurrentlyPlaying
-                              ? accentColor.withValues(alpha: 0.2)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(
-                            AppDimens.radiusLg,
-                          ),
-                        ),
-                        child: SongListTile(
-                          key: ValueKey('${song.name}_$index'),
-                          song: song,
-                          isPlaying: isCurrentlyPlaying,
-                          onPlay: () => _playSong(song),
-                          onDelete: _isLocal ? () => _removeSong(song) : null,
-                          isDarkMode: isDarkMode,
-                        ),
-                      );
-                    },
-                  );
-                }, childCount: _provider.songs.length + 1),
-              ),
+                        return Builder(
+                          key: ValueKey(song.videoId?.toString() ?? '${song.name}_$index'),
+                          builder: (context) {
+                            final isCurrentlyPlaying = context
+                                .select<PlayerProvider, bool>(
+                                  (p) => p.currentSong?.videoId == song.videoId,
+                                );
+                            return ReorderableDragStartListener(
+                              index: index,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isCurrentlyPlaying
+                                      ? accentColor.withValues(alpha: 0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(
+                                    AppDimens.radiusLg,
+                                  ),
+                                ),
+                                child: SongListTile(
+                                  song: song,
+                                  isPlaying: isCurrentlyPlaying,
+                                  onPlay: () => _playSong(song),
+                                  onDelete: () => _removeSong(song),
+                                  isDarkMode: isDarkMode,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      itemCount: _provider.songs.length + 1,
+                      onReorderItem: _onReorderItem,
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        if (index == _provider.songs.length) {
+                          return _buildLoadMoreButton(isDarkMode);
+                        }
+                        final song = _provider.songs[index];
+                        final settingsProvider = Provider.of<SettingsProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final accentColor = settingsProvider.accentColor;
+
+                        return Builder(
+                          builder: (context) {
+                            final isCurrentlyPlaying = context
+                                .select<PlayerProvider, bool>(
+                                  (p) => p.currentSong?.videoId == song.videoId,
+                                );
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isCurrentlyPlaying
+                                    ? accentColor.withValues(alpha: 0.2)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(
+                                  AppDimens.radiusLg,
+                                ),
+                              ),
+                              child: SongListTile(
+                                key: ValueKey('${song.name}_$index'),
+                                song: song,
+                                isPlaying: isCurrentlyPlaying,
+                                onPlay: () => _playSong(song),
+                                onDelete: null,
+                                isDarkMode: isDarkMode,
+                              ),
+                            );
+                          },
+                        );
+                      }, childCount: _provider.songs.length + 1),
+                    ),
             ),
+            if (_suggestions.isNotEmpty || _loadingSuggestions)
+              SliverToBoxAdapter(child: _buildSuggestionsSection(isDarkMode)),
             SliverPadding(
               padding: EdgeInsets.only(
                 bottom:
@@ -909,7 +1358,7 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   @override
   void dispose() {
     if (_isLocal) _libraryProvider.removeListener(_onLibraryChanged);
-    _provider.removeListener(() => setState(() {}));
+    _provider.removeListener(_onProviderChanged);
     _scrollController.dispose();
     super.dispose();
   }

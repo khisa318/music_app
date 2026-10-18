@@ -194,6 +194,103 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   }
 
   // ============================================================
+  // RENAME PLAYLIST
+  // ============================================================
+
+  Future<void> _renamePlaylist(Map<String, dynamic> playlist) async {
+    final oldName = playlist['name']?.toString();
+    if (oldName == null || oldName.isEmpty) return;
+
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: oldName);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text('Rename playlist'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Playlist name',
+              hintText: 'Enter a new name',
+            ),
+            onSubmitted: (value) {
+              Navigator.pop(dialogContext, value.trim());
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('Rename'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (newName == null || newName.isEmpty || newName == oldName || !mounted) {
+      return;
+    }
+
+    final provider = Provider.of<PlaylistAlbumLibraryProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      await provider.renameCreatedPlaylist(oldName, newName);
+      if (!mounted) return;
+      await provider.loadCreatedPlaylistsWithThumbnails();
+      if (!mounted) return;
+      AppSnackBar.showSuccess(context, 'Playlist renamed');
+    } catch (e) {
+      debugPrint('Error renaming playlist: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'A playlist with that name already exists');
+    }
+  }
+
+  // ============================================================
+  // SET COVER FROM TOP SONG
+  // ============================================================
+
+  Future<void> _setCoverFromTopSong(Map<String, dynamic> playlist) async {
+    final name = playlist['name']?.toString();
+    if (name == null || name.isEmpty) return;
+
+    final provider = Provider.of<PlaylistAlbumLibraryProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      await provider.setCoverFromTopSong(name);
+      if (!mounted) return;
+      await provider.loadCreatedPlaylistsWithThumbnails();
+      if (!mounted) return;
+      AppSnackBar.showSuccess(context, 'Cover set to top song');
+    } catch (e) {
+      debugPrint('Error setting cover: $e');
+      if (!mounted) return;
+      AppSnackBar.showError(context, 'Could not set cover');
+    }
+  }
+
+  // ============================================================
   // BUILD
   // ============================================================
 
@@ -589,6 +686,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                           left: 10,
                           child: _buildMoreButton(
                             isDarkMode: isDarkMode,
+                            onRename: () => _renamePlaylist(playlist),
+                            onSetCover: () => _setCoverFromTopSong(playlist),
                             onDelete: () => _deletePlaylist(playlist),
                           ),
                         ),
@@ -653,6 +752,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
   Widget _buildMoreButton({
     required bool isDarkMode,
+    required VoidCallback onRename,
+    required VoidCallback onSetCover,
     required VoidCallback onDelete,
   }) {
     return Material(
@@ -668,12 +769,36 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         onSelected: (value) {
-          if (value == 'delete') {
+          if (value == 'rename') {
+            onRename();
+          } else if (value == 'set_cover') {
+            onSetCover();
+          } else if (value == 'delete') {
             onDelete();
           }
         },
         itemBuilder: (context) {
           return const [
+            PopupMenuItem<String>(
+              value: 'rename',
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, size: 20),
+                  SizedBox(width: 10),
+                  Text('Rename playlist'),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'set_cover',
+              child: Row(
+                children: [
+                  Icon(Icons.image_outlined, size: 20),
+                  SizedBox(width: 10),
+                  Text('Use top song as cover'),
+                ],
+              ),
+            ),
             PopupMenuItem<String>(
               value: 'delete',
               child: Row(
@@ -787,15 +912,49 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
 
                         PopupMenuButton<String>(
                           onSelected: (value) {
-                            if (value == 'delete') {
+                            if (value == 'rename') {
+                              _renamePlaylist(playlist);
+                            } else if (value == 'set_cover') {
+                              _setCoverFromTopSong(playlist);
+                            } else if (value == 'delete') {
                               _deletePlaylist(playlist);
                             }
                           },
                           itemBuilder: (context) {
                             return const [
                               PopupMenuItem(
+                                value: 'rename',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit_outlined, size: 20),
+                                    SizedBox(width: 10),
+                                    Text('Rename playlist'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'set_cover',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.image_outlined, size: 20),
+                                    SizedBox(width: 10),
+                                    Text('Use top song as cover'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
                                 value: 'delete',
-                                child: Text('Delete playlist'),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: Colors.redAccent,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text('Delete playlist'),
+                                  ],
+                                ),
                               ),
                             ];
                           },
@@ -897,9 +1056,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
   }
 
   Widget _buildDenseMoreAction(Map<String, dynamic> playlist, bool isDarkMode) {
-    return IconButton(
+    return PopupMenuButton<String>(
       tooltip: 'Playlist options',
-      onPressed: () => _deletePlaylist(playlist),
       icon: Icon(
         Icons.more_vert,
         size: AppDimens.iconMd,
@@ -907,6 +1065,53 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           isDarkMode,
         ).withValues(alpha: AppDimens.opacityMuted),
       ),
+      onSelected: (value) {
+        if (value == 'rename') {
+          _renamePlaylist(playlist);
+        } else if (value == 'set_cover') {
+          _setCoverFromTopSong(playlist);
+        } else if (value == 'delete') {
+          _deletePlaylist(playlist);
+        }
+      },
+      itemBuilder: (context) {
+        return const [
+          PopupMenuItem(
+            value: 'rename',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 20),
+                SizedBox(width: 10),
+                Text('Rename playlist'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'set_cover',
+            child: Row(
+              children: [
+                Icon(Icons.image_outlined, size: 20),
+                SizedBox(width: 10),
+                Text('Use top song as cover'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
+                SizedBox(width: 10),
+                Text('Delete playlist'),
+              ],
+            ),
+          ),
+        ];
+      },
     );
   }
 

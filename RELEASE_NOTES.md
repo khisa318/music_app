@@ -1,23 +1,19 @@
-# 1.0.5
+# 1.0.6
 
 ## New
 
-- Browse Categories grid on the search screen: 16 genres to jump into when you don't know what to search for yet.
-- Playlist link import now accepts both YouTube and Spotify links in one flow, matching each Spotify track to YouTube Music and showing live progress as it goes.
-
-## Improvements
-
-- Search brought in line with the new look: the search field and the YouTube / YouTube Music toggles are now separate, roomier glass controls, the pinned category tabs use the same glass style, and the Local Music filters (All / Download / Music) gained larger tap targets.
-- Local playlists now open in the same rich detail screen used for albums and remote playlists, so playback and queuing behave consistently everywhere.
-- More reliable stream resolution: MusiX rotates across multiple YouTube clients and retries transient failures before giving up.
+- Updates now look after themselves. When a new version is available, MusiX downloads it slowly in the background so it never competes with your music, and it picks up right where it left off even if you close the app. A banner at the top of Home shows live progress - pause, resume or cancel it there - and you'll be prompted to install the moment it's ready. If you prefer, automatic downloads can be limited to Wi-Fi.
+- Manage downloads from a new settings sheet on the Downloads screen: choose download quality, how many downloads run at once (now three by default) and Wi-Fi-only downloads.
+- Downloads now recover on their own. If one fails, it rotates to the back of the queue and is retried automatically instead of stopping everything.
+- Rename the playlists you've created and set a playlist's cover from its top song. Each playlist also suggests more music you can add at the end.
+- Fine-tune lyrics timing: nudge any song's lyrics earlier or later in 0.25s steps so they line up perfectly. The adjustment is remembered per song.
 
 ## Fixed
 
-- Playback no longer stalls silently when YouTube asks you to verify you're not a bot; a throttled notice now explains what happened.
-- New installs default the accent colour to the first swatch, so the first launch always looks intentional.
+- The player no longer plays one song while showing another's title. After a track fails to load, playback returns to a clean state instead of resuming behind the wrong title - pressing play now resolves and plays the song you're actually looking at.
 
 ## Notes
 
 - Built with Flutter. All tests and analysis pass.
 
-**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.4...v1.0.5
+**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.5...v1.0.6
