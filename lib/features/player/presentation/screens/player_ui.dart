@@ -16,11 +16,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/services/player_service.dart';
-import '../../../../shared/animations/animation_1.dart';
-import '../../../../shared/animations/animation_2.dart';
-import '../../../../shared/animations/animation_3.dart';
-import '../../../../shared/animations/animation_4.dart';
-import '../../../../shared/animations/animation_5.dart';
+import '../../../../shared/animations/background_animation.dart';
 import '../../../equalizer/presentation/screens/equalizer_screen.dart';
 import '../widgets/lyrics_display.dart';
 import '../widgets/player_components.dart';
@@ -274,37 +270,21 @@ class PlayerUIState extends State<PlayerUI>
 
     Widget buildAnimatedBackground(bool isAnimating) {
       final effectiveBackgroundColor = backgroundColor.withValues(alpha: 0.6);
+
+      // The numbered animations are shared with the app-wide background, so
+      // they are built through the one helper rather than a second switch that
+      // has to be kept in step by hand.
+      final Widget? numbered = buildBackgroundAnimation(
+        animationType: settingsProvider.animationType,
+        backgroundColor: effectiveBackgroundColor,
+        accentColor: accentColor,
+        isAnimating: isAnimating,
+      );
+      if (numbered != null) {
+        return numbered;
+      }
+
       switch (settingsProvider.animationType) {
-        case 'Animation 1':
-          return Animation1(
-            backgroundColor: effectiveBackgroundColor,
-            accentColor: accentColor,
-            isAnimating: isAnimating,
-          );
-        case 'Animation 2':
-          return Animation2(
-            backgroundColor: effectiveBackgroundColor,
-            accentColor: accentColor,
-            isAnimating: isAnimating,
-          );
-        case 'Animation 3':
-          return Animation3(
-            backgroundColor: effectiveBackgroundColor,
-            accentColor: accentColor,
-            isAnimating: isAnimating,
-          );
-        case 'Animation 4':
-          return Animation4(
-            backgroundColor: effectiveBackgroundColor,
-            accentColor: accentColor,
-            isAnimating: isAnimating,
-          );
-        case 'Animation 5':
-          return Animation5(
-            backgroundColor: effectiveBackgroundColor,
-            accentColor: accentColor,
-            isAnimating: isAnimating,
-          );
         case 'Default':
           return Container(
             decoration: BoxDecoration(
