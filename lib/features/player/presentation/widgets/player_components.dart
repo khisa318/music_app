@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
@@ -10,6 +11,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
+import '../../../../core/services/local_songs_service.dart';
 import '../../../../core/services/player_service.dart';
 import 'youtube_video_player.dart';
 import 'player_controls.dart';
@@ -23,6 +25,14 @@ class PlayerComponents {
     return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
 
+  /// The MediaStore id of the currently playing local song, or null when a
+  /// YouTube song is playing (or the id cannot be parsed).
+  static int? _localSongId(PlayerProvider playerProvider) {
+    final rawId = playerProvider.currentLocalSong?['id'];
+    if (rawId == null) return null;
+    return int.tryParse(rawId.toString());
+  }
+
   /// The full-player artwork.
   ///
   /// A YouTube video is identified by [videoId] and its cover comes from
@@ -33,14 +43,20 @@ class PlayerComponents {
   /// that case: `img.youtube.com/vi/null/maxresdefault.jpg` answers 200 with a
   /// flat grey placeholder image rather than a 404, so the error fallbacks
   /// never fire and the player showed a solid grey square instead of the file's
-  /// own cover. Local playback therefore goes straight to [thumbnail].
+  /// own cover. Local playback therefore renders the embedded artwork from
+  /// [localSongId] (via MediaStore), then the [thumbnail] path, then the bundled
+  /// artwork.
   static Widget _buildFullArtwork({
     required String? videoId,
     required String thumbnail,
+    int? localSongId,
   }) {
     final Widget fallback = _buildLocalOrAssetArtwork(thumbnail);
 
     if (videoId == null || videoId.isEmpty) {
+      if (localSongId != null) {
+        return _LocalArtwork(localSongId: localSongId, fallback: fallback);
+      }
       return fallback;
     }
 
@@ -57,20 +73,35 @@ class PlayerComponents {
     );
   }
 
+  /// The shared fallback for the mini player: the bundled artwork at [size].
+  static Widget _miniFallback(double size) {
+    return Image.asset(
+      'assets/default_artwork.png',
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+    );
+  }
+
   /// Renders [thumbnail] as a network image when it is a URL, otherwise as a
   /// local file (bare path or `file://` URI), ending at the bundled artwork.
-  static Widget _buildLocalOrAssetArtwork(String thumbnail) {
+  static Widget _buildLocalOrAssetArtwork(String thumbnail, {double? size}) {
+    final Widget asset = size == null
+        ? Image.asset('assets/default_artwork.png', fit: BoxFit.cover)
+        : _miniFallback(size);
+
     if (thumbnail.isEmpty || thumbnail.startsWith('assets/')) {
-      return Image.asset('assets/default_artwork.png', fit: BoxFit.cover);
+      return asset;
     }
 
     if (thumbnail.startsWith('http')) {
       return CachedNetworkImage(
         imageUrl: thumbnail,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
         placeholder: buildImagePlaceholder,
-        errorWidget: (context, url, error) =>
-            Image.asset('assets/default_artwork.png', fit: BoxFit.cover),
+        errorWidget: (context, url, error) => asset,
       );
     }
 
@@ -85,9 +116,10 @@ class PlayerComponents {
 
     return Image.file(
       File(path),
+      width: size,
+      height: size,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) =>
-          Image.asset('assets/default_artwork.png', fit: BoxFit.cover),
+      errorBuilder: (context, error, stackTrace) => asset,
     );
   }
 
@@ -106,61 +138,40 @@ class PlayerComponents {
 
         if (isMini) {
           final miniSize = thumbnailSize ?? AppDimens.thumbnailDefault;
+          final localSongId = _localSongId(playerProvider);
+          final Widget compactChild;
+          if (localSongId != null && videoId == null) {
+            compactChild = _LocalArtwork(
+              localSongId: localSongId,
+              fallback: _miniFallback(miniSize),
+            );
+          } else if (thumbnail.startsWith('http')) {
+            compactChild = CachedNetworkImage(
+              imageUrl: thumbnail,
+              width: miniSize,
+              height: miniSize,
+              fit: BoxFit.cover,
+              placeholder: buildImagePlaceholder,
+              errorWidget: (context, url, error) => CachedNetworkImage(
+                imageUrl: 'https://img.youtube.com/vi/$videoId/mqdefault.jpg',
+                width: miniSize,
+                height: miniSize,
+                fit: BoxFit.cover,
+                placeholder: buildImagePlaceholder,
+                errorWidget: (context, url, error) => _miniFallback(miniSize),
+              ),
+            );
+          } else {
+            compactChild = _buildLocalOrAssetArtwork(thumbnail, size: miniSize);
+          }
+
           return Container(
             width: miniSize,
             height: miniSize,
             margin: EdgeInsets.all(AppDimens.paddingXs),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-              child: Stack(
-                children: [
-                  thumbnail.startsWith('http')
-                      ? CachedNetworkImage(
-                          imageUrl: thumbnail,
-                          width: miniSize,
-                          height: miniSize,
-                          fit: BoxFit.cover,
-                          placeholder: buildImagePlaceholder,
-                          errorWidget: (context, url, error) => CachedNetworkImage(
-                            imageUrl:
-                                'https://img.youtube.com/vi/$videoId/mqdefault.jpg',
-                            width: miniSize,
-                            height: miniSize,
-                            fit: BoxFit.cover,
-                            placeholder: buildImagePlaceholder,
-                            errorWidget: (context, url, error) => Image.asset(
-                              'assets/default_artwork.png',
-                              width: miniSize,
-                              height: miniSize,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        )
-                      : () {
-                          String path = thumbnail;
-                          if (thumbnail.startsWith('file://')) {
-                            try {
-                              path = Uri.parse(thumbnail).toFilePath();
-                            } catch (_) {
-                              path = thumbnail.replaceFirst('file://', '');
-                            }
-                          }
-                          return Image.file(
-                            File(path),
-                            width: miniSize,
-                            height: miniSize,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Image.asset(
-                                  'assets/default_artwork.png',
-                                  width: miniSize,
-                                  height: miniSize,
-                                  fit: BoxFit.cover,
-                                ),
-                          );
-                        }(),
-                ],
-              ),
+              child: Stack(children: [compactChild]),
             ),
           );
         }
@@ -257,6 +268,7 @@ class PlayerComponents {
                             child: _buildFullArtwork(
                               videoId: videoId,
                               thumbnail: thumbnail,
+                              localSongId: _localSongId(playerProvider),
                             ),
                           ),
                         ),
@@ -881,5 +893,61 @@ class PlayerComponents {
       ),
       child: const Icon(Icons.error, color: Colors.red),
     );
+  }
+}
+
+/// Loads a local file's embedded artwork from MediaStore by its [localSongId]
+/// and renders it full-bleed, falling back to [fallback] while loading or when
+/// the file has no artwork.
+class _LocalArtwork extends StatefulWidget {
+  final int localSongId;
+  final Widget fallback;
+
+  const _LocalArtwork({required this.localSongId, required this.fallback});
+
+  @override
+  State<_LocalArtwork> createState() => _LocalArtworkState();
+}
+
+class _LocalArtworkState extends State<_LocalArtwork> {
+  Uint8List? _bytes;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_LocalArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localSongId != widget.localSongId) {
+      _bytes = null;
+      _isLoading = true;
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final bytes = await LocalSongsService().queryArtwork(widget.localSongId);
+      if (mounted) {
+        setState(() {
+          _bytes = bytes;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isLoading && _bytes != null) {
+      return Image.memory(_bytes!, fit: BoxFit.cover);
+    }
+    return widget.fallback;
   }
 }
