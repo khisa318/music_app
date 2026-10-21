@@ -937,10 +937,8 @@ class PlayerUIState extends State<PlayerUI>
           constraints: const BoxConstraints(maxWidth: AppDimens.maxModalWidth),
           child: LiquidGlass(
             borderRadius: miniPlayerBorderRadius,
-            blur: 16,
             tint: MainScreenColors.getSurfaceColor(isDarkMode),
             opacity: 0.5,
-            saturation: 1.3,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(
