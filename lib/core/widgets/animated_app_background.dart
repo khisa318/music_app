@@ -83,13 +83,16 @@ class _AnimatedAppBackgroundState extends State<AnimatedAppBackground>
 
     // The standalone animation widgets paint their own opaque backdrop, so
     // they replace the painter entirely; the built-in painter is a transparent
-    // overlay that relies on the scaffold showing through.
+    // overlay that relies on the scaffold showing through. They sit at the very
+    // bottom of the app, behind the window, so their base has to be fully
+    // opaque: a translucent surface would let the dark window bleed through and
+    // turn the light theme grey.
     final Color surface = MainScreenColors.getSurfaceColor(isDarkMode);
     final Widget? selectedAnimation = usesBuiltInPainter
         ? null
         : buildBackgroundAnimation(
             animationType: animationType,
-            backgroundColor: surface.withValues(alpha: 0.6),
+            backgroundColor: surface,
             accentColor: settings.accent,
             isAnimating: !reduced,
           );
