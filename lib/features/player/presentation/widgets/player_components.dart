@@ -23,6 +23,74 @@ class PlayerComponents {
     return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
 
+  /// The full-player artwork.
+  ///
+  /// A YouTube video is identified by [videoId] and its cover comes from
+  /// YouTube's thumbnail endpoints, falling back to [thumbnail] and then the
+  /// bundled artwork.
+  ///
+  /// A local file has no [videoId]. The YouTube endpoints must not be tried in
+  /// that case: `img.youtube.com/vi/null/maxresdefault.jpg` answers 200 with a
+  /// flat grey placeholder image rather than a 404, so the error fallbacks
+  /// never fire and the player showed a solid grey square instead of the file's
+  /// own cover. Local playback therefore goes straight to [thumbnail].
+  static Widget _buildFullArtwork({
+    required String? videoId,
+    required String thumbnail,
+  }) {
+    final Widget fallback = _buildLocalOrAssetArtwork(thumbnail);
+
+    if (videoId == null || videoId.isEmpty) {
+      return fallback;
+    }
+
+    return CachedNetworkImage(
+      imageUrl: 'https://img.youtube.com/vi/$videoId/maxresdefault.jpg',
+      fit: BoxFit.cover,
+      placeholder: buildImagePlaceholder,
+      errorWidget: (context, url, error) => CachedNetworkImage(
+        imageUrl: 'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+        fit: BoxFit.cover,
+        placeholder: buildImagePlaceholder,
+        errorWidget: (context, url, error) => fallback,
+      ),
+    );
+  }
+
+  /// Renders [thumbnail] as a network image when it is a URL, otherwise as a
+  /// local file (bare path or `file://` URI), ending at the bundled artwork.
+  static Widget _buildLocalOrAssetArtwork(String thumbnail) {
+    if (thumbnail.isEmpty || thumbnail.startsWith('assets/')) {
+      return Image.asset('assets/default_artwork.png', fit: BoxFit.cover);
+    }
+
+    if (thumbnail.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: thumbnail,
+        fit: BoxFit.cover,
+        placeholder: buildImagePlaceholder,
+        errorWidget: (context, url, error) =>
+            Image.asset('assets/default_artwork.png', fit: BoxFit.cover),
+      );
+    }
+
+    String path = thumbnail;
+    if (thumbnail.startsWith('file://')) {
+      try {
+        path = Uri.parse(thumbnail).toFilePath();
+      } catch (_) {
+        path = thumbnail.replaceFirst('file://', '');
+      }
+    }
+
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) =>
+          Image.asset('assets/default_artwork.png', fit: BoxFit.cover),
+    );
+  }
+
   static Widget buildThumbnail({
     bool isMini = false,
     required bool isDarkMode,
@@ -186,64 +254,9 @@ class PlayerComponents {
                             AppDimens.radiusXxl,
                           ),
                           child: SizedBox.expand(
-                            child: CachedNetworkImage(
-                              imageUrl:
-                                  'https://img.youtube.com/vi/$videoId/maxresdefault.jpg',
-                              fit: BoxFit.cover,
-                              placeholder: buildImagePlaceholder,
-                              errorWidget: (context, url, error) =>
-                                  CachedNetworkImage(
-                                    imageUrl:
-                                        'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
-                                    fit: BoxFit.cover,
-                                    placeholder: buildImagePlaceholder,
-                                    errorWidget: (context, url, error) =>
-                                        thumbnail.startsWith('http')
-                                        ? CachedNetworkImage(
-                                            imageUrl: thumbnail,
-                                            fit: BoxFit.cover,
-                                            placeholder: buildImagePlaceholder,
-                                            errorWidget:
-                                                (
-                                                  context,
-                                                  url,
-                                                  error,
-                                                ) => Image.asset(
-                                                  'assets/default_artwork.png',
-                                                  fit: BoxFit.cover,
-                                                ),
-                                          )
-                                        : () {
-                                            String path = thumbnail;
-                                            if (thumbnail.startsWith(
-                                              'file://',
-                                            )) {
-                                              try {
-                                                path = Uri.parse(
-                                                  thumbnail,
-                                                ).toFilePath();
-                                              } catch (_) {
-                                                path = thumbnail.replaceFirst(
-                                                  'file://',
-                                                  '',
-                                                );
-                                              }
-                                            }
-                                            return Image.file(
-                                              File(path),
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => Image.asset(
-                                                    'assets/default_artwork.png',
-                                                    fit: BoxFit.cover,
-                                                  ),
-                                            );
-                                          }(),
-                                  ),
+                            child: _buildFullArtwork(
+                              videoId: videoId,
+                              thumbnail: thumbnail,
                             ),
                           ),
                         ),
