@@ -1,19 +1,22 @@
-# 1.0.6
+# 1.0.7
 
 ## New
 
-- Updates now look after themselves. When a new version is available, MusiX downloads it slowly in the background so it never competes with your music, and it picks up right where it left off even if you close the app. A banner at the top of Home shows live progress - pause, resume or cancel it there - and you'll be prompted to install the moment it's ready. If you prefer, automatic downloads can be limited to Wi-Fi.
-- Manage downloads from a new settings sheet on the Downloads screen: choose download quality, how many downloads run at once (now three by default) and Wi-Fi-only downloads.
-- Downloads now recover on their own. If one fails, it rotates to the back of the queue and is retried automatically instead of stopping everything.
-- Rename the playlists you've created and set a playlist's cover from its top song. Each playlist also suggests more music you can add at the end.
-- Fine-tune lyrics timing: nudge any song's lyrics earlier or later in 0.25s steps so they line up perfectly. The adjustment is remembered per song.
+- Pick your background animation in Settings and have it follow you across the whole app, not just the player.
+- Local songs now open the same full options sheet as online songs: artwork header, play, open in YouTube or YouTube Music, share, copy the file path and edit metadata.
+- Local songs show their own embedded cover art in both the full player and the mini player.
 
 ## Fixed
 
-- The player no longer plays one song while showing another's title. After a track fails to load, playback returns to a clean state instead of resuming behind the wrong title - pressing play now resolves and plays the song you're actually looking at.
+- Local songs no longer show a grey square or the bundled artwork when the file has cover art of its own.
+- The player's three-dots sheet no longer crashes on local songs, and its action bar is always available.
+- The light theme no longer turns grey behind the numbered background animations.
+- Flattened the liquid-glass surfaces so content behind them stays clearly visible, and the reduce-effects setting now stops the background animation and its particles.
+- The playlist and album header keeps the active theme instead of reverting to light.
+- Song lists scroll normally while a long press still starts reordering, with bounce physics at the ends.
 
 ## Notes
 
 - Built with Flutter. All tests and analysis pass.
 
-**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.5...v1.0.6
+**Full changelog**: https://github.com/khisa318/music_app/compare/v1.0.6...v1.0.7

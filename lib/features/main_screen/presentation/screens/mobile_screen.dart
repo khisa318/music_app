@@ -345,10 +345,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                               borderRadius: const BorderRadius.all(
                                 Radius.circular(AppDimens.radiusPill),
                               ),
-                              blur: 16,
                               tint: MainScreenColors.getSurfaceColor(isDarkMode),
                               opacity: 0.14,
-                              saturation: 1.3,
                               padding: const EdgeInsets.symmetric(
                                 vertical: AppDimens.spacingXs,
                               ),
