@@ -1,25 +1,25 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/settings_provider.dart';
 
-/// A frosted, translucent "liquid glass" surface.
+/// A translucent "liquid glass" surface: a faint tinted sheet with a soft
+/// specular rim, so it reads as glass over the app background rather than a
+/// flat panel.
 ///
 /// Whatever is painted behind the widget - scrolling content, the animated app
-/// background - is blurred, slightly saturated and tinted, then framed with a
-/// soft specular rim so it reads as a sheet of glass rather than a flat panel.
+/// background - stays fully visible: the sheet only adds a tint, a rim and an
+/// optional shadow. Keep the child itself transparent so the tint is the only
+/// surface treatment.
 ///
-/// Used for the floating bottom dock and the player chrome. Keep the child
-/// itself transparent: this widget owns the only [BackdropFilter] in the stack,
-/// and nesting two of them blurs an already-blurred backdrop.
+/// Used for the floating bottom dock and the player chrome. With "reduce
+/// effects" on, the tint is strengthened for a flatter, more opaque look that
+/// hides the backdrop instead of showing it off.
 class LiquidGlass extends StatelessWidget {
   const LiquidGlass({
     super.key,
     required this.child,
     this.borderRadius = const BorderRadius.all(Radius.circular(28)),
-    this.blur = 20,
     this.tint = Colors.white,
     this.opacity = 0.10,
     this.highlight,
@@ -27,7 +27,6 @@ class LiquidGlass extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.margin = EdgeInsets.zero,
     this.boxShadow,
-    this.saturation = 1.6,
   });
 
   final Widget child;
@@ -35,13 +34,10 @@ class LiquidGlass extends StatelessWidget {
   /// Corner rounding of the glass sheet.
   final BorderRadius borderRadius;
 
-  /// Backdrop blur amount, in logical pixels.
-  final double blur;
-
-  /// Base tint laid over the blurred backdrop.
+  /// Base tint laid over the backdrop.
   final Color tint;
 
-  /// Alpha of [tint]. Kept low so the backdrop stays legible through the glass.
+  /// Alpha of [tint]. Kept low so the backdrop stays fully legible.
   final double opacity;
 
   /// Colour of the specular rim. Defaults to a theme-aware translucent white.
@@ -55,25 +51,12 @@ class LiquidGlass extends StatelessWidget {
 
   final List<BoxShadow>? boxShadow;
 
-  /// Backdrop saturation. Values above 1 make the colours behind the glass
-  /// "pop" the way liquid glass does; 1.0 disables the effect.
-  final double saturation;
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color rim =
         highlight ?? Colors.white.withValues(alpha: isDark ? 0.28 : 0.65);
-
-    final ImageFilter blurFilter = ImageFilter.blur(sigmaX: blur, sigmaY: blur);
-
-    final ImageFilter filter = saturation == 1.0
-        ? blurFilter
-        : ImageFilter.compose(
-            outer: ColorFilter.matrix(_saturationMatrix(saturation)),
-            inner: blurFilter,
-          );
 
     final BorderRadius radius = borderRadius;
 
@@ -120,12 +103,7 @@ class LiquidGlass extends StatelessWidget {
       padding: margin,
       child: DecoratedBox(
         decoration: BoxDecoration(borderRadius: radius, boxShadow: boxShadow),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: reduceEffects
-              ? glassContent
-              : BackdropFilter(filter: filter, child: glassContent),
-        ),
+        child: ClipRRect(borderRadius: radius, child: glassContent),
       ),
     );
   }
@@ -137,38 +115,4 @@ class LiquidGlass extends StatelessWidget {
       return false;
     }
   }
-}
-
-/// Luminance-preserving saturation matrix for [ColorFilter.matrix].
-List<double> _saturationMatrix(double s) {
-  const double lumR = 0.2126;
-  const double lumG = 0.7152;
-  const double lumB = 0.0722;
-  final double inv = 1 - s;
-  final double sr = inv * lumR;
-  final double sg = inv * lumG;
-  final double sb = inv * lumB;
-
-  return <double>[
-    sr + s,
-    sg,
-    sb,
-    0,
-    0,
-    sr,
-    sg + s,
-    sb,
-    0,
-    0,
-    sr,
-    sg,
-    sb + s,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
 }

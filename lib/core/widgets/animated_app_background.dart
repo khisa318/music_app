@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 
 /// The app-wide animated background: a slow drift of coloured glows and
@@ -29,10 +31,12 @@ class _AnimatedAppBackgroundState extends State<AnimatedAppBackground>
 
     // Deliberately slow. The background is meant to breathe, not demand
     // attention, and a long period keeps the per-frame work cheap.
+    // The ticker is started from build() so the "reduce effects" setting can
+    // keep it fully stopped instead of painting a still frame every 16ms.
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 30),
-    )..repeat();
+    );
   }
 
   @override
@@ -45,12 +49,23 @@ class _AnimatedAppBackgroundState extends State<AnimatedAppBackground>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final bool reduced = context.select<SettingsProvider, bool>(
+      (settings) => settings.reduceEffectsEnabled,
+    );
+
+    if (reduced) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+
     return IgnorePointer(
       child: RepaintBoundary(
         child: CustomPaint(
           size: Size.infinite,
           painter: _AnimatedBackgroundPainter(
-            animation: _controller,
+            animation: reduced ? null : _controller,
+            reduced: reduced,
             isDarkMode: theme.brightness == Brightness.dark,
             accent: theme.extension<MusiXAccent>()?.color,
           ),
@@ -63,11 +78,19 @@ class _AnimatedAppBackgroundState extends State<AnimatedAppBackground>
 class _AnimatedBackgroundPainter extends CustomPainter {
   _AnimatedBackgroundPainter({
     required this.animation,
+    required this.reduced,
     required this.isDarkMode,
     this.accent,
   }) : super(repaint: animation);
 
-  final Animation<double> animation;
+  /// Null while effects are reduced: the still frame is painted once and
+  /// never repainted, instead of re-painting every tick of the controller.
+  final Animation<double>? animation;
+
+  /// True when the user asked for reduced effects: paint a calm still image
+  /// (no drifting particles) and let the ticker stay stopped.
+  final bool reduced;
+
   final bool isDarkMode;
   final Color? accent;
 
@@ -87,12 +110,14 @@ class _AnimatedBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final t = animation.value;
+    final t = animation?.value ?? 0;
 
     _paintBase(canvas, size);
     _paintBlobs(canvas, size, t);
     _paintSunlight(canvas, size, t);
-    _paintParticles(canvas, size, t);
+    if (!reduced) {
+      _paintParticles(canvas, size, t);
+    }
   }
 
   void _paintBase(Canvas canvas, Size size) {
@@ -218,7 +243,9 @@ class _AnimatedBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AnimatedBackgroundPainter oldDelegate) {
-    return oldDelegate.isDarkMode != isDarkMode || oldDelegate.accent != accent;
+    return oldDelegate.reduced != reduced ||
+        oldDelegate.isDarkMode != isDarkMode ||
+        oldDelegate.accent != accent;
   }
 }
 
