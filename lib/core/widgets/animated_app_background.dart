@@ -3,17 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../shared/animations/background_animation.dart';
+import '../constants/app_colors.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 
-/// The app-wide animated background: a slow drift of coloured glows and
-/// floating particles over a theme-aware base gradient.
+/// The app-wide animated background.
 ///
-/// Mounted exactly once, behind the navigator, by [MusiXApp]'s `MaterialApp`
-/// builder. Every screen reveals it by using a transparent scaffold, which is
-/// what [AppTheme] sets `scaffoldBackgroundColor` to. Keeping the background in
-/// one place means the whole app shares a single animation ticker instead of
-/// each screen spinning up its own.
+/// Mounted once, behind the navigator, by [MusiXApp]'s `MaterialApp` builder.
+/// Every screen reveals it by using a transparent scaffold, which is what
+/// [AppTheme] sets `scaffoldBackgroundColor` to, so the whole app shares a
+/// single background instead of each screen painting its own.
+///
+/// Which animation plays follows the `animationType` setting - the same one
+/// the player screen and the settings picker use. 'Default' and 'static' keep
+/// the built-in drift painted here; the numbered animations reuse the shared
+/// [buildBackgroundAnimation] widgets.
 class AnimatedAppBackground extends StatefulWidget {
   const AnimatedAppBackground({super.key});
 
@@ -49,30 +54,85 @@ class _AnimatedAppBackgroundState extends State<AnimatedAppBackground>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final bool reduced = context.select<SettingsProvider, bool>(
-      (settings) => settings.reduceEffectsEnabled,
+    final settings = context.select<SettingsProvider, _BackgroundSettings>(
+      (settings) => _BackgroundSettings(
+        animationType: settings.animationType,
+        reduced: settings.reduceEffectsEnabled,
+        accent: settings.accentColor,
+      ),
     );
 
-    if (reduced) {
+    final bool reduced = settings.reduced;
+    final bool isDarkMode = theme.brightness == Brightness.dark;
+
+    // The built-in painter owns this ticker, so it only runs while that
+    // painter is what is actually being shown and effects are not reduced.
+    // The numbered animations drive their own internal controllers.
+    final String animationType = settings.animationType;
+    final bool usesBuiltInPainter =
+        !isNumberedBackgroundAnimation(animationType);
+    final bool builtInActive = usesBuiltInPainter && !reduced;
+
+    if (builtInActive) {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    } else if (_controller.isAnimating) {
       _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
     }
+
+    // The standalone animation widgets paint their own opaque backdrop, so
+    // they replace the painter entirely; the built-in painter is a transparent
+    // overlay that relies on the scaffold showing through.
+    final Color surface = MainScreenColors.getSurfaceColor(isDarkMode);
+    final Widget? selectedAnimation = usesBuiltInPainter
+        ? null
+        : buildBackgroundAnimation(
+            animationType: animationType,
+            backgroundColor: surface.withValues(alpha: 0.6),
+            accentColor: settings.accent,
+            isAnimating: !reduced,
+          );
 
     return IgnorePointer(
       child: RepaintBoundary(
-        child: CustomPaint(
-          size: Size.infinite,
-          painter: _AnimatedBackgroundPainter(
-            animation: reduced ? null : _controller,
-            reduced: reduced,
-            isDarkMode: theme.brightness == Brightness.dark,
-            accent: theme.extension<MusiXAccent>()?.color,
-          ),
-        ),
+        child: selectedAnimation ??
+            CustomPaint(
+              size: Size.infinite,
+              painter: _AnimatedBackgroundPainter(
+                animation: reduced ? null : _controller,
+                reduced: reduced,
+                isDarkMode: isDarkMode,
+                accent: settings.accent,
+              ),
+            ),
       ),
     );
   }
+}
+
+/// The subset of [SettingsProvider] this background depends on, bundled so a
+/// single `context.select` rebuilds it only when one of these actually changes.
+class _BackgroundSettings {
+  const _BackgroundSettings({
+    required this.animationType,
+    required this.reduced,
+    required this.accent,
+  });
+
+  final String animationType;
+  final bool reduced;
+  final Color accent;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _BackgroundSettings &&
+      other.animationType == animationType &&
+      other.reduced == reduced &&
+      other.accent == accent;
+
+  @override
+  int get hashCode => Object.hash(animationType, reduced, accent);
 }
 
 class _AnimatedBackgroundPainter extends CustomPainter {
