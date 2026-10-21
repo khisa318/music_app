@@ -202,6 +202,15 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
     return '$bytes B';
   }
 
+  /// A YouTube search URL for a song with no known video id (local files).
+  String _youtubeSearchLink(String title, String artist) {
+    final query = [title, artist]
+        .where((part) => part.isNotEmpty && part != 'Unknown Title')
+        .join(' ')
+        .trim();
+    return 'https://www.youtube.com/results?search_query=${Uri.encodeQueryComponent(query)}';
+  }
+
   String? _extractVideoId(String url) {
     try {
       final uri = Uri.parse(url);
@@ -360,6 +369,9 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
     final youtubeLink = videoId != null
         ? 'https://www.youtube.com/watch?v=$videoId'
         : null;
+
+    final youtubeSearchLink = youtubeLink ??
+        _youtubeSearchLink(songTitle, songArtist);
     const appLink = 'https://musix-website.vercel.app/';
     final shareText = isLocalSong
         ? '🎵 Listening to "$songTitle" by $songArtist'
@@ -479,23 +491,22 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
                   ),
                 ),
 
-                if (!isLocalSong)
-                  _buildActionBar(
-                    isDarkMode: isDarkMode,
-                    isLocalSong: isLocalSong,
-                    accentColor: accentColor,
-                    textColor: textColor,
-                    bgColor: bgColor,
-                    bottomPad: bottomPad,
-                    pp: pp,
-                    currentSong: currentSong,
-                    currentLocalSong: currentLocalSong,
-                    songTitle: songTitle,
-                    songArtist: songArtist,
-                    videoId: videoId,
-                    youtubeLink: youtubeLink,
-                    shareText: shareText,
-                  ),
+                _buildActionBar(
+                  isDarkMode: isDarkMode,
+                  isLocalSong: isLocalSong,
+                  accentColor: accentColor,
+                  textColor: textColor,
+                  bgColor: bgColor,
+                  bottomPad: bottomPad,
+                  pp: pp,
+                  currentSong: currentSong,
+                  currentLocalSong: currentLocalSong,
+                  songTitle: songTitle,
+                  songArtist: songArtist,
+                  videoId: videoId,
+                  youtubeLink: youtubeSearchLink,
+                  shareText: shareText,
+                ),
               ],
             ),
           ),
@@ -782,7 +793,7 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
 
     final title = meta?.title ?? ls['title'] ?? '—';
     final artist = meta?.artist ?? ls['artist'] ?? '—';
-    final album = meta?.album ?? ls['albumId'];
+    final album = meta?.album ?? ls['album']?.toString();
     final albumArtist = meta?.albumArtist;
     final genre = meta?.genre;
     final year = meta?.year;
@@ -1170,55 +1181,52 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
                 icon: Icons.play_arrow_rounded,
                 label: 'YouTube',
                 color: Colors.red,
-                enabled: !isLocalSong,
-                onTap: !isLocalSong
-                    ? () async {
-                        if (youtubeLink == null) return;
-                        final uri = Uri.parse(youtubeLink);
-                        if (await canLaunchUrl(uri)) await launchUrl(uri);
-                      }
-                    : null,
+                enabled: youtubeLink != null,
+                onTap: () async {
+                  if (youtubeLink == null) return;
+                  final uri = Uri.parse(youtubeLink);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
               ),
               const SizedBox(width: AppDimens.spacingLg),
               btn(
                 icon: Icons.play_circle_outline_rounded,
                 label: 'Music',
                 color: Colors.redAccent,
-                enabled: !isLocalSong,
-                onTap: !isLocalSong
-                    ? () async {
-                        if (youtubeLink == null) return;
-                        final id = videoId ?? _extractVideoId(youtubeLink);
-                        if (id == null || id.isEmpty) return;
-                        final uri = Uri.parse(
-                          'https://music.youtube.com/watch?v=$id',
+                enabled: youtubeLink != null,
+                onTap: () async {
+                  if (youtubeLink == null) return;
+                  final id = videoId ?? _extractVideoId(youtubeLink);
+                  final uri = (id != null && id.isNotEmpty)
+                      ? Uri.parse('https://music.youtube.com/watch?v=$id')
+                      : Uri.parse(
+                          'https://music.youtube.com/search?q=${Uri.encodeQueryComponent('$songTitle $songArtist')}',
                         );
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        } else {
-                          final web = Uri.parse(youtubeLink);
-                          if (await canLaunchUrl(web)) await launchUrl(web);
-                        }
-                      }
-                    : null,
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    final web = Uri.parse(youtubeLink);
+                    if (await canLaunchUrl(web)) await launchUrl(web);
+                  }
+                },
               ),
               const SizedBox(width: AppDimens.spacingLg),
               btn(
                 icon: isLocalSong ? Icons.copy_outlined : Icons.link_rounded,
                 label: 'Copy',
                 color: accentColor,
-                enabled: !isLocalSong,
-                onTap: !isLocalSong
-                    ? () => _copyToClipboard(
-                        isLocalSong
-                            ? (currentLocalSong?['localPath'] ?? songTitle)
-                            : (youtubeLink ?? 'No link available'),
-                        isLocalSong ? 'File path' : 'Song link',
-                      )
-                    : null,
+                enabled: isLocalSong
+                    ? (currentLocalSong?['localPath'] as String?)?.isNotEmpty ==
+                          true
+                    : youtubeLink != null,
+                onTap: () => _copyToClipboard(
+                  isLocalSong
+                      ? (currentLocalSong?['localPath'] ?? songTitle)
+                      : (youtubeLink ?? 'No link available'),
+                  isLocalSong ? 'File path' : 'Song link',
+                ),
               ),
               const SizedBox(width: AppDimens.spacingLg),
               btn(
