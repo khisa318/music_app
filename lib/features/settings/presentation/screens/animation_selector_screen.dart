@@ -6,11 +6,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/player_provider.dart';
-import '../../../../shared/animations/animation_1.dart';
-import '../../../../shared/animations/animation_2.dart';
-import '../../../../shared/animations/animation_3.dart';
-import '../../../../shared/animations/animation_4.dart';
-import '../../../../shared/animations/animation_5.dart';
+import '../../../../shared/animations/background_animation.dart';
 import '../widgets/settings_surface.dart';
 
 class AnimationSelectorScreen extends StatefulWidget {
@@ -236,15 +232,8 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
                           SizedBox(height: AppDimens.spacingMd),
                           LayoutBuilder(
                             builder: (context, constraints) {
-                              const animationOptions = [
-                                'Default',
-                                'Animation 1',
-                                'Animation 2',
-                                'Animation 3',
-                                'Animation 4',
-                                'Animation 5',
-                                'static',
-                              ];
+                              const animationOptions =
+                                  BackgroundAnimations.options;
                               final double itemWidth =
                                   140; // Minimum width per animation option
                               final int crossAxisCount =
@@ -317,6 +306,17 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
   ) {
     final backgroundColor = themeData.playerServiceBackgroundColor;
     final accentColor = themeData.accentColor;
+
+    final Widget? numbered = buildBackgroundAnimation(
+      animationType: currentAnimation,
+      backgroundColor: backgroundColor,
+      accentColor: accentColor,
+      isAnimating: true,
+    );
+    if (numbered != null) {
+      return numbered;
+    }
+
     switch (currentAnimation) {
       case 'Default':
         return Container(
@@ -336,36 +336,6 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
               end: Alignment.bottomCenter,
             ),
           ),
-        );
-      case 'Animation 1':
-        return Animation1(
-          backgroundColor: backgroundColor,
-          accentColor: accentColor,
-          isAnimating: true,
-        );
-      case 'Animation 2':
-        return Animation2(
-          backgroundColor: backgroundColor,
-          accentColor: accentColor,
-          isAnimating: true,
-        );
-      case 'Animation 3':
-        return Animation3(
-          backgroundColor: backgroundColor,
-          accentColor: accentColor,
-          isAnimating: true,
-        );
-      case 'Animation 4':
-        return Animation4(
-          backgroundColor: backgroundColor,
-          accentColor: accentColor,
-          isAnimating: true,
-        );
-      case 'Animation 5':
-        return Animation5(
-          backgroundColor: backgroundColor,
-          accentColor: accentColor,
-          isAnimating: true,
         );
       default:
         return Container(
@@ -457,23 +427,9 @@ class _AnimationSelectorScreenState extends State<AnimationSelectorScreen> {
   }
 
   String _getAnimationDescription(String animationType) {
-    switch (animationType) {
-      case 'Default':
-        return 'static_animation_description'.tr();
-      case 'Animation 1':
-        return 'animation_1_description'.tr();
-      case 'Animation 2':
-        return 'animation_2_description'.tr();
-      case 'Animation 3':
-        return 'animation_3_description'.tr();
-      case 'Animation 4':
-        return 'animation_4_description'.tr();
-      case 'Animation 5':
-        return 'animation_5_description'.tr();
-      case 'static':
-        return 'static_animation_description'.tr();
-      default:
-        return 'A beautiful animation effect for your music player.';
-    }
+    final key =
+        BackgroundAnimations.descriptions[animationType] ??
+        'static_animation_description';
+    return key.tr();
   }
 }

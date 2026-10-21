@@ -71,7 +71,7 @@
   "animation_type": "Animation Type",
   "choose_animation": "Choose Animation",
   "reduce_effects": "Reduce Effects",
-  "reduce_effects_subtitle": "Reduce blur and transparency of floating panels for a flatter look or better performance",
+  "reduce_effects_subtitle": "Freeze the animated background and flatten glass panels for a calmer, more performant UI",
   "animations": "Animations",
   "current": "Current",
   "equalizer_card_title": "Equalizer",

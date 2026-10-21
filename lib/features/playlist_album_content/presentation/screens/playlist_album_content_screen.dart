@@ -996,8 +996,13 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
+    // copyWith (not a bare ThemeData) so brightness, text colors and the
+    // MusiXAccent extension survive; a fresh ThemeData() silently reverts
+    // this whole subtree to light mode, which painted white surfaces
+    // (shimmer header, overscroll glow, default Material colours) on top of
+    // the dark theme and flashed white while scrolling.
     return Theme(
-      data: ThemeData(
+      data: Theme.of(context).copyWith(
         scaffoldBackgroundColor: Colors.transparent,
         cardColor: MainScreenColors.getSurfaceColor(isDarkMode),
         popupMenuTheme: PopupMenuThemeData(
@@ -1111,6 +1116,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   Widget _buildSongList(PlayerProvider playerProvider, bool isDarkMode) {
     return CustomScrollView(
       controller: _scrollController,
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.spacingLg),
@@ -1118,7 +1126,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
               ? SliverReorderableList(
                   itemBuilder: (context, index) {
                     if (index == _provider.songs.length) {
-                      return _buildLoadMoreButton(isDarkMode);
+                      return KeyedSubtree(
+                        key: const ValueKey('playlist-load-more'),
+                        child: _buildLoadMoreButton(isDarkMode),
+                      );
                     }
                     final song = _provider.songs[index];
                     final settingsProvider = Provider.of<SettingsProvider>(
@@ -1134,7 +1145,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                             .select<PlayerProvider, bool>(
                               (p) => p.currentSong?.videoId == song.videoId,
                             );
-                        return ReorderableDragStartListener(
+                        // Delayed listener: the drag only starts after a long
+                        // press, so a normal swipe scrolls the list instead of
+                        // picking the song up.
+                        return ReorderableDelayedDragStartListener(
                           index: index,
                           child: Container(
                             decoration: BoxDecoration(
@@ -1247,6 +1261,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
         }
         return CustomScrollView(
           controller: _scrollController,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           slivers: [
             SliverToBoxAdapter(child: _buildHeader()),
             SliverPadding(
@@ -1257,7 +1274,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                   ? SliverReorderableList(
                       itemBuilder: (context, index) {
                         if (index == _provider.songs.length) {
-                          return _buildLoadMoreButton(isDarkMode);
+                          return KeyedSubtree(
+                            key: const ValueKey('playlist-load-more'),
+                            child: _buildLoadMoreButton(isDarkMode),
+                          );
                         }
                         final song = _provider.songs[index];
                         final settingsProvider = Provider.of<SettingsProvider>(
@@ -1273,7 +1293,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                                 .select<PlayerProvider, bool>(
                                   (p) => p.currentSong?.videoId == song.videoId,
                                 );
-                            return ReorderableDragStartListener(
+                            // Delayed listener: the drag only starts after a
+                            // long press, so a normal swipe scrolls the list
+                            // instead of picking the song up.
+                            return ReorderableDelayedDragStartListener(
                               index: index,
                               child: Container(
                                 decoration: BoxDecoration(
