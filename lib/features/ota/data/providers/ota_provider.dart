@@ -78,6 +78,13 @@ class OTAProvider extends ChangeNotifier {
   /// background (throttled), rather than from an explicit user action.
   bool get isBackgroundDownload => _isBackgroundDownload;
 
+  /// True when an interrupted download for the current update left bytes on
+  /// disk that a later attempt can resume from. It is the difference between a
+  /// download that must pick itself back up after a dropped connection and one
+  /// the user cancelled (which discards the partial and stays put).
+  bool get hasPartialOnDisk => _hasPartialOnDisk;
+  bool _hasPartialOnDisk = false;
+
   OTAStatus get status => _status;
   OTAUpdateInfo? get updateInfo => _updateInfo;
   OTADownloadProgress? get downloadProgress => _downloadProgress;
@@ -275,6 +282,7 @@ class OTAProvider extends ChangeNotifier {
 
       if (result.isSuccess) {
         _downloadProgress = null;
+        _hasPartialOnDisk = false;
         _downloadedFilePath = result.filePath;
         _checksumVerified = result.verified;
         await _persistReadyApk(info.latestVersion, result.filePath!);
@@ -303,13 +311,16 @@ class OTAProvider extends ChangeNotifier {
         case DownloadFailure.paused:
           // The progress is deliberately left in place: it is how the UI shows
           // where the user stopped and what resuming will pick up from.
+          _hasPartialOnDisk = true;
           _setStatus(OTAStatus.paused);
         case DownloadFailure.cancelled:
           _downloadProgress = null;
+          _hasPartialOnDisk = false;
           await _clearInflightVersion();
           _setStatus(OTAStatus.updateAvailable);
         case DownloadFailure.integrity:
           _downloadProgress = null;
+          _hasPartialOnDisk = false;
           await _clearInflightVersion();
           _handleError(
             OTAError.checksumError,
@@ -317,6 +328,7 @@ class OTAProvider extends ChangeNotifier {
           );
         case DownloadFailure.notEnoughSpace:
           _downloadProgress = null;
+          _hasPartialOnDisk = false;
           await _clearInflightVersion();
           _handleError(
             OTAError.storageError,
@@ -325,7 +337,9 @@ class OTAProvider extends ChangeNotifier {
         case DownloadFailure.offline:
         case DownloadFailure.timeout:
         case DownloadFailure.server:
-          // Progress is kept so a later Resume still knows how far it got.
+          // Progress is kept so a later Resume still knows how far it got, and
+          // the partial on disk is exactly what a reconnect will resume from.
+          _hasPartialOnDisk = true;
           if (_isBackgroundDownload) {
             // A background attempt failing on the network is not worth an
             // error screen: the partial file stays on disk and the next
@@ -340,6 +354,7 @@ class OTAProvider extends ChangeNotifier {
         case DownloadFailure.unknown:
         case null:
           _downloadProgress = null;
+          _hasPartialOnDisk = false;
           await _clearInflightVersion();
           if (_isBackgroundDownload) {
             _setStatus(OTAStatus.updateAvailable);
@@ -403,6 +418,7 @@ class OTAProvider extends ChangeNotifier {
       final hasPartial = await _downloadService.hasPartial(
         info.apkAssetName,
       );
+      _hasPartialOnDisk = hasPartial;
       debugPrint(
         '[Update] update available; UI will start the throttled background '
         'download (inflight match: ${inflight == info.latestVersion}, '
@@ -574,6 +590,7 @@ class OTAProvider extends ChangeNotifier {
     if (_status == OTAStatus.downloading) {
       _downloadService.cancel();
       _downloadProgress = null;
+      _hasPartialOnDisk = false;
       unawaited(_clearInflightVersion());
       _setStatus(OTAStatus.updateAvailable);
       return;
@@ -585,6 +602,7 @@ class OTAProvider extends ChangeNotifier {
       // the user would have no way back to a clean download.
       final info = _updateInfo;
       _downloadProgress = null;
+      _hasPartialOnDisk = false;
       unawaited(_clearInflightVersion());
       _setStatus(OTAStatus.updateAvailable);
       if (info != null) {
@@ -608,6 +626,7 @@ class OTAProvider extends ChangeNotifier {
 
     // A skipped version should leave nothing behind on disk either: the
     // partial or finished APK would otherwise be resumed silently.
+    _hasPartialOnDisk = false;
     await _clearInflightVersion();
     final readyPath = await _loadReadyApk(info.latestVersion);
     if (readyPath != null) {
@@ -671,6 +690,7 @@ class OTAProvider extends ChangeNotifier {
     _downloadedFilePath = null;
     _checksumVerified = false;
     _isUpdateUIShown = false;
+    _hasPartialOnDisk = false;
     _releaseHistory.clear();
     notifyListeners();
   }

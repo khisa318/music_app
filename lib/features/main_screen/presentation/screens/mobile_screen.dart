@@ -109,7 +109,11 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
         ota.status == OTAStatus.updateAvailable &&
         info != null &&
         networkAllowsAutoDownload &&
-        info.latestVersion != _autoDownloadedVersion) {
+        // Restart for a version we have not auto-downloaded yet, or resume one
+        // that was interrupted by a dropped connection. A cancelled download
+        // discards its partial, so `hasPartialOnDisk` is false there and the
+        // deliberately-abandoned update stays put.
+        (info.latestVersion != _autoDownloadedVersion || ota.hasPartialOnDisk)) {
       _autoDownloadedVersion = info.latestVersion;
 
       // Start the download *before* suppressing the launch dialog:
