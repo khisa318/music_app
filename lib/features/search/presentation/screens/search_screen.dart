@@ -463,6 +463,7 @@ class _SearchScreenState extends State<SearchScreen>
       ),
       child: Scaffold(
         body: SafeArea(
+          bottom: false,
           child: Stack(
             children: [
               Consumer<PlayerProvider>(

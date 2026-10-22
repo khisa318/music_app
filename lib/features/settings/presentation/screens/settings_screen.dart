@@ -82,28 +82,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               final mq = MediaQuery.of(context);
               final textScale = mq.textScaler.scale(1.0);
-              final double navIconScale =
-                  textScale > 1.0
+              final double navIconScale = textScale > 1.0
                   ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
                   : 1.0;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              final bool showMiniPlayer =
+                  AppDimens.isMobile(context) && hasPlayer;
+              final double miniPlayerClearance = showMiniPlayer
+                  ? AppDimens.miniPlayerHeight * navIconScale +
+                        AppDimens.spacing4Xl +
+                        AppDimens.spacingLg
+                  : 0;
+
+              return Stack(
                 children: [
-                  Expanded(
+                  Positioned.fill(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: EdgeInsets.fromLTRB(
                         AppDimens.paddingLg,
                         AppDimens.spacingXs,
                         AppDimens.paddingLg,
-                        AppDimens.spacingXxl,
+                        AppDimens.spacingXxl + miniPlayerClearance,
                       ),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           final width = constraints.maxWidth;
-                          final int columns = AppDimens.settingsColumns(
-                            width,
-                          );
+                          final int columns = AppDimens.settingsColumns(width);
                           final spacing = AppDimens.spacingLg;
                           final columnWidth = columns == 1
                               ? double.infinity
@@ -149,9 +153,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       children: [
                                         SettingsItem(
                                           icon: Icons.swap_horiz_rounded,
-                                          title:
-                                              'export_import_settings_title'
-                                                  .tr(),
+                                          title: 'export_import_settings_title'
+                                              .tr(),
                                           onTap: () {
                                             Navigator.push(
                                               context,
@@ -166,8 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         ),
                                         SettingsItem(
                                           icon: Icons.info_rounded,
-                                          title:
-                                              'about_musix_card_title'.tr(),
+                                          title: 'about_musix_card_title'.tr(),
                                           onTap: () {
                                             Navigator.push(
                                               context,
@@ -192,22 +194,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
 
-                  if (AppDimens.isMobile(context) && hasPlayer)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).appBarTheme.backgroundColor,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(AppDimens.radiusMd),
-                        ),
-                      ),
+                  if (showMiniPlayer)
+                    Positioned(
+                      left: AppDimens.spacingLg,
+                      right: AppDimens.spacingLg,
+                      bottom: AppDimens.spacing4Xl,
                       child: SizedBox(
                         height: AppDimens.miniPlayerHeight * navIconScale,
                         child: PlayerUI(
                           showFullScreen: false,
                           isEmbedded: true,
+                          glassOpacity: 0.25,
                           onMinimize: () {},
-                          onExpand: () =>
-                              _showFullPlayerBottomSheet(context),
+                          onExpand: () => _showFullPlayerBottomSheet(context),
                         ),
                       ),
                     ),
@@ -348,10 +347,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      accentColor,
-                      accentColor.withValues(alpha: 0.7),
-                    ],
+                    colors: [accentColor, accentColor.withValues(alpha: 0.7)],
                   ),
                   borderRadius: BorderRadius.circular(AppDimens.radiusMd),
                 ),
@@ -379,22 +375,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: AppDimens.spacingXxs),
                     Text(
                       'ota_update_size'.tr(args: [info.size]),
-                      style: AppTextStyles.caption(
-                        isDarkMode: isDarkMode,
-                      ).copyWith(
-                        color: MainScreenColors.getTextColor(
-                          isDarkMode,
-                        ).withValues(alpha: AppDimens.opacityMuted),
-                      ),
+                      style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                          .copyWith(
+                            color: MainScreenColors.getTextColor(
+                              isDarkMode,
+                            ).withValues(alpha: AppDimens.opacityMuted),
+                          ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppDimens.spacingSm),
-              SettingsChevron(
-                isDarkMode: isDarkMode,
-                accentColor: accentColor,
-              ),
+              SettingsChevron(isDarkMode: isDarkMode, accentColor: accentColor),
             ],
           ),
         ),

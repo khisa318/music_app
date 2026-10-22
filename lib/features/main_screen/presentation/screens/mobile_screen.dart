@@ -60,10 +60,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      _settingsProvider = Provider.of<SettingsProvider>(
-        context,
-        listen: false,
-      );
+      _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       _otaProvider = Provider.of<OTAProvider>(context, listen: false);
       _connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
@@ -304,89 +301,102 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                   // ----------------------------------------------------------------
                   // NAVIGATION BAR + MINI PLAYER
                   // ----------------------------------------------------------------
-                  navBarBuilder: (navBarConfig) => Consumer<PlayerProvider>(
-                    builder: (context, playerProvider, child) {
-                      final hasPlayer =
-                          playerProvider.currentSong != null ||
-                          playerProvider.lastPlayedSong != null ||
-                          playerProvider.currentLocalSong != null;
+                  navBarBuilder: (navBarConfig) =>
+                      Consumer2<PlayerProvider, SettingsProvider>(
+                        builder: (context, playerProvider, settingsProvider, child) {
+                          final hasPlayer =
+                              playerProvider.currentSong != null ||
+                              playerProvider.lastPlayedSong != null ||
+                              playerProvider.currentLocalSong != null;
 
-                      final double safeBottom = MediaQuery.of(
-                        context,
-                      ).viewPadding.bottom;
+                          final double safeBottom = MediaQuery.of(
+                            context,
+                          ).viewPadding.bottom;
 
-                      final bool isDarkMode = theme.brightness == Brightness.dark;
+                          final bool isDarkMode =
+                              theme.brightness == Brightness.dark;
 
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          left: AppDimens.spacingMd,
-                          right: AppDimens.spacingMd,
-                          bottom: safeBottom + AppDimens.spacingSmMd,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (hasPlayer) ...[
-                              SizedBox(
-                                height:
-                                    AppDimens.miniPlayerHeight * navIconScale,
-                                child: PlayerUI(
-                                  showFullScreen: false,
-                                  isEmbedded: true,
-                                  provideGlass: true,
-                                  onMinimize: () {},
-                                  onExpand: () =>
-                                      _showFullPlayerBottomSheet(context),
-                                ),
-                              ),
-                              const SizedBox(height: AppDimens.spacingSmMd),
-                            ],
-                            LiquidGlass(
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(AppDimens.radiusPill),
-                              ),
-                              tint: MainScreenColors.getSurfaceColor(isDarkMode),
-                              opacity: 0.14,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: AppDimens.spacingXs,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.28),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                              child: MediaQuery(
-                                data: mq.copyWith(
-                                  textScaler: TextScaler.linear(navTextCap),
-                                ),
-                                child: MediaQuery.removePadding(
-                                  context: context,
-                                  removeBottom: true,
-                                  child: Style2BottomNavBar(
-                                    navBarConfig: navBarConfig,
-                                    navBarDecoration: NavBarDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.zero,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: AppDimens.spacingSmMd,
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              left: AppDimens.spacingMd,
+                              right: AppDimens.spacingMd,
+                              bottom: safeBottom + AppDimens.spacingSmMd,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (hasPlayer) ...[
+                                  SizedBox(
+                                    height:
+                                        AppDimens.miniPlayerHeight *
+                                        navIconScale,
+                                    child: PlayerUI(
+                                      showFullScreen: false,
+                                      isEmbedded: true,
+                                      provideGlass: true,
+                                      onMinimize: () {},
+                                      onExpand: () =>
+                                          _showFullPlayerBottomSheet(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppDimens.spacingSmMd),
+                                ],
+                                LiquidGlass(
+                                  borderRadius: const BorderRadius.all(
+                                    Radius.circular(AppDimens.radiusPill),
+                                  ),
+                                  tint: MainScreenColors.getSurfaceColor(
+                                    isDarkMode,
+                                  ),
+                                  opacity: 0.14,
+                                  // The dock intentionally uses the opposite of
+                                  // the global toggle: on = glass blur, off = flat.
+                                  reduceEffects:
+                                      !settingsProvider.reduceEffectsEnabled,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: AppDimens.spacingXs,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.28,
+                                      ),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                  child: MediaQuery(
+                                    data: mq.copyWith(
+                                      textScaler: TextScaler.linear(navTextCap),
+                                    ),
+                                    child: MediaQuery.removePadding(
+                                      context: context,
+                                      removeBottom: true,
+                                      child: Style2BottomNavBar(
+                                        navBarConfig: navBarConfig,
+                                        navBarDecoration: NavBarDecoration(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.zero,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: AppDimens.spacingSmMd,
+                                          ),
+                                        ),
+                                        itemAnimationProperties:
+                                            const ItemAnimation(
+                                              duration: Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              curve: Curves.easeInOut,
+                                            ),
                                       ),
                                     ),
-                                    itemAnimationProperties:
-                                        const ItemAnimation(
-                                          duration: Duration(milliseconds: 300),
-                                          curve: Curves.easeInOut,
-                                        ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
                 ),
               ),
             );

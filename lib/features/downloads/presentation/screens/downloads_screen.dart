@@ -1912,7 +1912,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                       : Padding(
                           padding: EdgeInsets.only(
                             bottom: hasPlayer
-                                ? AppDimens.miniPlayerHeight * navIconScale
+                                ? AppDimens.miniPlayerHeight * navIconScale +
+                                      AppDimens.spacing4Xl +
+                                      AppDimens.spacingLg
                                 : 0,
                           ),
                           child: TabBarView(
@@ -1926,24 +1928,17 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
                   if (!isDesktopLayout && hasPlayer)
                     Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).appBarTheme.backgroundColor,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(AppDimens.radiusMd),
-                          ),
-                        ),
-                        child: SizedBox(
-                          height: AppDimens.miniPlayerHeight * navIconScale,
-                          child: PlayerUI(
-                            showFullScreen: false,
-                            isEmbedded: true,
-                            onMinimize: () {},
-                            onExpand: () => _showFullPlayerBottomSheet(context),
-                          ),
+                      left: AppDimens.spacingLg,
+                      right: AppDimens.spacingLg,
+                      bottom: AppDimens.spacing4Xl,
+                      child: SizedBox(
+                        height: AppDimens.miniPlayerHeight * navIconScale,
+                        child: PlayerUI(
+                          showFullScreen: false,
+                          isEmbedded: true,
+                          glassOpacity: 0.25,
+                          onMinimize: () {},
+                          onExpand: () => _showFullPlayerBottomSheet(context),
                         ),
                       ),
                     ),

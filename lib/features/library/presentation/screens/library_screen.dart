@@ -168,7 +168,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     final libraryProvider = Provider.of<LibraryProvider>(context);
     final accentColor = settingsProvider.accentColor;
     return Theme(
-      data: ThemeData(scaffoldBackgroundColor: Colors.transparent),
+      data: Theme.of(
+        context,
+      ).copyWith(scaffoldBackgroundColor: Colors.transparent),
       child: Scaffold(
         body: Column(
           children: [
