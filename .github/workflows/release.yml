@@ -197,24 +197,6 @@ jobs:
       - name: Tests
         run: flutter test --no-pub --reporter=compact
 
-      - name: Build release APK
-        # The step that matters. android/app/build.gradle.kts reads these and
-        # decodes the keystore into RUNNER_TEMP, so the signing material never
-        # lands in the repository and no key.properties is ever written. Without
-        # this mapping the build does not fail - it quietly falls back to the
-        # Android debug key and produces an APK nobody can install over MusiX.
-        # The signature check at the end of this job is what catches that.
-        env:
-          MUSIX_KEYSTORE_BASE64: ${{ secrets.MUSIX_KEYSTORE_BASE64 }}
-          MUSIX_KEYSTORE_PASSWORD: ${{ secrets.MUSIX_KEYSTORE_PASSWORD }}
-          MUSIX_KEY_ALIAS: ${{ secrets.MUSIX_KEY_ALIAS }}
-          MUSIX_KEY_PASSWORD: ${{ secrets.MUSIX_KEY_PASSWORD }}
-          YTMUSIC_API_KEY: ${{ secrets.YTMUSIC_API_KEY }}
-          TELEGRAM_CRASH_BOT_TOKEN: ${{ secrets.TELEGRAM_CRASH_BOT_TOKEN }}
-          TELEGRAM_CRASH_CHAT_ID: ${{ secrets.TELEGRAM_CRASH_CHAT_ID }}
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android NDK
         run: sdkmanager "ndk;27.0.12077973"
 
