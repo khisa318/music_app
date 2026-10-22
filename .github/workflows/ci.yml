@@ -103,6 +103,12 @@ jobs:
       - name: Tests
         run: flutter test --no-pub --reporter=compact
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
       - name: Build debug APK
         run: flutter build apk --debug --no-pub
 
