@@ -65,6 +65,7 @@ class ProfileScreen extends StatelessWidget {
 
         return SafeArea(
           top: false,
+          bottom: false,
           child: Scaffold(
             backgroundColor: backgroundColor,
             body: CustomScrollView(
@@ -218,7 +219,7 @@ class ProfileScreen extends StatelessWidget {
                             accentColor: accentColor,
                           ),
 
-const SizedBox(height: AppDimens.bottomDockClearance),
+                          const SizedBox(height: AppDimens.bottomDockClearance),
                         ],
                       ),
                     ),
@@ -382,7 +383,7 @@ const SizedBox(height: AppDimens.bottomDockClearance),
     await SharePlus.instance.share(
       ShareParams(
         text:
-             'Check out MusiX - Your personal music companion!\nhttps://musix-website.vercel.app/',
+            'Check out MusiX - Your personal music companion!\nhttps://musix-website.vercel.app/',
         subject: 'MusiX App',
       ),
     );

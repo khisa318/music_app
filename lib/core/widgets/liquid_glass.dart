@@ -15,9 +15,9 @@ import '../providers/settings_provider.dart';
 /// treatment.
 ///
 /// Used for the floating bottom dock, the player chrome and the glass bars.
-/// With "reduce effects" on, the blur is dropped and the tint is strengthened
-/// for a flatter, more opaque look that hides the backdrop instead of showing
-/// it off.
+/// With "reduce effects" on, the backdrop blur and saturation are dropped while
+/// the tint stays at its normal strength, so the surface becomes flatter
+/// without turning into an opaque slab.
 class LiquidGlass extends StatelessWidget {
   const LiquidGlass({
     super.key,
@@ -32,6 +32,7 @@ class LiquidGlass extends StatelessWidget {
     this.margin = EdgeInsets.zero,
     this.boxShadow,
     this.saturation = 1.3,
+    this.reduceEffects,
   });
 
   final Widget child;
@@ -63,6 +64,12 @@ class LiquidGlass extends StatelessWidget {
 
   final List<BoxShadow>? boxShadow;
 
+  /// Overrides the global "reduce effects" setting for this surface. When
+  /// null, the [SettingsProvider] value is used. Callers that need the
+  /// opposite of the global setting (for example the bottom dock, where the
+  /// toggle is intentionally inverted) can pass an explicit value.
+  final bool? reduceEffects;
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -72,13 +79,12 @@ class LiquidGlass extends StatelessWidget {
 
     final BorderRadius radius = borderRadius;
 
-    final bool reduceEffects = _reduceEffectsEnabled(context);
+    final bool shouldReduceEffects =
+        reduceEffects ?? _reduceEffectsEnabled(context);
 
-    final double renderOpacity = reduceEffects
-        ? (opacity * 2.5).clamp(0.25, 0.95).toDouble()
-        : opacity;
+    final double renderOpacity = opacity;
 
-    final ImageFilter? filter = (reduceEffects || blur <= 0)
+    final ImageFilter? filter = (shouldReduceEffects || blur <= 0)
         ? null
         : (saturation == 1.0
               ? ImageFilter.blur(sigmaX: blur, sigmaY: blur)

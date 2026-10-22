@@ -37,6 +37,10 @@ class PlayerUI extends StatefulWidget {
   /// dock can provide a single [LiquidGlass] backdrop behind everything.
   final bool provideGlass;
 
+  /// Alpha of the mini player's glass tint. Lower values keep more of the
+  /// content behind the player visible.
+  final double glassOpacity;
+
   final VoidCallback onMinimize;
   final VoidCallback onExpand;
 
@@ -46,6 +50,7 @@ class PlayerUI extends StatefulWidget {
     this.isBottomSheet = false,
     this.isEmbedded = false,
     this.provideGlass = true,
+    this.glassOpacity = 0.5,
     required this.onMinimize,
     required this.onExpand,
   });
@@ -918,12 +923,10 @@ class PlayerUIState extends State<PlayerUI>
           child: LiquidGlass(
             borderRadius: miniPlayerBorderRadius,
             tint: MainScreenColors.getSurfaceColor(isDarkMode),
-            opacity: 0.5,
+            opacity: widget.glassOpacity,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: AppDimens.opacityMedium,
-                ),
+                color: Colors.black.withValues(alpha: AppDimens.opacityMedium),
                 blurRadius: AppDimens.elevationHigh,
                 offset: Offset(0, AppDimens.shadowOffsetSmall),
               ),
