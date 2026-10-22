@@ -84,6 +84,20 @@ $secrets = [ordered]@{
     MUSIX_KEY_PASSWORD      = $props['keyPassword']
 }
 
+# Optional app-build secrets. These are never stored in the repository; export
+# them in the shell before running this script if the release build needs them.
+$appSecrets = [ordered]@{
+    YTMUSIC_API_KEY           = $env:YTMUSIC_API_KEY
+    TELEGRAM_CRASH_BOT_TOKEN  = $env:TELEGRAM_CRASH_BOT_TOKEN
+    TELEGRAM_CRASH_CHAT_ID    = $env:TELEGRAM_CRASH_CHAT_ID
+}
+
+foreach ($name in $appSecrets.Keys) {
+    if (-not [string]::IsNullOrWhiteSpace($appSecrets[$name])) {
+        $secrets[$name] = $appSecrets[$name].Trim()
+    }
+}
+
 Write-Host "Uploading signing secrets to $Repo" -ForegroundColor Cyan
 
 foreach ($name in $secrets.Keys) {
