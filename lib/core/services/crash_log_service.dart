@@ -10,9 +10,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/components/app_snackbar.dart';
+import 'telegram_crash_reporter.dart';
 
 class CrashLogService {
   late final Directory _dir;
+  late final TelegramCrashReporter _telegramReporter;
   final List<String> _channels = ['crash', 'app', 'events', 'network', 'debug'];
   final Map<String, File> _files = {};
 
@@ -27,6 +29,8 @@ class CrashLogService {
     _dir = await getApplicationDocumentsDirectory();
 
     await _generateHeader();
+
+    _telegramReporter = TelegramCrashReporter(logHeader: () => _logHeader);
 
     for (final c in _channels) {
       final f = File(p.join(_dir.path, 'musix', 'musix_${c}_logs.txt'));
@@ -47,6 +51,8 @@ class CrashLogService {
       'ERROR',
       '${context == null ? '' : '$context - '}$error\n${stack.toString()}',
     );
+
+    await _telegramReporter.report(error, stack, context: context);
   }
 
   Future<void> log(String channel, String level, String message) async {
@@ -183,6 +189,7 @@ class CrashLogService {
 
   void dispose() {
     if (_originalDebugPrint != null) debugPrint = _originalDebugPrint!;
+    _telegramReporter.dispose();
     loggingActive.dispose();
   }
 }
