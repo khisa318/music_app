@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 class VideoModeDialog extends StatelessWidget {
   final Color accentColor;
@@ -10,7 +11,7 @@ class VideoModeDialog extends StatelessWidget {
   const VideoModeDialog({super.key, required this.accentColor});
 
   static void show(BuildContext context, {required Color accentColor}) {
-    showDialog(
+    showGlassDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) => VideoModeDialog(accentColor: accentColor),
@@ -67,10 +68,10 @@ class VideoModeDialog extends StatelessWidget {
                   colors: [
                     MainScreenColors.getSurfaceColor(
                       isDarkMode,
-                    ).withValues(alpha: 0.95),
+                    ).withValues(alpha: 0.55),
                     MainScreenColors.getSurfaceColor(
                       isDarkMode,
-                    ).withValues(alpha: 0.9),
+                    ).withValues(alpha: 0.45),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,

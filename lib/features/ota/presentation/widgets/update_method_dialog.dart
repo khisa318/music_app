@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/models/ota_model.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 /// What the user chose after tapping "Update now".
 enum UpdateChoice {
@@ -33,7 +34,7 @@ class UpdateMethodDialog extends StatelessWidget {
     BuildContext context,
     OTAUpdateInfo updateInfo,
   ) {
-    return showDialog<UpdateChoice>(
+    return showGlassDialog<UpdateChoice>(
       context: context,
       barrierDismissible: false,
       builder: (_) => UpdateMethodDialog(updateInfo: updateInfo),
@@ -48,7 +49,7 @@ class UpdateMethodDialog extends StatelessWidget {
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
     return AlertDialog(
-      backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+      backgroundColor: glassDialogColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
       ),

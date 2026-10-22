@@ -12,6 +12,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/models/song_model.dart';
 import '../../../../core/services/content_details_service.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 import '../../data/providers/playlist_album_library_provider.dart';
 
@@ -131,13 +132,11 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
       return;
     }
 
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    final shouldDelete = await showDialog<bool>(
+    final shouldDelete = await showGlassDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(dialogContext),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -201,14 +200,13 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final oldName = playlist['name']?.toString();
     if (oldName == null || oldName.isEmpty) return;
 
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final controller = TextEditingController(text: oldName);
 
-    final newName = await showDialog<String>(
+    final newName = await showGlassDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(dialogContext),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -260,7 +258,10 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     } catch (e) {
       debugPrint('Error renaming playlist: $e');
       if (!mounted) return;
-      AppSnackBar.showError(context, 'A playlist with that name already exists');
+      AppSnackBar.showError(
+        context,
+        'A playlist with that name already exists',
+      );
     }
   }
 

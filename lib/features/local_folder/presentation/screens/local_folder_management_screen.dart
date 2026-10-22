@@ -8,6 +8,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 class LocalFolderManagementScreen extends StatefulWidget {
@@ -62,13 +63,11 @@ class _LocalFolderManagementScreenState
     final controller = TextEditingController();
     final isDarkMode = settings.themeMode == ThemeMode.dark;
 
-    showDialog(
+    showGlassDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: isDarkMode
-              ? MainScreenColors.darkSurfaceColor
-              : MainScreenColors.lightSurfaceColor,
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXl),
           ),

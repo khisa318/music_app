@@ -14,6 +14,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/download_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/add_to_playlist_bottomsheet.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../../../core/utils/content_router.dart';
@@ -191,7 +192,6 @@ class _SongOptionsBottomSheetlibraryState
   @override
   Widget build(BuildContext context) {
     final isDarkMode = widget.isDarkMode;
-    final backgroundColor = MainScreenColors.getSurfaceColor(isDarkMode);
     final textColor = MainScreenColors.getTextColor(isDarkMode);
     final secondaryColor = MainScreenColors.getSecondaryColor(isDarkMode);
 
@@ -199,10 +199,8 @@ class _SongOptionsBottomSheetlibraryState
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
-      child: Material(
-        color: backgroundColor,
+      child: GlassSheet(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        clipBehavior: Clip.antiAlias,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Padding(
@@ -435,13 +433,11 @@ class _SongOptionsBottomSheetlibraryState
                 icon: Icons.delete,
                 text: 'remove_from_downloads'.tr(),
                 onTap: () async {
-                  final confirmed = await showDialog<bool>(
+                  final confirmed = await showGlassDialog<bool>(
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        backgroundColor: widget.isDarkMode
-                            ? MainScreenColors.darkSurfaceColor
-                            : Colors.white,
+                        backgroundColor: glassDialogColor(context),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),

@@ -7,6 +7,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/content_details_service.dart';
 import '../../../../core/services/spotify_playlist_service.dart';
 import '../../../../core/services/spotify_track_matcher.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 class CreatePlaylistBottomSheet extends StatefulWidget {
@@ -308,216 +309,208 @@ class _CreatePlaylistBottomSheetState extends State<CreatePlaylistBottomSheet>
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
+      child: SizedBox(
         height: screenHeight * 0.6,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: MainScreenColors.getSurfaceColor(isDarkMode),
+        child: GlassSheet(
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            TabBar(
-              controller: _tabController,
-              indicatorColor: accentColor,
-              labelColor: accentColor,
-              unselectedLabelColor: MainScreenColors.getTextColor(
-                isDarkMode,
-              ).withValues(alpha: 0.6),
-              labelStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              tabs: [
-                Tab(text: 'create_playlist'.tr()),
-                Tab(text: 'import_playlist'.tr()),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: TabBarView(
+              TabBar(
                 controller: _tabController,
-                children: [
-                  Column(
-                    children: [
-                      TextField(
-                        controller: _playlistNameController,
-                        cursorColor: accentColor,
-                        decoration: InputDecoration(
-                          hintText: 'new_playlist_name'.tr(),
-                          filled: true,
-                          fillColor: MainScreenColors.getTextColor(
-                            isDarkMode,
-                          ).withValues(alpha: 0.1),
-                          hintStyle: TextStyle(
-                            color: MainScreenColors.getTextColor(
+                indicatorColor: accentColor,
+                labelColor: accentColor,
+                unselectedLabelColor: MainScreenColors.getTextColor(
+                  isDarkMode,
+                ).withValues(alpha: 0.6),
+                labelStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                tabs: [
+                  Tab(text: 'create_playlist'.tr()),
+                  Tab(text: 'import_playlist'.tr()),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    Column(
+                      children: [
+                        TextField(
+                          controller: _playlistNameController,
+                          cursorColor: accentColor,
+                          decoration: InputDecoration(
+                            hintText: 'new_playlist_name'.tr(),
+                            filled: true,
+                            fillColor: MainScreenColors.getTextColor(
                               isDarkMode,
-                            ).withValues(alpha: 0.5),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              Icons.add_circle_outline,
-                              color: accentColor,
-                            ),
-                            onPressed: _createNewPlaylist,
-                          ),
-                        ),
-                        style: TextStyle(
-                          color: MainScreenColors.getTextColor(isDarkMode),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Expanded(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: _playlists.length,
-                          itemBuilder: (context, index) {
-                            final playlist = _playlists[index];
-                            return Card(
-                              elevation: 0,
+                            ).withValues(alpha: 0.1),
+                            hintStyle: TextStyle(
                               color: MainScreenColors.getTextColor(
                                 isDarkMode,
-                              ).withValues(alpha: 0.05),
-                              margin: const EdgeInsets.only(bottom: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                              ).withValues(alpha: 0.5),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                Icons.add_circle_outline,
+                                color: accentColor,
                               ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 4,
+                              onPressed: _createNewPlaylist,
+                            ),
+                          ),
+                          style: TextStyle(
+                            color: MainScreenColors.getTextColor(isDarkMode),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Expanded(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _playlists.length,
+                            itemBuilder: (context, index) {
+                              final playlist = _playlists[index];
+                              return Card(
+                                elevation: 0,
+                                color: MainScreenColors.getTextColor(
+                                  isDarkMode,
+                                ).withValues(alpha: 0.05),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                                title: Text(
-                                  playlist['name'],
-                                  style: TextStyle(
-                                    color: MainScreenColors.getTextColor(
-                                      isDarkMode,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  title: Text(
+                                    playlist['name'],
+                                    style: TextStyle(
+                                      color: MainScreenColors.getTextColor(
+                                        isDarkMode,
+                                      ),
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Column(
-                    children: [
-                      TextField(
-                        cursorColor: accentColor,
-
-                        controller: _importLinkController,
-                        decoration: InputDecoration(
-                          hintText: 'enter_playlist_link'.tr(),
-                          filled: true,
-                          fillColor: MainScreenColors.getTextColor(
-                            isDarkMode,
-                          ).withValues(alpha: 0.1),
-                          hintStyle: TextStyle(
-                            color: MainScreenColors.getTextColor(
-                              isDarkMode,
-                            ).withValues(alpha: 0.5),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                        ),
-                        style: TextStyle(
-                          color: MainScreenColors.getTextColor(isDarkMode),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: _isImporting ? null : _importPlaylist,
-                        icon: _isImporting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.black,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.cloud_download,
-                                color: Colors.black,
-                              ),
-                        label: Text(
-                          _isImporting
-                              ? 'importing'.tr()
-                              : 'import_playlist'.tr(),
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: accentColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                        ),
-                      ),
-                      if (_isImporting && _importStatus.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _importStatus,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: MainScreenColors.getTextColor(
-                              isDarkMode,
-                            ).withValues(alpha: 0.7),
+                              );
+                            },
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+
+                    Column(
+                      children: [
+                        TextField(
+                          cursorColor: accentColor,
+
+                          controller: _importLinkController,
+                          decoration: InputDecoration(
+                            hintText: 'enter_playlist_link'.tr(),
+                            filled: true,
+                            fillColor: MainScreenColors.getTextColor(
+                              isDarkMode,
+                            ).withValues(alpha: 0.1),
+                            hintStyle: TextStyle(
+                              color: MainScreenColors.getTextColor(
+                                isDarkMode,
+                              ).withValues(alpha: 0.5),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                          ),
+                          style: TextStyle(
+                            color: MainScreenColors.getTextColor(isDarkMode),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: _isImporting ? null : _importPlaylist,
+                          icon: _isImporting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.black,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.cloud_download,
+                                  color: Colors.black,
+                                ),
+                          label: Text(
+                            _isImporting
+                                ? 'importing'.tr()
+                                : 'import_playlist'.tr(),
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accentColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                        if (_isImporting && _importStatus.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _importStatus,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: MainScreenColors.getTextColor(
+                                isDarkMode,
+                              ).withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

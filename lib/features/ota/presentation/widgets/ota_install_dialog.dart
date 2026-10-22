@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../data/providers/ota_provider.dart';
 
 /// Prompt shown once an in-app update download finishes on its own, handing the
@@ -17,7 +18,7 @@ class OTAInstallDialog extends StatelessWidget {
   const OTAInstallDialog({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showDialog<void>(
+    return showGlassDialog<void>(
       context: context,
       builder: (_) => const OTAInstallDialog(),
     );
@@ -32,7 +33,7 @@ class OTAInstallDialog extends StatelessWidget {
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
     return AlertDialog(
-      backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+      backgroundColor: glassDialogColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
       ),
@@ -49,16 +50,18 @@ class OTAInstallDialog extends StatelessWidget {
       content: Text(
         'ota_ready_to_install_message'.tr(),
         textAlign: TextAlign.center,
-        style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-          color: textColor.withValues(alpha: AppDimens.opacityMuted),
-        ),
+        style: AppTextStyles.bodyMd(
+          isDarkMode: isDarkMode,
+        ).copyWith(color: textColor.withValues(alpha: AppDimens.opacityMuted)),
       ),
       actionsAlignment: MainAxisAlignment.center,
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           style: TextButton.styleFrom(
-            foregroundColor: textColor.withValues(alpha: AppDimens.opacityMuted),
+            foregroundColor: textColor.withValues(
+              alpha: AppDimens.opacityMuted,
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             ),
@@ -75,7 +78,10 @@ class OTAInstallDialog extends StatelessWidget {
             Navigator.pop(context);
             otaProvider.installUpdate();
           },
-          icon: const Icon(Icons.install_mobile_rounded, size: AppDimens.iconSm),
+          icon: const Icon(
+            Icons.install_mobile_rounded,
+            size: AppDimens.iconSm,
+          ),
           label: Text('ota_install_update'.tr()),
           style: ElevatedButton.styleFrom(
             backgroundColor: accentColor,

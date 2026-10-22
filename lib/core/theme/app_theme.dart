@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_dimens.dart';
 
 /// The accent the reader picked, carried on the [ThemeData] itself.
 ///
@@ -81,6 +82,27 @@ class AppTheme {
       textTheme: TextTheme(
         bodyLarge: TextStyle(color: text),
         bodyMedium: TextStyle(color: text),
+      ),
+      // Glass surfaces are translucent on purpose: the frosted backdrop is
+      // painted by [LiquidGlass] / [showGlassDialog], so these theme colours
+      // must not hide it behind an opaque Material.
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface.withValues(alpha: 0.72),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.22),
+            width: 1,
+          ),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        modalBackgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       // Both of these, because widgets reach for either one and only
       // colorScheme.primary used to stay sky-blue after the accent changed.

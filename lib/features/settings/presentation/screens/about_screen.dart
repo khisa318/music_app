@@ -13,6 +13,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../widgets/premium_card.dart';
 
 class AboutSettingsScreen extends StatelessWidget {
@@ -798,9 +799,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
                                       ),
-                                      SizedBox(
-                                        width: AppDimens.spacingMd,
-                                      ),
+                                      SizedBox(width: AppDimens.spacingMd),
                                       PremiumSocialButton(
                                         icon: Icons.email_rounded,
                                         label: 'Email',
@@ -810,9 +809,7 @@ class AboutSettingsScreen extends StatelessWidget {
                                         accentColor: accentColor,
                                         isDarkMode: isDarkMode,
                                       ),
-                                      SizedBox(
-                                        width: AppDimens.spacingMd,
-                                      ),
+                                      SizedBox(width: AppDimens.spacingMd),
                                       PremiumSocialButton(
                                         icon: Icons.language_rounded,
                                         label: 'Website',
@@ -947,14 +944,9 @@ class _ReleaseNotesSheetState extends State<_ReleaseNotesSheet> {
       initialChildSize: 0.7,
       minChildSize: 0.4,
       maxChildSize: AppDimens.sheetHeightFactor,
-      builder: (context, scrollController) => Container(
-        decoration: BoxDecoration(
-          color: isDarkMode
-              ? MainScreenColors.darkBackgroundColor
-              : MainScreenColors.lightBackgroundColor,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusXxl),
-          ),
+      builder: (context, scrollController) => GlassSheet(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimens.radiusXxl),
         ),
         child: Column(
           children: [

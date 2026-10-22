@@ -14,6 +14,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/favorite_artist_provider.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
 class FavoriteArtistsScreen extends StatefulWidget {
@@ -107,7 +108,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
 
   Future<void> _editFavoriteName(String artistId, String currentName) async {
     final controller = TextEditingController(text: currentName);
-    final result = await showDialog<String>(
+    final result = await showGlassDialog<String>(
       context: context,
       builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -125,7 +126,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppDimens.radiusXl),
               ),
-              backgroundColor: MainScreenColors.getSurfaceColor(isDark),
+              backgroundColor: glassDialogColor(context),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: isWide ? maxDialogWidth : double.infinity,
@@ -489,7 +490,7 @@ class _FavoriteArtistsScreenState extends State<FavoriteArtistsScreen>
                 ),
                 confirmDismiss: (_) async {
                   final confirmed =
-                      await showDialog<bool>(
+                      await showGlassDialog<bool>(
                         context: context,
                         builder: (c) => AlertDialog(
                           title: const Text('Remove favorite'),

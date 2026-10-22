@@ -8,6 +8,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
@@ -419,135 +420,137 @@ class _ExportBottomSheetState extends State<_ExportBottomSheet> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor = widget.accentColor;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            0,
-          ),
-          child: Column(
-            children: [
-              Text(
-                'export_bottom_sheet_title'.tr(),
-                style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
-              ),
-              const SizedBox(height: AppDimens.spacingSm),
-              Text(
-                'export_bottom_sheet_description'.tr(),
-                style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-                  color: MainScreenColors.getTextColor(
-                    isDarkMode,
-                  ).withValues(alpha: 0.7),
-                ),
-              ),
-              const SizedBox(height: AppDimens.spacingSm),
-            ],
-          ),
-        ),
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimens.paddingLg,
+    return GlassSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.paddingLg,
+              AppDimens.paddingLg,
+              AppDimens.paddingLg,
+              0,
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildToggleOption(
-                  'created_playlists'.tr(),
-                  _exportCreatedPlaylists,
-                  (value) => setState(() => _exportCreatedPlaylists = value),
-                  isDarkMode,
-                  accentColor,
+                Text(
+                  'export_bottom_sheet_title'.tr(),
+                  style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
                 ),
-                _buildToggleOption(
-                  'saved_albums'.tr(),
-                  _exportSavedAlbums,
-                  (value) => setState(() => _exportSavedAlbums = value),
-                  isDarkMode,
-                  accentColor,
+                const SizedBox(height: AppDimens.spacingSm),
+                Text(
+                  'export_bottom_sheet_description'.tr(),
+                  style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
+                    color: MainScreenColors.getTextColor(
+                      isDarkMode,
+                    ).withValues(alpha: 0.7),
+                  ),
                 ),
-                _buildToggleOption(
-                  'saved_playlists'.tr(),
-                  _exportSavedPlaylists,
-                  (value) => setState(() => _exportSavedPlaylists = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'favorite_artists'.tr(),
-                  _exportfavoriteArtists,
-                  (value) => setState(() => _exportfavoriteArtists = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'favorite_songs'.tr(),
-                  _exportfavoriteSongs,
-                  (value) => setState(() => _exportfavoriteSongs = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'app_settings'.tr(),
-                  _exportAppSettings,
-                  (value) => setState(() => _exportAppSettings = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'playback_history'.tr(),
-                  _exportPlaybackHistory,
-                  (value) => setState(() => _exportPlaybackHistory = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'playlist_songs'.tr(),
-                  _exportPlaylistSongs,
-                  (value) => setState(() => _exportPlaylistSongs = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'queue'.tr(),
-                  _exportQueue,
-                  (value) => setState(() => _exportQueue = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'playback_statistics'.tr(),
-                  _exportPlaybackStats,
-                  (value) => setState(() => _exportPlaybackStats = value),
-                  isDarkMode,
-                  accentColor,
-                ),
-                _buildToggleOption(
-                  'recent_playlists'.tr(),
-                  _exportRecentPlaylists,
-                  (value) => setState(() => _exportRecentPlaylists = value),
-                  isDarkMode,
-                  accentColor,
-                ),
+                const SizedBox(height: AppDimens.spacingSm),
               ],
             ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(AppDimens.paddingLg),
-          child: _buildModernButton(
-            icon: Icons.upload,
-            label: 'export_selected_button'.tr(),
-            accentColor: accentColor,
-            isDarkMode: isDarkMode,
-            onTap: () => _handleExport(context),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.paddingLg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildToggleOption(
+                    'created_playlists'.tr(),
+                    _exportCreatedPlaylists,
+                    (value) => setState(() => _exportCreatedPlaylists = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'saved_albums'.tr(),
+                    _exportSavedAlbums,
+                    (value) => setState(() => _exportSavedAlbums = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'saved_playlists'.tr(),
+                    _exportSavedPlaylists,
+                    (value) => setState(() => _exportSavedPlaylists = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'favorite_artists'.tr(),
+                    _exportfavoriteArtists,
+                    (value) => setState(() => _exportfavoriteArtists = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'favorite_songs'.tr(),
+                    _exportfavoriteSongs,
+                    (value) => setState(() => _exportfavoriteSongs = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'app_settings'.tr(),
+                    _exportAppSettings,
+                    (value) => setState(() => _exportAppSettings = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'playback_history'.tr(),
+                    _exportPlaybackHistory,
+                    (value) => setState(() => _exportPlaybackHistory = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'playlist_songs'.tr(),
+                    _exportPlaylistSongs,
+                    (value) => setState(() => _exportPlaylistSongs = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'queue'.tr(),
+                    _exportQueue,
+                    (value) => setState(() => _exportQueue = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'playback_statistics'.tr(),
+                    _exportPlaybackStats,
+                    (value) => setState(() => _exportPlaybackStats = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                  _buildToggleOption(
+                    'recent_playlists'.tr(),
+                    _exportRecentPlaylists,
+                    (value) => setState(() => _exportRecentPlaylists = value),
+                    isDarkMode,
+                    accentColor,
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.all(AppDimens.paddingLg),
+            child: _buildModernButton(
+              icon: Icons.upload,
+              label: 'export_selected_button'.tr(),
+              accentColor: accentColor,
+              isDarkMode: isDarkMode,
+              onTap: () => _handleExport(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -649,57 +652,59 @@ class _DynamicImportBottomSheetState extends State<_DynamicImportBottomSheet> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor = widget.accentColor;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            0,
-          ),
-          child: Column(
-            children: [
-              Text(
-                'Select Data to Import',
-                style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
-              ),
-              const SizedBox(height: AppDimens.spacingSm),
-              Text(
-                'Choose which data types from the file you want to import',
-                style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
-                  color: MainScreenColors.getTextColor(
-                    isDarkMode,
-                  ).withValues(alpha: 0.7),
-                ),
-              ),
-              const SizedBox(height: AppDimens.spacingSm),
-            ],
-          ),
-        ),
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimens.paddingLg,
+    return GlassSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.paddingLg,
+              AppDimens.paddingLg,
+              AppDimens.paddingLg,
+              0,
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [..._buildDynamicOptions(isDarkMode, accentColor)],
+              children: [
+                Text(
+                  'Select Data to Import',
+                  style: AppTextStyles.titleSm(isDarkMode: isDarkMode),
+                ),
+                const SizedBox(height: AppDimens.spacingSm),
+                Text(
+                  'Choose which data types from the file you want to import',
+                  style: AppTextStyles.bodyMd(isDarkMode: isDarkMode).copyWith(
+                    color: MainScreenColors.getTextColor(
+                      isDarkMode,
+                    ).withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: AppDimens.spacingSm),
+              ],
             ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(AppDimens.paddingLg),
-          child: _buildModernButton(
-            icon: Icons.download,
-            label: 'Import Selected Data',
-            accentColor: accentColor,
-            isDarkMode: isDarkMode,
-            onTap: () => _handleDynamicImport(context),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.paddingLg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [..._buildDynamicOptions(isDarkMode, accentColor)],
+              ),
+            ),
           ),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.all(AppDimens.paddingLg),
+            child: _buildModernButton(
+              icon: Icons.download,
+              label: 'Import Selected Data',
+              accentColor: accentColor,
+              isDarkMode: isDarkMode,
+              onTap: () => _handleDynamicImport(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

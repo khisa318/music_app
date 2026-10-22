@@ -7,6 +7,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/models/song_model.dart';
 import '../widgets/playlist_album_content_shimmer.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/song_list_tile.dart';
 import '../../../playlists/data/providers/playlist_album_library_provider.dart';
 import '../../../../core/providers/player_provider.dart';
@@ -55,7 +56,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     }
     _provider.loadContent(widget.content, libraryProvider: _libraryProvider);
     _provider.checkIfSaved(widget.content, _libraryProvider);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadSuggestions());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _maybeLoadSuggestions(),
+    );
   }
 
   void _onProviderChanged() {
@@ -174,14 +177,13 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
   }
 
   Future<void> _renamePlaylist() async {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final controller = TextEditingController(text: _playlistName);
 
-    final newName = await showDialog<String>(
+    final newName = await showGlassDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(dialogContext),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -234,7 +236,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     } catch (e) {
       debugPrint('Error renaming playlist: $e');
       if (!mounted) return;
-      AppSnackBar.showError(context, 'A playlist with that name already exists');
+      AppSnackBar.showError(
+        context,
+        'A playlist with that name already exists',
+      );
     }
   }
 
@@ -333,13 +338,10 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
     final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
     final queueProvider = Provider.of<QueueProvider>(context, listen: false);
     try {
-      await _provider.playSong(
+      await _provider.playSong(song, playerProvider, queueProvider, [
+        ..._provider.allSongs.cast<SongInfo>(),
         song,
-        playerProvider,
-        queueProvider,
-        [..._provider.allSongs.cast<SongInfo>(), song],
-        widget.content.playlistId,
-      );
+      ], widget.content.playlistId);
     } catch (e) {
       debugPrint('Error playing suggested song: $e');
       if (!mounted) return;
@@ -916,8 +918,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(AppDimens.radiusSm),
               child: CachedNetworkImage(
-                imageUrl:
-                    song.thumbnails.isNotEmpty ? song.thumbnails.first.url : '',
+                imageUrl: song.thumbnails.isNotEmpty
+                    ? song.thumbnails.first.url
+                    : '',
                 width: AppDimens.thumbnailDefault,
                 height: AppDimens.thumbnailDefault,
                 fit: BoxFit.cover,
@@ -1139,7 +1142,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                     final accentColor = settingsProvider.accentColor;
 
                     return Builder(
-                      key: ValueKey(song.videoId?.toString() ?? '${song.name}_$index'),
+                      key: ValueKey(
+                        song.videoId?.toString() ?? '${song.name}_$index',
+                      ),
                       builder: (context) {
                         final isCurrentlyPlaying = context
                             .select<PlayerProvider, bool>(
@@ -1155,7 +1160,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                               color: isCurrentlyPlaying
                                   ? accentColor.withValues(alpha: 0.2)
                                   : Colors.transparent,
-                              borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                              borderRadius: BorderRadius.circular(
+                                AppDimens.radiusLg,
+                              ),
                             ),
                             child: SongListTile(
                               song: song,
@@ -1195,7 +1202,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                             color: isCurrentlyPlaying
                                 ? accentColor.withValues(alpha: 0.2)
                                 : Colors.transparent,
-                            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusLg,
+                            ),
                           ),
                           child: SongListTile(
                             key: ValueKey('${song.name}_$index'),
@@ -1287,7 +1296,9 @@ class _PlaylistAlbumContentState extends State<PlaylistAlbumContent> {
                         final accentColor = settingsProvider.accentColor;
 
                         return Builder(
-                          key: ValueKey(song.videoId?.toString() ?? '${song.name}_$index'),
+                          key: ValueKey(
+                            song.videoId?.toString() ?? '${song.name}_$index',
+                          ),
                           builder: (context) {
                             final isCurrentlyPlaying = context
                                 .select<PlayerProvider, bool>(

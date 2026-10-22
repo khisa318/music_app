@@ -9,6 +9,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../data/services/equalizer_services.dart';
 import '../widgets/volume_circular_slider.dart';
 import '../widgets/speech_circular_slider.dart';
@@ -64,14 +65,14 @@ class _EqualizerScreenState extends State<EqualizerScreen>
 
     final controller = TextEditingController();
     if (!mounted) return;
-    final name = await showDialog<String>(
+    final name = await showGlassDialog<String>(
       context: context,
       builder: (context) {
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final settingsProvider = Provider.of<SettingsProvider>(context);
         final accentColor = settingsProvider.accentColor;
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXl),
           ),
@@ -118,14 +119,14 @@ class _EqualizerScreenState extends State<EqualizerScreen>
 
   Future<void> _renamePresetPrompt(String oldName) async {
     final controller = TextEditingController(text: oldName);
-    final newName = await showDialog<String>(
+    final newName = await showGlassDialog<String>(
       context: context,
       builder: (context) {
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final settingsProvider = Provider.of<SettingsProvider>(context);
         final accentColor = settingsProvider.accentColor;
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXl),
           ),

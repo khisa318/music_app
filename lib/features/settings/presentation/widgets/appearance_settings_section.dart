@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -6,6 +6,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import 'settings_item.dart';
 import 'settings_surface.dart';
 import '../screens/animation_selector_screen.dart';
@@ -217,18 +218,19 @@ class AppearanceSettingsSection extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTextStyles.caption(
-            isDarkMode: isDarkMode,
-            color: selected
-                ? Colors.black
-                : MainScreenColors.getTextColor(
-                    isDarkMode,
-                  ).withValues(alpha: 0.7),
-          ).copyWith(
-            fontWeight: selected
-                ? AppTextStyles.weightSemiBold
-                : AppTextStyles.weightRegular,
-          ),
+          style:
+              AppTextStyles.caption(
+                isDarkMode: isDarkMode,
+                color: selected
+                    ? Colors.black
+                    : MainScreenColors.getTextColor(
+                        isDarkMode,
+                      ).withValues(alpha: 0.7),
+              ).copyWith(
+                fontWeight: selected
+                    ? AppTextStyles.weightSemiBold
+                    : AppTextStyles.weightRegular,
+              ),
         ),
       ),
     );
@@ -239,13 +241,11 @@ class AppearanceSettingsSection extends StatelessWidget {
     SettingsProvider settingsProvider,
     bool isDarkMode,
   ) {
-    showDialog(
+    showGlassDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: isDarkMode
-              ? MainScreenColors.darkSurfaceColor
-              : MainScreenColors.lightSurfaceColor,
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXl),
           ),

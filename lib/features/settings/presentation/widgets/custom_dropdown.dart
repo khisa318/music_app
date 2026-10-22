@@ -3,6 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 class CustomDropdown<T> extends StatelessWidget {
   final T value;
@@ -71,11 +72,11 @@ class CustomDropdown<T> extends StatelessWidget {
     Color textColor,
     Color surfaceColor,
   ) {
-    showDialog(
+    showGlassDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: surfaceColor,
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXl),
           ),

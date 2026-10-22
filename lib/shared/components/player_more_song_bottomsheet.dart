@@ -20,6 +20,7 @@ import 'app_snackbar.dart';
 import 'marquee_text.dart';
 import '../../core/providers/player_provider.dart';
 import '../../core/utils/content_router.dart';
+import '../../core/widgets/glass_modal.dart';
 import 'add_to_playlist_bottomsheet.dart';
 
 class _LocalSongMeta {
@@ -370,8 +371,8 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
         ? 'https://www.youtube.com/watch?v=$videoId'
         : null;
 
-    final youtubeSearchLink = youtubeLink ??
-        _youtubeSearchLink(songTitle, songArtist);
+    final youtubeSearchLink =
+        youtubeLink ?? _youtubeSearchLink(songTitle, songArtist);
     const appLink = 'https://musix-website.vercel.app/';
     final shareText = isLocalSong
         ? '🎵 Listening to "$songTitle" by $songArtist'
@@ -388,126 +389,127 @@ class _PlayerMoreSongBottomSheetState extends State<PlayerMoreSongBottomSheet>
         opacity: _fadeAnim.value,
         child: SlideTransition(
           position: _slideAnim,
-          child: Container(
+          child: ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: size.height * AppDimens.sheetHeightFactor,
             ),
-            decoration: BoxDecoration(
-              color: bgColor,
+            child: GlassSheet(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(AppDimens.radiusFull),
                 topRight: Radius.circular(AppDimens.radiusFull),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
-                  blurRadius: 32,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                _buildTopBar(textColor),
+              child: Column(
+                children: [
+                  _buildTopBar(textColor),
 
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.paddingXl,
-                      AppDimens.spacingLg,
-                      AppDimens.paddingXl,
-                      AppDimens.spacingXxl,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _buildAlbumArt(pp, isDarkMode, size.width, isLocalSong),
-                        const SizedBox(height: AppDimens.spacingXxl),
-
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  songTitle,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.headingLg(
-                                    isDarkMode: isDarkMode,
-                                  ),
-                                ),
-                              ),
-                              if (isJioSaavn) ...[
-                                const SizedBox(width: 6),
-                                _badge('320 HD', accentColor),
-                              ],
-                              if (isLocalSong &&
-                                  _localMeta?.fileExtension != null) ...[
-                                const SizedBox(width: 6),
-                                _badge(_localMeta!.fileExtension!, accentColor),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppDimens.spacingSm),
-
-                        _buildArtistSection(
-                          pp,
-                          isLocalSong,
-                          isDarkMode,
-                          size.width,
-                          accentColor,
-                        ),
-                        const SizedBox(height: AppDimens.spacingXxl),
-
-                        if (!isLocalSong && pp.currentVideoDetails != null) ...[
-                          _buildOnlineStatsRow(
-                            pp.currentVideoDetails!,
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.paddingXl,
+                        AppDimens.spacingLg,
+                        AppDimens.paddingXl,
+                        AppDimens.spacingXxl,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _buildAlbumArt(
+                            pp,
                             isDarkMode,
                             size.width,
+                            isLocalSong,
                           ),
                           const SizedBox(height: AppDimens.spacingXxl),
-                        ],
 
-                        if (isLocalSong)
-                          _buildLocalMetadataSection(
-                            pp,
-                            currentLocalSong,
-                            isDarkMode,
-                            accentColor,
-                            textColor,
-                            textColor.withValues(alpha: 0.55),
-                            size.width,
-                            shareText,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    songTitle,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.headingLg(
+                                      isDarkMode: isDarkMode,
+                                    ),
+                                  ),
+                                ),
+                                if (isJioSaavn) ...[
+                                  const SizedBox(width: 6),
+                                  _badge('320 HD', accentColor),
+                                ],
+                                if (isLocalSong &&
+                                    _localMeta?.fileExtension != null) ...[
+                                  const SizedBox(width: 6),
+                                  _badge(
+                                    _localMeta!.fileExtension!,
+                                    accentColor,
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
-                      ],
+                          const SizedBox(height: AppDimens.spacingSm),
+
+                          _buildArtistSection(
+                            pp,
+                            isLocalSong,
+                            isDarkMode,
+                            size.width,
+                            accentColor,
+                          ),
+                          const SizedBox(height: AppDimens.spacingXxl),
+
+                          if (!isLocalSong &&
+                              pp.currentVideoDetails != null) ...[
+                            _buildOnlineStatsRow(
+                              pp.currentVideoDetails!,
+                              isDarkMode,
+                              size.width,
+                            ),
+                            const SizedBox(height: AppDimens.spacingXxl),
+                          ],
+
+                          if (isLocalSong)
+                            _buildLocalMetadataSection(
+                              pp,
+                              currentLocalSong,
+                              isDarkMode,
+                              accentColor,
+                              textColor,
+                              textColor.withValues(alpha: 0.55),
+                              size.width,
+                              shareText,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                _buildActionBar(
-                  isDarkMode: isDarkMode,
-                  isLocalSong: isLocalSong,
-                  accentColor: accentColor,
-                  textColor: textColor,
-                  bgColor: bgColor,
-                  bottomPad: bottomPad,
-                  pp: pp,
-                  currentSong: currentSong,
-                  currentLocalSong: currentLocalSong,
-                  songTitle: songTitle,
-                  songArtist: songArtist,
-                  videoId: videoId,
-                  youtubeLink: youtubeSearchLink,
-                  shareText: shareText,
-                ),
-              ],
+                  _buildActionBar(
+                    isDarkMode: isDarkMode,
+                    isLocalSong: isLocalSong,
+                    accentColor: accentColor,
+                    textColor: textColor,
+                    bgColor: bgColor,
+                    bottomPad: bottomPad,
+                    pp: pp,
+                    currentSong: currentSong,
+                    currentLocalSong: currentLocalSong,
+                    songTitle: songTitle,
+                    songArtist: songArtist,
+                    videoId: videoId,
+                    youtubeLink: youtubeSearchLink,
+                    shareText: shareText,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

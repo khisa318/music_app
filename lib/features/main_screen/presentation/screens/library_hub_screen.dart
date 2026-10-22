@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../library/data/providers/library_provider.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../library/presentation/widgets/library_filter_chips.dart';
@@ -386,168 +387,173 @@ class _LibraryFilterSheet extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Container(
+      child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
-        decoration: BoxDecoration(
-          color: MainScreenColors.getSurfaceColor(isDarkMode),
+        child: GlassSheet(
           borderRadius: const BorderRadius.vertical(
             top: Radius.circular(AppDimens.radiusXxxl),
           ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppDimens.paddingXl,
-            AppDimens.paddingLg,
-            AppDimens.paddingXl,
-            AppDimens.paddingXl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: textColor.withValues(alpha: AppDimens.opacityMedium),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.paddingXl,
+              AppDimens.paddingLg,
+              AppDimens.paddingXl,
+              AppDimens.paddingXl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: textColor.withValues(
+                        alpha: AppDimens.opacityMedium,
+                      ),
+                      borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: AppDimens.paddingLg),
+                const SizedBox(height: AppDimens.paddingLg),
 
-              Text(
-                'library_filters'.tr(),
-                style: AppTextStyles.titleSm(
+                Text(
+                  'library_filters'.tr(),
+                  style: AppTextStyles.titleSm(
+                    isDarkMode: isDarkMode,
+                  ).copyWith(fontWeight: AppTextStyles.weightBold),
+                ),
+
+                const SizedBox(height: AppDimens.paddingLg),
+
+                _SheetSection(
                   isDarkMode: isDarkMode,
-                ).copyWith(fontWeight: AppTextStyles.weightBold),
-              ),
-
-              const SizedBox(height: AppDimens.paddingLg),
-
-              _SheetSection(
-                isDarkMode: isDarkMode,
-                title: 'favourites_show'.tr(),
-                child: Wrap(
-                  spacing: AppDimens.spacingSm,
-                  runSpacing: AppDimens.spacingSm,
-                  children: [
-                    _SheetOption(
-                      label: 'songs'.tr(),
-                      isSelected: favoritesView == LibraryFavoritesView.songs,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () =>
-                          onFavoritesViewChanged(LibraryFavoritesView.songs),
-                    ),
-                    _SheetOption(
-                      label: 'artists'.tr(),
-                      isSelected: favoritesView == LibraryFavoritesView.artists,
-                      isDarkMode: isDarkMode,
-                      accentColor: accentColor,
-                      onTap: () =>
-                          onFavoritesViewChanged(LibraryFavoritesView.artists),
-                    ),
-                  ],
-                ),
-              ),
-
-              _SheetSection(
-                isDarkMode: isDarkMode,
-                title: 'sort_by'.tr(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: AppDimens.spacingSm,
-                      runSpacing: AppDimens.spacingSm,
-                      children: [
-                        _SheetOption(
-                          label: 'sort_by_title'.tr(),
-                          isSelected: sortBy == 'title',
-                          isDarkMode: isDarkMode,
-                          accentColor: accentColor,
-                          onTap: () => onSortByChanged('title'),
-                        ),
-                        _SheetOption(
-                          label: 'sort_by_artist'.tr(),
-                          isSelected: sortBy == 'artist',
-                          isDarkMode: isDarkMode,
-                          accentColor: accentColor,
-                          onTap: () => onSortByChanged('artist'),
-                        ),
-                        _SheetOption(
-                          label: 'sort_by_duration'.tr(),
-                          isSelected: sortBy == 'duration',
-                          isDarkMode: isDarkMode,
-                          accentColor: accentColor,
-                          onTap: () => onSortByChanged('duration'),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: AppDimens.spacingMd),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'sort_order'.tr(),
-                            style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
-                          ),
-                        ),
-
-                        Text(
-                          sortAscending
-                              ? 'sort_order_ascending'.tr()
-                              : 'sort_order_descending'.tr(),
-                          style: AppTextStyles.body2(
-                            isDarkMode: isDarkMode,
-                            color: accentColor,
-                          ),
-                        ),
-
-                        const SizedBox(width: AppDimens.spacingSm),
-
-                        Switch(
-                          value: sortAscending,
-                          onChanged: onSortAscendingChanged,
-                          activeThumbColor: Colors.black,
-                          activeTrackColor: accentColor,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              _SheetSection(
-                isDarkMode: isDarkMode,
-                title: 'appearance'.tr(),
-                isLast: true,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isDarkMode ? 'dark_mode'.tr() : 'light_mode'.tr(),
-                        style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
+                  title: 'favourites_show'.tr(),
+                  child: Wrap(
+                    spacing: AppDimens.spacingSm,
+                    runSpacing: AppDimens.spacingSm,
+                    children: [
+                      _SheetOption(
+                        label: 'songs'.tr(),
+                        isSelected: favoritesView == LibraryFavoritesView.songs,
+                        isDarkMode: isDarkMode,
+                        accentColor: accentColor,
+                        onTap: () =>
+                            onFavoritesViewChanged(LibraryFavoritesView.songs),
                       ),
-                    ),
-
-                    Switch(
-                      value: isDarkMode,
-                      onChanged: (_) => onThemeChanged(),
-                      activeThumbColor: Colors.black,
-                      activeTrackColor: accentColor,
-                    ),
-                  ],
+                      _SheetOption(
+                        label: 'artists'.tr(),
+                        isSelected:
+                            favoritesView == LibraryFavoritesView.artists,
+                        isDarkMode: isDarkMode,
+                        accentColor: accentColor,
+                        onTap: () => onFavoritesViewChanged(
+                          LibraryFavoritesView.artists,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                _SheetSection(
+                  isDarkMode: isDarkMode,
+                  title: 'sort_by'.tr(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: AppDimens.spacingSm,
+                        runSpacing: AppDimens.spacingSm,
+                        children: [
+                          _SheetOption(
+                            label: 'sort_by_title'.tr(),
+                            isSelected: sortBy == 'title',
+                            isDarkMode: isDarkMode,
+                            accentColor: accentColor,
+                            onTap: () => onSortByChanged('title'),
+                          ),
+                          _SheetOption(
+                            label: 'sort_by_artist'.tr(),
+                            isSelected: sortBy == 'artist',
+                            isDarkMode: isDarkMode,
+                            accentColor: accentColor,
+                            onTap: () => onSortByChanged('artist'),
+                          ),
+                          _SheetOption(
+                            label: 'sort_by_duration'.tr(),
+                            isSelected: sortBy == 'duration',
+                            isDarkMode: isDarkMode,
+                            accentColor: accentColor,
+                            onTap: () => onSortByChanged('duration'),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: AppDimens.spacingMd),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'sort_order'.tr(),
+                              style: AppTextStyles.bodyMd(
+                                isDarkMode: isDarkMode,
+                              ),
+                            ),
+                          ),
+
+                          Text(
+                            sortAscending
+                                ? 'sort_order_ascending'.tr()
+                                : 'sort_order_descending'.tr(),
+                            style: AppTextStyles.body2(
+                              isDarkMode: isDarkMode,
+                              color: accentColor,
+                            ),
+                          ),
+
+                          const SizedBox(width: AppDimens.spacingSm),
+
+                          Switch(
+                            value: sortAscending,
+                            onChanged: onSortAscendingChanged,
+                            activeThumbColor: Colors.black,
+                            activeTrackColor: accentColor,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                _SheetSection(
+                  isDarkMode: isDarkMode,
+                  title: 'appearance'.tr(),
+                  isLast: true,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isDarkMode ? 'dark_mode'.tr() : 'light_mode'.tr(),
+                          style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
+                        ),
+                      ),
+
+                      Switch(
+                        value: isDarkMode,
+                        onChanged: (_) => onThemeChanged(),
+                        activeThumbColor: Colors.black,
+                        activeTrackColor: accentColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
