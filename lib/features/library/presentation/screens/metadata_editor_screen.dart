@@ -11,6 +11,7 @@ import '../../../../core/services/local_songs_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../data/providers/library_provider.dart';
@@ -160,13 +161,12 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
           listen: false,
         );
         final accentColor = settingsProvider.accentColor;
-        final surfaceColor = MainScreenColors.getSurfaceColor(isDarkMode);
         final textColor = MainScreenColors.getTextColor(isDarkMode);
 
-        final shouldRequest = await showDialog<bool>(
+        final shouldRequest = await showGlassDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: surfaceColor,
+            backgroundColor: glassDialogColor(context),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             ),

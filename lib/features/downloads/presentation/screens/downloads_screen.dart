@@ -19,6 +19,7 @@ import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/services/content_details_service.dart';
 import '../../../../core/utils/content_router.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_empty_state.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../../../shared/components/songs_options_bottomsheet.dart';
@@ -359,7 +360,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
         progress != null && status != 'failed' && status != 'paused';
 
     final retryText = retryCount > 0
-        ? 'retry_attempt'.tr(args: ['$retryCount', '${DownloadProvider.maxAutoRetries}'])
+        ? 'retry_attempt'.tr(
+            args: ['$retryCount', '${DownloadProvider.maxAutoRetries}'],
+          )
         : null;
 
     return Container(
@@ -413,17 +416,15 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   const SizedBox(width: AppDimens.spacingXs),
                   Flexible(
                     child: Text(
-                      [
-                        _statusLabel(status),
-                        ?retryText,
-                      ].join(' • '),
+                      [_statusLabel(status), ?retryText].join(' • '),
                       style: AppTextStyles.caption(isDarkMode: isDarkMode)
                           .copyWith(
                             color: status == 'failed'
                                 ? Colors.red
                                 : status == 'paused'
                                 ? Colors.orange
-                                : status == 'downloading' || status == 'preparing'
+                                : status == 'downloading' ||
+                                      status == 'preparing'
                                 ? accentColor
                                 : textColor.withValues(
                                     alpha: AppDimens.opacityMuted,
@@ -470,7 +471,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (status == 'downloading' || status == 'preparing' || status == 'queued')
+              if (status == 'downloading' ||
+                  status == 'preparing' ||
+                  status == 'queued')
                 IconButton(
                   icon: Icon(
                     Icons.pause_circle_outline,
@@ -481,10 +484,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                 ),
               if (status == 'paused')
                 IconButton(
-                  icon: Icon(
-                    Icons.play_circle_outline,
-                    color: accentColor,
-                  ),
+                  icon: Icon(Icons.play_circle_outline, color: accentColor),
                   tooltip: 'resume_download'.tr(),
                   onPressed: () => downloadProvider.resumeDownload(videoId),
                 ),
@@ -638,9 +638,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
           content: ArtistDetailed(
             artistId: artistId,
             name: (song['artist'] as String?) ?? '',
-            thumbnails: [
-              ThumbnailFull(url: thumbUrl, width: 0, height: 0),
-            ],
+            thumbnails: [ThumbnailFull(url: thumbUrl, width: 0, height: 0)],
             type: '',
           ),
         ),
@@ -665,11 +663,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
   Future<void> _confirmDeleteDownloadedSong(Map<String, dynamic> song) async {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showGlassDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(dialogContext),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
           ),
@@ -728,14 +726,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
       isScrollControlled: true,
       builder: (sheetContext) {
         final textColor = MainScreenColors.getTextColor(isDarkMode);
-        return Container(
-          decoration: BoxDecoration(
-            color: MainScreenColors.getSurfaceColor(isDarkMode),
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(AppDimens.radiusXxl),
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
+        return GlassSheet(
           padding: const EdgeInsets.fromLTRB(
             AppDimens.paddingLg,
             AppDimens.paddingLg,
@@ -822,7 +813,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: AppDimens.iconMd, color: textColor.withValues(alpha: AppDimens.opacityMuted)),
+          Icon(
+            icon,
+            size: AppDimens.iconMd,
+            color: textColor.withValues(alpha: AppDimens.opacityMuted),
+          ),
           const SizedBox(width: AppDimens.spacingMd),
           Expanded(
             child: Column(
@@ -897,9 +892,15 @@ class _DownloadsScreenState extends State<DownloadsScreen>
             isDarkMode: isDarkMode,
             color: textColor.withValues(alpha: AppDimens.opacityMuted),
           ),
-          prefixIcon: Icon(Icons.search, color: textColor.withValues(alpha: AppDimens.opacityMuted)),
+          prefixIcon: Icon(
+            Icons.search,
+            color: textColor.withValues(alpha: AppDimens.opacityMuted),
+          ),
           suffixIcon: IconButton(
-            icon: Icon(Icons.close, color: textColor.withValues(alpha: AppDimens.opacityMuted)),
+            icon: Icon(
+              Icons.close,
+              color: textColor.withValues(alpha: AppDimens.opacityMuted),
+            ),
             onPressed: onClear,
           ),
           filled: true,
@@ -941,10 +942,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   /// One-tap recovery for a batch of failed downloads. Rendered above the
   /// queue list so it is reachable from both the mobile tab and the desktop
   /// column, and only while at least one entry is actually failed.
-  Widget _buildRetryAllFailedBanner(
-    Color accentColor,
-    int failedCount,
-  ) {
+  Widget _buildRetryAllFailedBanner(Color accentColor, int failedCount) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.paddingLg,
@@ -1029,8 +1027,12 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: items.length,
-                    itemBuilder: (context, index) =>
-                        _buildQueueItem(items[index], downloadProvider, accentColor, isDarkMode),
+                    itemBuilder: (context, index) => _buildQueueItem(
+                      items[index],
+                      downloadProvider,
+                      accentColor,
+                      isDarkMode,
+                    ),
                   ),
           ),
         ),
@@ -1103,7 +1105,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
     final size = _sizeOf(song);
     final timestamp = _getSongTimestamp(song);
-    final duration = Duration(seconds: (song['duration'] as num?)?.toInt() ?? 0);
+    final duration = Duration(
+      seconds: (song['duration'] as num?)?.toInt() ?? 0,
+    );
 
     final metaParts = <String>[
       if (duration.inSeconds > 0) _fmtDuration(duration),
@@ -1155,7 +1159,10 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                      child: _buildThumbnail(song['thumbnail'] ?? '', isDarkMode),
+                      child: _buildThumbnail(
+                        song['thumbnail'] ?? '',
+                        isDarkMode,
+                      ),
                     ),
                     if (isPlaying)
                       Container(
@@ -1173,9 +1180,9 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                 ),
           title: Text(
             song['title'] ?? '',
-            style: AppTextStyles.queueItem(isDarkMode: isDarkMode).copyWith(
-              color: isPlaying ? accentColor : textColor,
-            ),
+            style: AppTextStyles.queueItem(
+              isDarkMode: isDarkMode,
+            ).copyWith(color: isPlaying ? accentColor : textColor),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1344,12 +1351,13 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                         ))
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                      bottom: AppDimens.spacingLg,
-                    ),
+                    padding: const EdgeInsets.only(bottom: AppDimens.spacingLg),
                     itemCount: items.length,
-                    itemBuilder: (context, index) =>
-                        _buildDownloadedSongItem(items[index], isDarkMode, accentColor),
+                    itemBuilder: (context, index) => _buildDownloadedSongItem(
+                      items[index],
+                      isDarkMode,
+                      accentColor,
+                    ),
                   ),
           ),
         ),
@@ -1370,9 +1378,12 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                 Expanded(
                   child: Text(
                     '${'storage_used'.tr()}: ${_fmtBytes(_downloadedBytes)}',
-                    style: AppTextStyles.caption(isDarkMode: isDarkMode).copyWith(
-                      color: textColor.withValues(alpha: AppDimens.opacityMuted),
-                    ),
+                    style: AppTextStyles.caption(isDarkMode: isDarkMode)
+                        .copyWith(
+                          color: textColor.withValues(
+                            alpha: AppDimens.opacityMuted,
+                          ),
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1412,11 +1423,12 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     }
 
     if (message != null) {
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showGlassDialog<bool>(
         context: context,
         builder: (BuildContext dialogContext) {
           return AlertDialog(
-            backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+            backgroundColor: glassDialogColor(dialogContext),
+
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
             ),
@@ -1515,7 +1527,8 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     : MainScreenColors.getTextColor(isDarkMode),
               ),
               tooltip: 'search_queue'.tr(),
-              onPressed: () => setState(() => _showQueueSearch = !_showQueueSearch),
+              onPressed: () =>
+                  setState(() => _showQueueSearch = !_showQueueSearch),
             ),
             PopupMenuButton<QueueSortOption>(
               icon: Icon(Icons.sort, color: textColor),
@@ -1630,7 +1643,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
           ],
         ),
         Expanded(
-          child: _buildDownloadedList(isDarkMode, accentColor, showHeader: false),
+          child: _buildDownloadedList(
+            isDarkMode,
+            accentColor,
+            showHeader: false,
+          ),
         ),
       ],
     );
@@ -1689,10 +1706,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
   List<PopupMenuEntry<_ClearAction>> _clearMenuItems() {
     return [
-      PopupMenuItem(
-        value: _ClearAction.queue,
-        child: Text('clear_queue'.tr()),
-      ),
+      PopupMenuItem(value: _ClearAction.queue, child: Text('clear_queue'.tr())),
       PopupMenuItem(
         value: _ClearAction.completed,
         child: Text('clear_completed'.tr()),
@@ -1821,8 +1835,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   else
                     PopupMenuButton<QueueSortOption>(
                       icon: Icon(Icons.sort, color: textColor),
-                      onSelected: (value) =>
-                          setState(() => _queueSort = value),
+                      onSelected: (value) => setState(() => _queueSort = value),
                       itemBuilder: (context) => _queueSortMenuItems(),
                     ),
                 ],
@@ -1840,8 +1853,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                   PopupMenuButton<_ClearAction>(
                     icon: Icon(Icons.more_vert, color: textColor),
                     tooltip: 'clear_all'.tr(),
-                    onSelected: (action) =>
-                        _runClearAction(action, isDarkMode),
+                    onSelected: (action) => _runClearAction(action, isDarkMode),
                     itemBuilder: (context) => _clearMenuItems(),
                   ),
               ],
@@ -1930,8 +1942,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                             showFullScreen: false,
                             isEmbedded: true,
                             onMinimize: () {},
-                            onExpand: () =>
-                                _showFullPlayerBottomSheet(context),
+                            onExpand: () => _showFullPlayerBottomSheet(context),
                           ),
                         ),
                       ),
@@ -1978,11 +1989,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   }
 
   Future<void> _deleteSelected(bool isDarkMode) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showGlassDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+          backgroundColor: glassDialogColor(dialogContext),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusXxl),
           ),

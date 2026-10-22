@@ -12,6 +12,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../settings/presentation/screens/ai_api_config_screen.dart';
 
 class LyricLine {
@@ -136,10 +137,11 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
   }
 
   void _nudgeOffset(double delta) {
-    final next = ((_offsetSeconds + delta).clamp(
-      -_maxOffsetSeconds,
-      _maxOffsetSeconds,
-    ) * 100).round() / 100;
+    final next =
+        ((_offsetSeconds + delta).clamp(-_maxOffsetSeconds, _maxOffsetSeconds) *
+                100)
+            .round() /
+        100;
     if (next == _offsetSeconds) return;
     setState(() {
       _offsetSeconds = next;
@@ -233,7 +235,8 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
 
   void _updateCurrentLine(Duration position) {
     final lyricsProvider = Provider.of<LyricsProvider>(context, listen: false);
-    if (!(lyricsProvider.lyricsResponse?.isSynced ?? false) || _showPlainLyrics) {
+    if (!(lyricsProvider.lyricsResponse?.isSynced ?? false) ||
+        _showPlainLyrics) {
       return;
     }
 
@@ -367,15 +370,12 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
                 child: Text(
                   _formatOffset(),
                   textScaler: TextScaler.linear(labelScale),
-                  style:
-                      AppTextStyles.caption(
-                        isDarkMode: true,
-                        color: _offsetSeconds == 0.0
-                            ? Colors.white.withValues(alpha: 0.7)
-                            : accentColor,
-                      ).copyWith(
-                        fontWeight: AppTextStyles.weightSemiBold,
-                      ),
+                  style: AppTextStyles.caption(
+                    isDarkMode: true,
+                    color: _offsetSeconds == 0.0
+                        ? Colors.white.withValues(alpha: 0.7)
+                        : accentColor,
+                  ).copyWith(fontWeight: AppTextStyles.weightSemiBold),
                 ),
               ),
             ),
@@ -775,7 +775,7 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
                                       style: TextButton.styleFrom(
                                         foregroundColor: accentColor,
                                       ),
-                                      onPressed: () => showDialog<void>(
+                                      onPressed: () => showGlassDialog<void>(
                                         context: context,
                                         builder: (context) => AlertDialog(
                                           title: const Text('Error details'),

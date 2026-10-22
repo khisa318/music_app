@@ -9,6 +9,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../widgets/settings_surface.dart';
 
@@ -65,12 +66,10 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
     final isDarkMode = settings.themeMode == ThemeMode.dark;
     final accentColor = settings.accentColor;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showGlassDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: isDarkMode
-            ? MainScreenColors.darkSurfaceColor
-            : MainScreenColors.lightSurfaceColor,
+        backgroundColor: glassDialogColor(c),
         title: Text(
           'clear_logs'.tr(args: [channel]),
           style: AppTextStyles.titleLg(isDarkMode: isDarkMode),
@@ -140,61 +139,59 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                     color: MainScreenColors.getTextColor(themeData.isDarkMode),
                   ),
                   onPressed: () async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (c) => AlertDialog(
-                      backgroundColor: themeData.isDarkMode
-                          ? MainScreenColors.darkSurfaceColor
-                          : MainScreenColors.lightSurfaceColor,
-                      title: Text(
-                        'clear_all_logs'.tr(),
-                        style: AppTextStyles.titleLg(
-                          isDarkMode: themeData.isDarkMode,
-                        ),
-                      ),
-                      content: Text(
-                        'clear_all_logs_message'.tr(),
-                        style: AppTextStyles.bodyMd(
-                          isDarkMode: themeData.isDarkMode,
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(c, false),
-                          child: Text(
-                            'cancel'.tr(),
-                            style: AppTextStyles.bodyMd(
-                              isDarkMode: themeData.isDarkMode,
-                            ),
+                    final confirmed = await showGlassDialog<bool>(
+                      context: context,
+                      builder: (c) => AlertDialog(
+                        backgroundColor: glassDialogColor(c),
+                        title: Text(
+                          'clear_all_logs'.tr(),
+                          style: AppTextStyles.titleLg(
+                            isDarkMode: themeData.isDarkMode,
                           ),
                         ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(c, true),
-                          child: Text(
-                            'confirm_button'.tr(),
-                            style: AppTextStyles.bodyMd(
-                              isDarkMode: themeData.isDarkMode,
-                              color: themeData.accentColor,
-                            ),
+                        content: Text(
+                          'clear_all_logs_message'.tr(),
+                          style: AppTextStyles.bodyMd(
+                            isDarkMode: themeData.isDarkMode,
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                  if (confirmed == true) {
-                    await logService.clearLogs();
-                    await _reload();
-                    if (context.mounted) {
-                      AppSnackBar.showSuccess(
-                        context,
-                        'crash_logs_cleared_success'.tr(),
-                        accentColor: themeData.accentColor,
-                      );
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, false),
+                            child: Text(
+                              'cancel'.tr(),
+                              style: AppTextStyles.bodyMd(
+                                isDarkMode: themeData.isDarkMode,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, true),
+                            child: Text(
+                              'confirm_button'.tr(),
+                              style: AppTextStyles.bodyMd(
+                                isDarkMode: themeData.isDarkMode,
+                                color: themeData.accentColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      await logService.clearLogs();
+                      await _reload();
+                      if (context.mounted) {
+                        AppSnackBar.showSuccess(
+                          context,
+                          'crash_logs_cleared_success'.tr(),
+                          accentColor: themeData.accentColor,
+                        );
+                      }
                     }
-                  }
-                },
-                tooltip: 'clear'.tr(),
-              ),
+                  },
+                  tooltip: 'clear'.tr(),
+                ),
               ),
             ],
           ),
@@ -300,9 +297,7 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                               ),
                               SizedBox(height: AppDimens.spacingSm),
                               Text(
-                                '${'logging_status'.tr()}: ${logService.isLoggingActive
-                                        ? 'logging_active'.tr()
-                                        : 'logging_inactive'.tr()}',
+                                '${'logging_status'.tr()}: ${logService.isLoggingActive ? 'logging_active'.tr() : 'logging_inactive'.tr()}',
                                 style:
                                     AppTextStyles.body2(
                                       isDarkMode: themeData.isDarkMode,
@@ -347,7 +342,9 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                           ),
                           child: Material(
                             color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusLg,
+                            ),
                             clipBehavior: Clip.antiAlias,
                             child: ListTile(
                               contentPadding: EdgeInsets.symmetric(
@@ -387,9 +384,10 @@ class _CrashLogsScreenState extends State<CrashLogsScreen> {
                                           AppTextStyles.body2(
                                             isDarkMode: themeData.isDarkMode,
                                           ).copyWith(
-                                            color: MainScreenColors.getTextColor(
-                                              themeData.isDarkMode,
-                                            ).withValues(alpha: 0.5),
+                                            color:
+                                                MainScreenColors.getTextColor(
+                                                  themeData.isDarkMode,
+                                                ).withValues(alpha: 0.5),
                                           ),
                                     );
                                   }

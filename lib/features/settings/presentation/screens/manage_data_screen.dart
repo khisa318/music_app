@@ -8,6 +8,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/providers/stats_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../data/services/data_management_service.dart';
 import '../widgets/settings_item.dart';
@@ -607,12 +608,10 @@ void _showModernConfirmationDialog({
   required bool isDarkMode,
   required Color accentColor,
 }) {
-  showDialog(
+  showGlassDialog(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: isDarkMode
-          ? MainScreenColors.darkSurfaceColor
-          : MainScreenColors.lightSurfaceColor,
+      backgroundColor: glassDialogColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
       ),

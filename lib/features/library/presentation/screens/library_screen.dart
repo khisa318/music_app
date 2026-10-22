@@ -7,10 +7,10 @@ import 'package:provider/provider.dart';
 import '../../../favorite_artist/presentation/screens/favorite_artist_screen.dart';
 import '../widgets/library_song_list_tile.dart';
 import '../../../../shared/components/app_snackbar.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/widgets/liquid_glass.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../core/services/content_details_service.dart';
 import '../../../../core/models/song_model.dart';
 import '../../data/providers/library_provider.dart';
@@ -1284,13 +1284,11 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   void _deleteSelectedSongs(bool isDarkMode) {
-    showDialog(
+    showGlassDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: isDarkMode
-              ? MainScreenColors.darkSurfaceColor
-              : Colors.white,
+          backgroundColor: glassDialogColor(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),

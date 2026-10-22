@@ -7,6 +7,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 class SleepTimerBottomSheet extends StatefulWidget {
   const SleepTimerBottomSheet({super.key});
@@ -35,13 +36,10 @@ class _SleepTimerBottomSheetState extends State<SleepTimerBottomSheet> {
         (settingsProvider.theme == 'System Default' &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
-    return Container(
+    return GlassSheet(
       padding: const EdgeInsets.all(AppDimens.paddingLg),
-      decoration: BoxDecoration(
-        color: MainScreenColors.getSurfaceColor(isDarkMode),
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppDimens.radiusXl),
-        ),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(AppDimens.radiusXl),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/providers/settings_provider.dart';
+import '../../core/widgets/glass_modal.dart';
 import '../../features/playlists/data/providers/playlist_album_library_provider.dart';
 import 'app_snackbar.dart';
 
@@ -164,119 +165,116 @@ class _AddToPlaylistBottomSheetState extends State<AddToPlaylistBottomSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
+      child: SizedBox(
         height: screenHeight * 0.5,
-        padding: EdgeInsets.symmetric(
-          horizontal: AppDimens.paddingXl,
-          vertical: AppDimens.paddingLg,
-        ),
-        decoration: BoxDecoration(
-          color: MainScreenColors.getSurfaceColor(isDarkMode),
+        child: GlassSheet(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(AppDimens.radiusXxxl),
             topRight: Radius.circular(AppDimens.radiusXxxl),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: AppDimens.dragHandleWidth,
-              height: AppDimens.dragHandleHeight,
-              margin: EdgeInsets.only(bottom: AppDimens.spacingXl),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: AppDimens.opacityOverlay),
-                borderRadius: BorderRadius.circular(AppDimens.radiusXxs),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppDimens.paddingXl,
+            vertical: AppDimens.paddingLg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: AppDimens.dragHandleWidth,
+                height: AppDimens.dragHandleHeight,
+                margin: EdgeInsets.only(bottom: AppDimens.spacingXl),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(
+                    alpha: AppDimens.opacityOverlay,
+                  ),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusXxs),
+                ),
               ),
-            ),
-            Text(
-              'add_to_playlist'.tr(),
-              style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
-            ),
-            SizedBox(height: AppDimens.spacingXxl),
-            TextField(
-              controller: _playlistNameController,
-              cursorColor: accentColor,
-              decoration: InputDecoration(
-                hintText: 'new_playlist_name'.tr(),
-                filled: true,
-                fillColor: MainScreenColors.getTextColor(
-                  isDarkMode,
-                ).withValues(alpha: AppDimens.opacityLight),
-                hintStyle: AppTextStyles.caption(isDarkMode: isDarkMode)
-                    .copyWith(
+              Text(
+                'add_to_playlist'.tr(),
+                style: AppTextStyles.headingLg(isDarkMode: isDarkMode),
+              ),
+              SizedBox(height: AppDimens.spacingXxl),
+              TextField(
+                controller: _playlistNameController,
+                cursorColor: accentColor,
+                decoration: InputDecoration(
+                  hintText: 'new_playlist_name'.tr(),
+                  filled: true,
+                  fillColor: MainScreenColors.getTextColor(
+                    isDarkMode,
+                  ).withValues(alpha: AppDimens.opacityLight),
+                  hintStyle: AppTextStyles.caption(isDarkMode: isDarkMode)
+                      .copyWith(
+                        color: MainScreenColors.getTextColor(
+                          isDarkMode,
+                        ).withValues(alpha: AppDimens.opacitySemi),
+                      ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: AppDimens.paddingXl,
+                    vertical: AppDimens.paddingLg,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.add_circle_outline, color: accentColor),
+                    onPressed: _createNewPlaylist,
+                  ),
+                ),
+                style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
+              ),
+              SizedBox(height: AppDimens.spacingXl),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _playlists.length,
+                  itemBuilder: (context, index) {
+                    final playlist = _playlists[index];
+                    final name = playlist['name']?.toString() ?? '';
+                    return Card(
+                      elevation: 0,
                       color: MainScreenColors.getTextColor(
                         isDarkMode,
-                      ).withValues(alpha: AppDimens.opacitySemi),
-                    ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: AppDimens.paddingXl,
-                  vertical: AppDimens.paddingLg,
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(Icons.add_circle_outline, color: accentColor),
-                  onPressed: _createNewPlaylist,
+                      ).withValues(alpha: AppDimens.opacitySubtle),
+                      margin: EdgeInsets.only(bottom: AppDimens.spacingSm),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                      ),
+                      child: ListTile(
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: AppDimens.paddingXl,
+                          vertical: AppDimens.paddingXs,
+                        ),
+                        title: Text(
+                          name,
+                          style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
+                        ),
+                        trailing: _songInPlaylist[name] ?? false
+                            ? const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green),
+                                  SizedBox(width: AppDimens.spacingSm),
+                                  Icon(
+                                    Icons.remove_circle_outline,
+                                    color: Colors.red,
+                                  ),
+                                ],
+                              )
+                            : Icon(
+                                Icons.add_circle_outline,
+                                color: accentColor,
+                              ),
+                        onTap: () => _addToPlaylist(name),
+                      ),
+                    );
+                  },
                 ),
               ),
-              style: AppTextStyles.bodyMd(isDarkMode: isDarkMode),
-            ),
-            SizedBox(height: AppDimens.spacingXl),
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _playlists.length,
-                itemBuilder: (context, index) {
-                  final playlist = _playlists[index];
-                  final name = playlist['name']?.toString() ?? '';
-                  return Card(
-                    elevation: 0,
-                    color: MainScreenColors.getTextColor(
-                      isDarkMode,
-                    ).withValues(alpha: AppDimens.opacitySubtle),
-                    margin: EdgeInsets.only(bottom: AppDimens.spacingSm),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-                    ),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: AppDimens.paddingXl,
-                        vertical: AppDimens.paddingXs,
-                      ),
-                      title: Text(
-                        name,
-                        style: AppTextStyles.subtitle(isDarkMode: isDarkMode),
-                      ),
-                      trailing: _songInPlaylist[name] ?? false
-                          ? const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.green),
-                                SizedBox(width: AppDimens.spacingSm),
-                                Icon(
-                                  Icons.remove_circle_outline,
-                                  color: Colors.red,
-                                ),
-                              ],
-                            )
-                          : Icon(Icons.add_circle_outline, color: accentColor),
-                      onTap: () => _addToPlaylist(name),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

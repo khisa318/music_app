@@ -9,6 +9,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/services/local_songs_service.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../screens/metadata_editor_screen.dart';
 
@@ -99,17 +100,14 @@ class _LocalSongOptionsBottomSheetState
   @override
   Widget build(BuildContext context) {
     final isDarkMode = widget.isDarkMode;
-    final backgroundColor = MainScreenColors.getSurfaceColor(isDarkMode);
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
-      child: Material(
-        color: backgroundColor,
+      child: GlassSheet(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        clipBehavior: Clip.antiAlias,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(

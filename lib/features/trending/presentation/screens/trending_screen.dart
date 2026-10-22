@@ -8,6 +8,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../data/provider/trending_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
 import '../../../../core/providers/player_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 
 class TrendingScreen extends StatefulWidget {
   const TrendingScreen({super.key});
@@ -101,7 +102,7 @@ class _TrendingScreenState extends State<TrendingScreen>
       );
     }
 
-    showDialog(
+    showGlassDialog(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {

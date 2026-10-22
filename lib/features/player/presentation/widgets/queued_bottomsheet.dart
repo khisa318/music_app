@@ -9,6 +9,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/queued_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import 'music_search.dart';
 import '../../../../shared/components/app_snackbar.dart';
 
@@ -29,7 +30,7 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
     Color accentColor,
     QueueProvider queueProvider,
   ) async {
-    final result = await showDialog<bool>(
+    final result = await showGlassDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
@@ -454,7 +455,7 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
                               ),
                               direction: DismissDirection.endToStart,
                               confirmDismiss: (direction) async {
-                                final result = await showDialog<bool>(
+                                final result = await showGlassDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
                                     shape: RoundedRectangleBorder(

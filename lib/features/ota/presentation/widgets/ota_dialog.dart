@@ -8,6 +8,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/models/ota_model.dart';
 import '../../data/providers/ota_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
+import '../../../../core/widgets/glass_modal.dart';
 import '../screens/ota_screen.dart';
 import 'update_method_dialog.dart';
 import 'update_summary.dart';
@@ -23,7 +24,7 @@ class OTADialog extends StatelessWidget {
   const OTADialog({super.key, required this.updateInfo});
 
   static Future<void> show(BuildContext context, OTAUpdateInfo updateInfo) {
-    return showDialog<void>(
+    return showGlassDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => OTADialog(updateInfo: updateInfo),
@@ -39,7 +40,7 @@ class OTADialog extends StatelessWidget {
     final textColor = MainScreenColors.getTextColor(isDarkMode);
 
     return AlertDialog(
-      backgroundColor: MainScreenColors.getSurfaceColor(isDarkMode),
+      backgroundColor: glassDialogColor(context),
       insetPadding: const EdgeInsets.symmetric(
         horizontal: AppDimens.paddingXxl,
         vertical: AppDimens.paddingXxl,

@@ -11,6 +11,7 @@ import '../../core/constants/app_dimens.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/glass_modal.dart';
 import '../../core/providers/favorite_song_provider.dart';
 import '../../core/providers/player_provider.dart';
 import '../../core/providers/queued_provider.dart';
@@ -125,7 +126,6 @@ class _SongOptionsBottomSheetState extends State<SongOptionsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = MainScreenColors.getSurfaceColor(widget.isDarkMode);
     final textColor = MainScreenColors.getTextColor(widget.isDarkMode);
     final secondaryColor = MainScreenColors.getSecondaryColor(
       widget.isDarkMode,
@@ -135,12 +135,7 @@ class _SongOptionsBottomSheetState extends State<SongOptionsBottomSheet> {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
-      child: Material(
-        color: backgroundColor,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppDimens.radiusXxl),
-        ),
-        clipBehavior: Clip.antiAlias,
+      child: GlassSheet(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Padding(
@@ -370,13 +365,11 @@ class _SongOptionsBottomSheetState extends State<SongOptionsBottomSheet> {
                 icon: Icons.delete,
                 text: 'remove_from_downloads'.tr(),
                 onTap: () async {
-                  final confirmed = await showDialog<bool>(
+                  final confirmed = await showGlassDialog<bool>(
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        backgroundColor: widget.isDarkMode
-                            ? MainScreenColors.darkSurfaceColor
-                            : Colors.white,
+                        backgroundColor: glassDialogColor(context),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
