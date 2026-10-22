@@ -209,7 +209,14 @@ jobs:
           MUSIX_KEYSTORE_PASSWORD: ${{ secrets.MUSIX_KEYSTORE_PASSWORD }}
           MUSIX_KEY_ALIAS: ${{ secrets.MUSIX_KEY_ALIAS }}
           MUSIX_KEY_PASSWORD: ${{ secrets.MUSIX_KEY_PASSWORD }}
-        run: flutter build apk --release --no-pub
+          YTMUSIC_API_KEY: ${{ secrets.YTMUSIC_API_KEY }}
+          TELEGRAM_CRASH_BOT_TOKEN: ${{ secrets.TELEGRAM_CRASH_BOT_TOKEN }}
+          TELEGRAM_CRASH_CHAT_ID: ${{ secrets.TELEGRAM_CRASH_CHAT_ID }}
+        run: >
+          flutter build apk --release --no-pub
+          --dart-define=YTMUSIC_API_KEY="$YTMUSIC_API_KEY"
+          --dart-define=TELEGRAM_CRASH_BOT_TOKEN="$TELEGRAM_CRASH_BOT_TOKEN"
+          --dart-define=TELEGRAM_CRASH_CHAT_ID="$TELEGRAM_CRASH_CHAT_ID"
 
       - name: Locate, rename and checksum the APK
         id: apk

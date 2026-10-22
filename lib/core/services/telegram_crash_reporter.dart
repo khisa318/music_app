@@ -20,11 +20,9 @@ class TelegramCrashReporter {
 
   static const String _botToken = String.fromEnvironment(
     'TELEGRAM_CRASH_BOT_TOKEN',
-    defaultValue: '8963405198:AAGTaS_2JQYxsdiRMEGOr1AFFDTYr8brIzQ',
   );
   static const String _chatId = String.fromEnvironment(
     'TELEGRAM_CRASH_CHAT_ID',
-    defaultValue: '6003878928',
   );
 
   static const int maxReportsPerFingerprint = 2;

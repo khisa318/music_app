@@ -13,8 +13,8 @@ import '../utils/duration_utils.dart';
 const String domain = 'https://music.youtube.com/';
 const String baseUrl = '${domain}youtubei/v1/';
 
-const String fixedParams =
-    '?prettyPrint=false&alt=json&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30';
+const String ytMusicApiKey = String.fromEnvironment('YTMUSIC_API_KEY');
+const String fixedParams = '?prettyPrint=false&alt=json&key=$ytMusicApiKey';
 
 const String userAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -106,10 +106,7 @@ Future<Map<String, dynamic>?> _readContentCache(String key) async {
   }
 }
 
-Future<void> _writeContentCache(
-  String key,
-  Map<String, dynamic> data,
-) async {
+Future<void> _writeContentCache(String key, Map<String, dynamic> data) async {
   try {
     final box = await Hive.openBox<String>(_contentCacheBoxName);
     await box.put(key, jsonEncode(data));
