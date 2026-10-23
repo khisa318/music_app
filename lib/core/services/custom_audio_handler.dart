@@ -238,6 +238,18 @@ class CustomAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Future<void> onTaskRemoved() async {
+    if (!_playerService.isPlaying) {
+      try {
+        await _playerService.stop();
+        await super.stop();
+        await _playerService.dispose();
+      } catch (_) {}
+    }
+    await super.onTaskRemoved();
+  }
+
+  @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
     final mode = switch (repeatMode) {
       AudioServiceRepeatMode.one => RepeatMode.one,
@@ -288,16 +300,11 @@ class CustomAudioHandler extends BaseAudioHandler
     return null;
   }
 
-  Future<void> _seekRelative(
-    Duration step, {
-    required bool forward,
-  }) async {
+  Future<void> _seekRelative(Duration step, {required bool forward}) async {
     if (forward) {
       final max = _duration > Duration.zero ? _duration : null;
       final target = _position + step;
-      await _playerService.seek(
-        max != null && target > max ? max : target,
-      );
+      await _playerService.seek(max != null && target > max ? max : target);
     } else {
       final target = _position - step;
       await _playerService.seek(

@@ -120,6 +120,8 @@ class PlayerService {
 
   bool _isPlaying = false;
 
+  bool _disposed = false;
+
   Duration _position = Duration.zero;
 
   Duration? _duration;
@@ -1886,6 +1888,9 @@ class PlayerService {
   // ===========================================================================
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+
     await _recordCurrentPlaybackEnd();
 
     await _stopPositionSaveTimer();
