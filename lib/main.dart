@@ -537,6 +537,20 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.detached) {
+      try {
+        final playerProvider = Provider.of<PlayerProvider>(
+          context,
+          listen: false,
+        );
+        unawaited(playerProvider.shutdownIfIdle());
+      } catch (_) {}
+    }
+  }
+
+  @override
   void didChangePlatformBrightness() {
     super.didChangePlatformBrightness();
 

@@ -762,4 +762,16 @@ class PlayerProvider extends ChangeNotifier {
     }
     super.dispose();
   }
+
+  Future<void> shutdownIfIdle() async {
+    if (!_isInitialized || _playerService.isPlaying) return;
+
+    try {
+      await _playerService.stop();
+    } catch (_) {}
+
+    try {
+      await _playerService.dispose();
+    } catch (_) {}
+  }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +15,7 @@ import '../../../../core/providers/player_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/liquid_glass.dart';
+import '../../../../shared/components/app_snackbar.dart';
 
 import '../../../home/presentation/screens/home_screen.dart';
 import '../../../ota/data/providers/ota_provider.dart';
@@ -37,6 +39,12 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   final PersistentTabController _controller = PersistentTabController(
     initialIndex: 0,
   );
+  final List<GlobalKey<NavigatorState>> _tabNavKeys = List.generate(
+    4,
+    (_) => GlobalKey<NavigatorState>(),
+  );
+
+  DateTime? _lastBackPressTime;
 
   OTAProvider? _otaProvider;
   ConnectivityProvider? _connectivityProvider;
@@ -56,6 +64,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   @override
   void initState() {
     super.initState();
+
+    _controller.addListener(_onTabChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -79,9 +89,14 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onTabChanged);
     _otaProvider?.removeListener(_onOtaChanged);
     _connectivityProvider?.removeListener(_onOtaChanged);
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    _lastBackPressTime = null;
   }
 
   /// Starts a Wi-Fi download for a freshly discovered update and prompts to
@@ -151,258 +166,309 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<OTAProvider>(
-      builder: (context, otaProvider, child) {
-        // Only the "an update is available" case raises the full prompt. Once
-        // a download is running or finished, progress lives in the home banner
-        // and the install prompt, so the update dialog must not reappear on
-        // top of them.
-        if (otaProvider.status == OTAStatus.updateAvailable &&
-            otaProvider.updateInfo != null &&
-            !otaProvider.isUpdateUIShown &&
-            !otaProvider.isOTAScreenActive) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
 
-            otaProvider.setUpdateUIShown(true);
+        final currentTab = _controller.index;
+        final navigator = _tabNavKeys[currentTab].currentState;
 
-            _showOTADialog(context, otaProvider.updateInfo!);
-          });
+        if (navigator != null && navigator.canPop()) {
+          navigator.pop();
+          return;
         }
 
-        return Consumer<SettingsProvider>(
-          builder: (context, settingsProvider, child) {
-            final accentColor = settingsProvider.accentColor;
+        if (currentTab == 0) {
+          final now = DateTime.now();
+          if (_lastBackPressTime == null ||
+              now.difference(_lastBackPressTime!) >
+                  const Duration(seconds: 2)) {
+            _lastBackPressTime = now;
+            AppSnackBar.showInfo(context, 'Press back again to exit');
+            return;
+          }
+          SystemNavigator.pop();
+          return;
+        }
 
-            final theme = settingsProvider.themeMode == ThemeMode.dark
-                ? AppTheme.darkTheme(accentColor)
-                : AppTheme.lightTheme(accentColor);
+        if (!_controller.historyIsEmpty()) {
+          _controller.jumpToPreviousTab();
+          return;
+        }
 
-            final mq = MediaQuery.of(context);
+        SystemNavigator.pop();
+      },
+      child: Consumer<OTAProvider>(
+        builder: (context, otaProvider, child) {
+          // Only the "an update is available" case raises the full prompt. Once
+          // a download is running or finished, progress lives in the home banner
+          // and the install prompt, so the update dialog must not reappear on
+          // top of them.
+          if (otaProvider.status == OTAStatus.updateAvailable &&
+              otaProvider.updateInfo != null &&
+              !otaProvider.isUpdateUIShown &&
+              !otaProvider.isOTAScreenActive) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
 
-            final textScale = mq.textScaler.scale(1.0);
+              otaProvider.setUpdateUIShown(true);
 
-            final double navIconScale = textScale > 1.0
-                ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
-                : 1.0;
+              _showOTADialog(context, otaProvider.updateInfo!);
+            });
+          }
 
-            final double navTextCap = textScale > 1.0 ? 1.0 : textScale;
+          return Consumer<SettingsProvider>(
+            builder: (context, settingsProvider, child) {
+              final accentColor = settingsProvider.accentColor;
 
-            final double navIconSize = AppDimens.iconXl * navIconScale;
+              final theme = settingsProvider.themeMode == ThemeMode.dark
+                  ? AppTheme.darkTheme(accentColor)
+                  : AppTheme.lightTheme(accentColor);
 
-            return Theme(
-              data: theme,
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: PersistentTabView(
-                  backgroundColor: theme.scaffoldBackgroundColor,
-                  navBarOverlap: const NavBarOverlap.full(),
+              final mq = MediaQuery.of(context);
 
-                  controller: _controller,
+              final textScale = mq.textScaler.scale(1.0);
 
-                  tabs: [
-                    // ----------------------------------------------------------------
-                    // HOME
-                    // ----------------------------------------------------------------
-                    PersistentTabConfig(
-                      screen: _TabWrapper(
-                        key: const ValueKey('home_tab'),
-                        titleKey: 'home',
-                        isHome: true,
-                        onProfileTap: _goToProfile,
-                        child: const HomeScreen(),
-                      ),
-                      item: ItemConfig(
-                        icon: Icon(Icons.home_rounded, size: navIconSize),
-                        title: 'home'.tr(),
-                        activeForegroundColor: accentColor,
-                        inactiveForegroundColor:
-                            theme.textTheme.bodyLarge?.color?.withValues(
-                              alpha: 0.6,
-                            ) ??
-                            Colors.grey,
-                      ),
-                    ),
+              final double navIconScale = textScale > 1.0
+                  ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
+                  : 1.0;
 
-                    // ----------------------------------------------------------------
-                    // SEARCH
-                    // ----------------------------------------------------------------
-                    PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('search_tab'),
-                        titleKey: 'search',
-                        isHome: false,
-                        showAppBar: false,
-                        child: SearchScreen(),
-                      ),
-                      item: ItemConfig(
-                        icon: Icon(Icons.search_rounded, size: navIconSize),
-                        title: 'search'.tr(),
-                        activeForegroundColor: accentColor,
-                        inactiveForegroundColor:
-                            theme.textTheme.bodyLarge?.color?.withValues(
-                              alpha: 0.6,
-                            ) ??
-                            Colors.grey,
-                      ),
-                    ),
+              final double navTextCap = textScale > 1.0 ? 1.0 : textScale;
 
-                    // ----------------------------------------------------------------
-                    // LIBRARY (playlists + songs)
-                    // ----------------------------------------------------------------
-                    PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('library_tab'),
-                        titleKey: 'library',
-                        isHome: false,
-                        showAppBar: false,
-                        child: LibraryHubScreen(),
-                      ),
-                      item: ItemConfig(
-                        icon: Icon(
-                          Icons.library_music_rounded,
-                          size: navIconSize,
+              final double navIconSize = AppDimens.iconXl * navIconScale;
+
+              return Theme(
+                data: theme,
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: PersistentTabView(
+                    backgroundColor: theme.scaffoldBackgroundColor,
+                    navBarOverlap: const NavBarOverlap.full(),
+                    handleAndroidBackButtonPress: false,
+
+                    controller: _controller,
+
+                    tabs: [
+                      // ----------------------------------------------------------------
+                      // HOME
+                      // ----------------------------------------------------------------
+                      PersistentTabConfig(
+                        navigatorConfig: NavigatorConfig(
+                          navigatorKey: _tabNavKeys[0],
                         ),
-                        title: 'library'.tr(),
-                        activeForegroundColor: accentColor,
-                        inactiveForegroundColor:
-                            theme.textTheme.bodyLarge?.color?.withValues(
-                              alpha: 0.6,
-                            ) ??
-                            Colors.grey,
+                        screen: _TabWrapper(
+                          key: const ValueKey('home_tab'),
+                          titleKey: 'home',
+                          isHome: true,
+                          onProfileTap: _goToProfile,
+                          child: const HomeScreen(),
+                        ),
+                        item: ItemConfig(
+                          icon: Icon(Icons.home_rounded, size: navIconSize),
+                          title: 'home'.tr(),
+                          activeForegroundColor: accentColor,
+                          inactiveForegroundColor:
+                              theme.textTheme.bodyLarge?.color?.withValues(
+                                alpha: 0.6,
+                              ) ??
+                              Colors.grey,
+                        ),
                       ),
-                    ),
+
+                      // ----------------------------------------------------------------
+                      // SEARCH
+                      // ----------------------------------------------------------------
+                      PersistentTabConfig(
+                        navigatorConfig: NavigatorConfig(
+                          navigatorKey: _tabNavKeys[1],
+                        ),
+                        screen: const _TabWrapper(
+                          key: ValueKey('search_tab'),
+                          titleKey: 'search',
+                          isHome: false,
+                          showAppBar: false,
+                          child: SearchScreen(),
+                        ),
+                        item: ItemConfig(
+                          icon: Icon(Icons.search_rounded, size: navIconSize),
+                          title: 'search'.tr(),
+                          activeForegroundColor: accentColor,
+                          inactiveForegroundColor:
+                              theme.textTheme.bodyLarge?.color?.withValues(
+                                alpha: 0.6,
+                              ) ??
+                              Colors.grey,
+                        ),
+                      ),
+
+                      // ----------------------------------------------------------------
+                      // LIBRARY (playlists + songs)
+                      // ----------------------------------------------------------------
+                      PersistentTabConfig(
+                        navigatorConfig: NavigatorConfig(
+                          navigatorKey: _tabNavKeys[2],
+                        ),
+                        screen: const _TabWrapper(
+                          key: ValueKey('library_tab'),
+                          titleKey: 'library',
+                          isHome: false,
+                          showAppBar: false,
+                          child: LibraryHubScreen(),
+                        ),
+                        item: ItemConfig(
+                          icon: Icon(
+                            Icons.library_music_rounded,
+                            size: navIconSize,
+                          ),
+                          title: 'library'.tr(),
+                          activeForegroundColor: accentColor,
+                          inactiveForegroundColor:
+                              theme.textTheme.bodyLarge?.color?.withValues(
+                                alpha: 0.6,
+                              ) ??
+                              Colors.grey,
+                        ),
+                      ),
+
+                      // ----------------------------------------------------------------
+                      // PROFILE
+                      // ----------------------------------------------------------------
+                      PersistentTabConfig(
+                        navigatorConfig: NavigatorConfig(
+                          navigatorKey: _tabNavKeys[3],
+                        ),
+                        screen: const _TabWrapper(
+                          key: ValueKey('profile_tab'),
+                          titleKey: 'profile',
+                          isHome: false,
+                          showAppBar: false,
+                          child: ProfileScreen(),
+                        ),
+                        item: ItemConfig(
+                          icon: Icon(Icons.person_rounded, size: navIconSize),
+                          title: 'profile'.tr(),
+                          activeForegroundColor: accentColor,
+                          inactiveForegroundColor:
+                              theme.textTheme.bodyLarge?.color?.withValues(
+                                alpha: 0.6,
+                              ) ??
+                              Colors.grey,
+                        ),
+                      ),
+                    ],
 
                     // ----------------------------------------------------------------
-                    // PROFILE
+                    // NAVIGATION BAR + MINI PLAYER
                     // ----------------------------------------------------------------
-                    PersistentTabConfig(
-                      screen: const _TabWrapper(
-                        key: ValueKey('profile_tab'),
-                        titleKey: 'profile',
-                        isHome: false,
-                        showAppBar: false,
-                        child: ProfileScreen(),
-                      ),
-                      item: ItemConfig(
-                        icon: Icon(Icons.person_rounded, size: navIconSize),
-                        title: 'profile'.tr(),
-                        activeForegroundColor: accentColor,
-                        inactiveForegroundColor:
-                            theme.textTheme.bodyLarge?.color?.withValues(
-                              alpha: 0.6,
-                            ) ??
-                            Colors.grey,
-                      ),
-                    ),
-                  ],
+                    navBarBuilder: (navBarConfig) =>
+                        Consumer2<PlayerProvider, SettingsProvider>(
+                          builder: (context, playerProvider, settingsProvider, child) {
+                            final hasPlayer =
+                                playerProvider.currentSong != null ||
+                                playerProvider.lastPlayedSong != null ||
+                                playerProvider.currentLocalSong != null;
 
-                  // ----------------------------------------------------------------
-                  // NAVIGATION BAR + MINI PLAYER
-                  // ----------------------------------------------------------------
-                  navBarBuilder: (navBarConfig) =>
-                      Consumer2<PlayerProvider, SettingsProvider>(
-                        builder: (context, playerProvider, settingsProvider, child) {
-                          final hasPlayer =
-                              playerProvider.currentSong != null ||
-                              playerProvider.lastPlayedSong != null ||
-                              playerProvider.currentLocalSong != null;
+                            final double safeBottom = MediaQuery.of(
+                              context,
+                            ).viewPadding.bottom;
 
-                          final double safeBottom = MediaQuery.of(
-                            context,
-                          ).viewPadding.bottom;
+                            final bool isDarkMode =
+                                theme.brightness == Brightness.dark;
 
-                          final bool isDarkMode =
-                              theme.brightness == Brightness.dark;
-
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              left: AppDimens.spacingMd,
-                              right: AppDimens.spacingMd,
-                              bottom: safeBottom + AppDimens.spacingSmMd,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (hasPlayer) ...[
-                                  SizedBox(
-                                    height:
-                                        AppDimens.miniPlayerHeight *
-                                        navIconScale,
-                                    child: PlayerUI(
-                                      showFullScreen: false,
-                                      isEmbedded: true,
-                                      provideGlass: true,
-                                      onMinimize: () {},
-                                      onExpand: () =>
-                                          _showFullPlayerBottomSheet(context),
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppDimens.spacingSmMd),
-                                ],
-                                LiquidGlass(
-                                  borderRadius: const BorderRadius.all(
-                                    Radius.circular(AppDimens.radiusPill),
-                                  ),
-                                  tint: MainScreenColors.getSurfaceColor(
-                                    isDarkMode,
-                                  ),
-                                  opacity: 0.14,
-                                  // The dock intentionally uses the opposite of
-                                  // the global toggle: on = glass blur, off = flat.
-                                  reduceEffects:
-                                      !settingsProvider.reduceEffectsEnabled,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppDimens.spacingXs,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.28,
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                left: AppDimens.spacingMd,
+                                right: AppDimens.spacingMd,
+                                bottom: safeBottom + AppDimens.spacingSmMd,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (hasPlayer) ...[
+                                    SizedBox(
+                                      height:
+                                          AppDimens.miniPlayerHeight *
+                                          navIconScale,
+                                      child: PlayerUI(
+                                        showFullScreen: false,
+                                        isEmbedded: true,
+                                        provideGlass: true,
+                                        onMinimize: () {},
+                                        onExpand: () =>
+                                            _showFullPlayerBottomSheet(context),
                                       ),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 10),
+                                    ),
+                                    const SizedBox(
+                                      height: AppDimens.spacingSmMd,
                                     ),
                                   ],
-                                  child: MediaQuery(
-                                    data: mq.copyWith(
-                                      textScaler: TextScaler.linear(navTextCap),
+                                  LiquidGlass(
+                                    borderRadius: const BorderRadius.all(
+                                      Radius.circular(AppDimens.radiusPill),
                                     ),
-                                    child: MediaQuery.removePadding(
-                                      context: context,
-                                      removeBottom: true,
-                                      child: Style2BottomNavBar(
-                                        navBarConfig: navBarConfig,
-                                        navBarDecoration: NavBarDecoration(
-                                          color: Colors.transparent,
-                                          borderRadius: BorderRadius.zero,
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: AppDimens.spacingSmMd,
-                                          ),
+                                    tint: MainScreenColors.getSurfaceColor(
+                                      isDarkMode,
+                                    ),
+                                    opacity: 0.14,
+                                    // The dock intentionally uses the opposite of
+                                    // the global toggle: on = glass blur, off = flat.
+                                    reduceEffects:
+                                        !settingsProvider.reduceEffectsEnabled,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppDimens.spacingXs,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.28,
                                         ),
-                                        itemAnimationProperties:
-                                            const ItemAnimation(
-                                              duration: Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              curve: Curves.easeInOut,
+                                        blurRadius: 24,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
+                                    child: MediaQuery(
+                                      data: mq.copyWith(
+                                        textScaler: TextScaler.linear(
+                                          navTextCap,
+                                        ),
+                                      ),
+                                      child: MediaQuery.removePadding(
+                                        context: context,
+                                        removeBottom: true,
+                                        child: Style2BottomNavBar(
+                                          navBarConfig: navBarConfig,
+                                          navBarDecoration: NavBarDecoration(
+                                            color: Colors.transparent,
+                                            borderRadius: BorderRadius.zero,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: AppDimens.spacingSmMd,
                                             ),
+                                          ),
+                                          itemAnimationProperties:
+                                              const ItemAnimation(
+                                                duration: Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                curve: Curves.easeInOut,
+                                              ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
