@@ -2,7 +2,6 @@
 import java.io.File
 import java.util.Base64
 import java.util.Properties
-import org.gradle.api.GradleException
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -116,18 +115,24 @@ android {
 
     buildTypes {
         release {
-            // Never fall back to the debug signing key.
-            if (!releaseSigningUsable) {
-                throw GradleException(
-                    "MusiX release signing credentials are missing " +
-                        "or the keystore file does not exist. " +
-                        "Refusing to build a release without valid " +
-                        "release signing configuration."
-                )
+            if (releaseSigningUsable) {
+                signingConfig = signingConfigs.getByName("release")
             }
-
-            signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val releaseBuildRequested = allTasks.any { task ->
+        task.project == project &&
+            task.name.contains("release", ignoreCase = true)
+    }
+    if (releaseBuildRequested && !releaseSigningUsable) {
+        throw GradleException(
+            "MusiX release signing credentials are missing or the " +
+                "keystore file does not exist. Refusing to build a " +
+                "release without valid release signing configuration."
+        )
     }
 }
 
