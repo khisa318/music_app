@@ -33,6 +33,7 @@ import 'core/providers/video_info_provider.dart';
 
 import 'core/services/crash_log_service.dart';
 import 'core/services/download_notification_service.dart';
+import 'core/services/telegram_broadcast_service.dart';
 import 'core/services/intent_service.dart';
 
 import 'core/theme/app_theme.dart';
@@ -289,6 +290,15 @@ Future<void> main() async {
         } catch (e, st) {
           talker.handle(e, st, 'Download notifications initialization failed');
         }
+      }
+
+      try {
+        final telegramBroadcast = TelegramBroadcastService();
+        GetIt.I.registerSingleton<TelegramBroadcastService>(telegramBroadcast);
+        // ignore: discarded_futures
+        telegramBroadcast.start();
+      } catch (e, st) {
+        talker.handle(e, st, 'Telegram broadcast initialization failed');
       }
 
       // ------------------------------------------------------------

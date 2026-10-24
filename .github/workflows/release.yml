@@ -156,6 +156,25 @@ jobs:
             -alias "$MUSIX_KEY_ALIAS" > /dev/null
           echo "OK: keystore is readable and the alias exists"
 
+      - name: Check Telegram secrets are configured
+        shell: bash
+        env:
+          TELEGRAM_CRASH_BOT_TOKEN: ${{ secrets.TELEGRAM_CRASH_BOT_TOKEN }}
+          TELEGRAM_CRASH_CHAT_ID: ${{ secrets.TELEGRAM_CRASH_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret in TELEGRAM_CRASH_BOT_TOKEN TELEGRAM_CRASH_CHAT_ID; do
+            if [ -z "${!secret:-}" ]; then
+              missing+=("$secret")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing GitHub Secret(s): ${missing[*]}"
+            echo "Add both secrets to enable Telegram crash reports and message notifications."
+            exit 1
+          fi
+
       - name: flutter pub get
         run: flutter pub get
 

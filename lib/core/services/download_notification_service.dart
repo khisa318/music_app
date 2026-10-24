@@ -96,16 +96,17 @@ class DownloadNotificationService {
     }
 
     try {
-      final status = await Permission.notification.status
-          .timeout(const Duration(seconds: 5));
+      final status = await Permission.notification.status.timeout(
+        const Duration(seconds: 5),
+      );
 
       if (!status.isDenied) {
         return status.isGranted;
       }
 
-      final result = await Permission.notification
-          .request()
-          .timeout(const Duration(seconds: 30));
+      final result = await Permission.notification.request().timeout(
+        const Duration(seconds: 30),
+      );
 
       return result.isGranted;
     } catch (_) {
@@ -443,6 +444,60 @@ class DownloadNotificationService {
         notificationDetails: details,
       );
     } catch (_) {}
+  }
+
+  Future<bool> showTelegramMessage({
+    required String title,
+    required String body,
+  }) async {
+    if (!await _canPostNotifications()) {
+      return false;
+    }
+
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          _completeChannelId,
+          _completeChannelName,
+          channelDescription: _completeChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          ongoing: false,
+          autoCancel: true,
+          showWhen: true,
+          channelShowBadge: true,
+          enableVibration: true,
+          playSound: true,
+          icon: '@mipmap/ic_launcher',
+        );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const LinuxNotificationDetails linuxDetails = LinuxNotificationDetails();
+    const WindowsNotificationDetails windowsDetails =
+        WindowsNotificationDetails();
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      linux: linuxDetails,
+      windows: windowsDetails,
+    );
+
+    try {
+      await _notifications.show(
+        id: 9003,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> cancelNotification(int notificationId) async {
