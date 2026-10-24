@@ -173,8 +173,8 @@ int _checkTagFilters(String name, Object? triggers) {
 /// build step had the same gap, which is worse: without them the APK is signed
 /// with the Android debug key and still builds.
 int _checkSecretWiring(String name, YamlMap jobs) {
-  // The same shape the workflows use: MUSIX_FOO in a script, $MUSIX_FOO read.
-  final pattern = RegExp(r'\$(?:\{)?(MUSIX_[A-Z0-9_]+)');
+  // The same shape the workflows use: named secrets in a script, e.g. $MUSIX_FOO.
+  final pattern = RegExp(r'\$(?:\{)?((?:MUSIX|TELEGRAM)_[A-Z0-9_]+)');
 
   var failures = 0;
 

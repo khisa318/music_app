@@ -18,12 +18,15 @@ class TelegramCrashReporter {
   final String Function() logHeader;
   final http.Client _client;
 
-  static const String _botToken = String.fromEnvironment(
+  static const String _botTokenEnv = String.fromEnvironment(
     'TELEGRAM_CRASH_BOT_TOKEN',
   );
-  static const String _chatId = String.fromEnvironment(
+  static const String _chatIdEnv = String.fromEnvironment(
     'TELEGRAM_CRASH_CHAT_ID',
   );
+
+  static const String _botTokenPrefsKey = 'telegram_crash_bot_token';
+  static const String _chatIdPrefsKey = 'telegram_crash_chat_id';
 
   static const int maxReportsPerFingerprint = 2;
   static const int _maxReportsPerHour = 12;
@@ -33,10 +36,48 @@ class TelegramCrashReporter {
 
   final Set<String> _inFlight = {};
 
-  bool get isConfigured => _botToken.isNotEmpty && _chatId.isNotEmpty;
+  Future<String> _getBotToken() async {
+    if (_botTokenEnv.isNotEmpty) return _botTokenEnv;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_botTokenPrefsKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    return '';
+  }
+
+  Future<String> _getChatId() async {
+    if (_chatIdEnv.isNotEmpty) return _chatIdEnv;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_chatIdPrefsKey);
+    if (saved != null && saved.isNotEmpty) return saved;
+    return '';
+  }
+
+  Future<bool> get isConfigured async {
+    final token = await _getBotToken();
+    final chatId = await _getChatId();
+    return token.isNotEmpty && chatId.isNotEmpty;
+  }
+
+  static Future<void> saveCredentials({
+    required String botToken,
+    required String chatId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_botTokenPrefsKey, botToken.trim());
+    await prefs.setString(_chatIdPrefsKey, chatId.trim());
+  }
+
+  static Future<Map<String, String>> getCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_botTokenPrefsKey) ?? '';
+    final chatId = prefs.getString(_chatIdPrefsKey) ?? '';
+    return {'botToken': token, 'chatId': chatId};
+  }
 
   Future<bool> report(Object error, StackTrace stack, {String? context}) async {
-    if (!isConfigured) return false;
+    final token = await _getBotToken();
+    final chatId = await _getChatId();
+    if (token.isEmpty || chatId.isEmpty) return false;
 
     final fingerprint = _fingerprint(error, stack);
     if (_inFlight.contains(fingerprint)) return false;
@@ -52,6 +93,8 @@ class TelegramCrashReporter {
       if (!_isWithinHourlyBudget(prefs)) return false;
 
       final delivered = await _send(
+        token,
+        chatId,
         _buildMessage(error, stack, context: context, occurrence: sent + 1),
       );
 
@@ -166,13 +209,13 @@ class TelegramCrashReporter {
         .replaceAll('>', '&gt;');
   }
 
-  Future<bool> _send(String text) async {
+  Future<bool> _send(String token, String chatId, String text) async {
     try {
       final response = await _client
           .post(
-            Uri.parse('https://api.telegram.org/bot$_botToken/sendMessage'),
+            Uri.parse('https://api.telegram.org/bot$token/sendMessage'),
             body: {
-              'chat_id': _chatId,
+              'chat_id': chatId,
               'text': text,
               'parse_mode': 'HTML',
               'disable_web_page_preview': 'true',

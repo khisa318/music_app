@@ -309,6 +309,25 @@ Both halves must increase. Merging a `version:` bump to `main` triggers `.github
 
 The keystore lives outside the repository. For local builds, copy `android/key.properties.template` to `android/key.properties` and fill in the values (it is gitignored). For CI, four repository secrets carry the same values: `MUSIX_KEYSTORE_BASE64`, `MUSIX_KEYSTORE_PASSWORD`, `MUSIX_KEY_ALIAS`, `MUSIX_KEY_PASSWORD`.
 
+### Telegram crash reports and messages
+
+The release workflow also requires `TELEGRAM_CRASH_BOT_TOKEN` and
+`TELEGRAM_CRASH_CHAT_ID` GitHub Actions secrets. It uses them to send crash
+reports to the configured chat and to show messages from that chat as app
+notifications. Start a conversation with the bot first so Telegram can deliver
+its messages to the chat.
+
+Message notifications are currently polled by the running app, not pushed to
+all installations. A single active installation can receive them; a closed app
+will not poll until it is opened again, and Telegram retains pending bot
+updates for up to 24 hours. This setup does not provide reliable broadcasts to
+every installation.
+
+The bot token is included in the distributed app so the app can call Telegram
+directly. GitHub Actions secrets protect it from the repository, but do not
+keep it secret from someone who downloads and inspects the APK. Use a dedicated
+bot and rotate the token if it is exposed.
+
 ## 🙌 Credits
 
 This project stands on the work of many open-source maintainers and contributors. The full dependency list is in `pubspec.yaml`; the core packages that make MusiX possible include:
