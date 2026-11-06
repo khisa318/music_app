@@ -19,6 +19,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
+import '../../../podcasts/presentation/screens/podcasts_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../../stats/presentation/screens/stats_screen.dart';
 import '../../../trending/presentation/screens/trending_screen.dart';
@@ -42,6 +43,7 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const SearchScreen(),
+    const PodcastsScreen(),
     const TrendingScreen(),
     const PlaylistScreen(),
     const LibraryScreen(),
@@ -254,57 +256,65 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
                               ),
                               _buildNavItem(
                                 index: 2,
-                                icon: Icons.trending_up,
-                                label: 'trending'.tr(),
+                                icon: Icons.podcasts,
+                                label: 'podcasts'.tr(),
                                 isSelected: _currentIndex == 2,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 3,
-                                icon: Icons.playlist_play,
-                                label: 'playlists'.tr(),
+                                icon: Icons.trending_up,
+                                label: 'trending'.tr(),
                                 isSelected: _currentIndex == 3,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 4,
-                                icon: Icons.library_music_outlined,
-                                label: 'library'.tr(),
+                                icon: Icons.playlist_play,
+                                label: 'playlists'.tr(),
                                 isSelected: _currentIndex == 4,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 5,
-                                icon: Icons.person_outline,
-                                label: 'artists'.tr(),
+                                icon: Icons.library_music_outlined,
+                                label: 'library'.tr(),
                                 isSelected: _currentIndex == 5,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 6,
-                                icon: Icons.settings,
-                                label: 'settings'.tr(),
+                                icon: Icons.person_outline,
+                                label: 'artists'.tr(),
                                 isSelected: _currentIndex == 6,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 7,
-                                icon: Icons.download_done_sharp,
-                                label: 'downloads'.tr(),
+                                icon: Icons.settings,
+                                label: 'settings'.tr(),
                                 isSelected: _currentIndex == 7,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),
                               _buildNavItem(
                                 index: 8,
+                                icon: Icons.download_done_sharp,
+                                label: 'downloads'.tr(),
+                                isSelected: _currentIndex == 8,
+                                settingsProvider: settingsProvider,
+                                isDarkMode: isDarkMode,
+                              ),
+                              _buildNavItem(
+                                index: 9,
                                 icon: Icons.show_chart,
                                 label: 'stats'.tr(),
-                                isSelected: _currentIndex == 8,
+                                isSelected: _currentIndex == 9,
                                 settingsProvider: settingsProvider,
                                 isDarkMode: isDarkMode,
                               ),

@@ -35,15 +35,18 @@ import 'core/services/crash_log_service.dart';
 import 'core/services/download_notification_service.dart';
 import 'core/services/telegram_broadcast_service.dart';
 import 'core/services/intent_service.dart';
+import 'core/services/related_song_service.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/widgets/animated_app_background.dart';
 
 import 'features/home/data/providers/home_screen_provider.dart';
 import 'features/home/data/providers/covers_and_remixes_provider.dart';
+import 'features/home/data/providers/personalized_recommendation_provider.dart';
 import 'features/library/data/providers/library_provider.dart';
 import 'features/ota/data/providers/ota_provider.dart';
 import 'features/playlists/data/providers/playlist_album_library_provider.dart';
+import 'features/podcasts/data/providers/podcast_provider.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
 import 'features/trending/data/provider/trending_provider.dart';
 
@@ -133,6 +136,8 @@ Future<void> main() async {
         'playback_stats',
         'recent_playlists',
         'covers_and_remixes_cache',
+        'podcasts_cache',
+        'podcast_library',
       ];
 
       await Hive.openBox<dynamic>('app_settings');
@@ -265,6 +270,14 @@ Future<void> main() async {
       GetIt.I.registerSingleton<VideoInfoProvider>(videoInfoProvider);
 
       // ------------------------------------------------------------
+      // RELATED SONG SERVICE
+      // ------------------------------------------------------------
+
+      final relatedSongService = RelatedSongService();
+
+      GetIt.I.registerSingleton<RelatedSongService>(relatedSongService);
+
+      // ------------------------------------------------------------
       // EASY LOCALIZATION
       // ------------------------------------------------------------
 
@@ -379,6 +392,20 @@ Future<void> main() async {
               ChangeNotifierProvider(create: (_) => TrendingProvider()),
 
               // --------------------------------------------------
+              // PERSONALIZED RECOMMENDATIONS
+              // --------------------------------------------------
+              ChangeNotifierProvider(
+                lazy: false,
+                create: (context) => PersonalizedRecommendationProvider(
+                  statsProvider: Provider.of<StatsProvider>(context, listen: false),
+                  playerProvider: Provider.of<PlayerProvider>(context, listen: false),
+                  relatedSongService: GetIt.I<RelatedSongService>(),
+                  homeScreenProvider: Provider.of<HomeScreenProvider>(context, listen: false),
+                  trendingProvider: Provider.of<TrendingProvider>(context, listen: false),
+                ),
+              ),
+
+              // --------------------------------------------------
               // QUEUE
               // --------------------------------------------------
               ChangeNotifierProvider.value(value: queueProvider),
@@ -409,6 +436,18 @@ Future<void> main() async {
                   Provider.of<StatsProvider>(context, listen: false),
                   Provider.of<FavoriteSongProvider>(context, listen: false),
                 ),
+              ),
+
+              // --------------------------------------------------
+              // PODCASTS
+              // --------------------------------------------------
+              ChangeNotifierProxyProvider<PlayerProvider, PodcastProvider>(
+                lazy: false,
+                create: (_) => PodcastProvider()..initialize(),
+                update: (_, player, podcast) {
+                  podcast!.attachPlayer(player);
+                  return podcast;
+                },
               ),
 
               // --------------------------------------------------

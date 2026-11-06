@@ -696,6 +696,78 @@ class HomeScreenQueueService {
   }
 
   // ============================================================
+  // PLAY SINGLE SONG (from SongInfo)
+  // ============================================================
+
+  Future<void> playSong(SongInfo song, String playlistId) async {
+    final playerProvider = Provider.of<PlayerProvider>(context, listen: false);
+
+    final queueProvider = Provider.of<QueueProvider>(context, listen: false);
+
+    try {
+      debugPrint('');
+      debugPrint('====================================================');
+      debugPrint('▶ PERSONALIZED PLAY REQUEST');
+      debugPrint('▶ Song: ${song.name}');
+      debugPrint('▶ Video ID: ${song.videoId}');
+
+      // Play the song immediately
+      await playerProvider.playerService.playSong(song);
+
+      debugPrint('√ Player playSong() completed');
+
+      // Create initial queue with just the clicked song
+      queueProvider.setQueue(
+        [song],
+        currentIndex: 0,
+        playlistId: playlistId,
+        playlistName: 'Personalized',
+      );
+
+      await queueProvider.saveQueue();
+
+      debugPrint('√ Initial personalized queue created');
+
+      // Find related songs in background
+      final List<SongInfo> relatedSongs = await _tryRelatedFourTimes(
+        seedSong: song,
+        videoId: song.videoId,
+      );
+
+      if (relatedSongs.isNotEmpty) {
+        // Build full queue: clicked song + related
+        final List<SongInfo> finalQueue = _buildQueue(
+          clickedSong: song,
+          seedSong: null,
+          relatedSongs: relatedSongs,
+        );
+
+        queueProvider.setQueue(
+          finalQueue,
+          currentIndex: 0,
+          playlistId: playlistId,
+          playlistName: 'Personalized',
+        );
+
+        await queueProvider.saveQueue();
+
+        debugPrint('√ Personalized queue updated with ${finalQueue.length} songs');
+      } else {
+        debugPrint('⚠ No related songs found, keeping single song queue');
+      }
+
+      debugPrint('√ PERSONALIZED PLAY REQUEST FINISHED');
+      debugPrint('====================================================');
+      debugPrint('');
+    } catch (e, stackTrace) {
+      debugPrint('❌ PERSONALIZED PLAY REQUEST FAILED');
+      debugPrint('❌ $e');
+      debugPrint('$stackTrace');
+      throw Exception('Error playing song: ${e.toString()}');
+    }
+  }
+
+  // ============================================================
   // PLAY ALL
   // ============================================================
 

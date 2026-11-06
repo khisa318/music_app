@@ -7,12 +7,24 @@ class SongInfo {
   final List<Thumbnail> thumbnails;
   final Duration duration;
 
+  /// Direct, already-resolved audio stream. Podcast episodes carry their RSS
+  /// enclosure URL here so [PlayerService] can open it without going through
+  /// the YouTube/JioSaavn resolvers. Music leaves this null.
+  final String? audioUrl;
+
+  /// Whether this row belongs to the Podcasts feature. Podcast entries are kept
+  /// out of music history/video-detail lookups but share the same player and
+  /// background audio service as music.
+  final bool isPodcast;
+
   SongInfo({
     required this.videoId,
     required this.name,
     required this.artists,
     required this.thumbnails,
     required this.duration,
+    this.audioUrl,
+    this.isPodcast = false,
   });
 
   /// Rebuilds a song from a play-history row.
@@ -60,6 +72,10 @@ class SongInfo {
         ),
       ],
       duration: Duration(seconds: _toSeconds(song['duration'])),
+      audioUrl: (song['audioUrl'] as String?)?.trim().isEmpty == true
+          ? null
+          : song['audioUrl']?.toString(),
+      isPodcast: song['isPodcast'] == true,
     );
   }
 

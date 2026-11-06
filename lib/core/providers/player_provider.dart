@@ -202,9 +202,16 @@ class PlayerProvider extends ChangeNotifier {
 
         _currentSong = queueCurrentSong;
         _lastPlayedSong = queueCurrentSong;
-        _favoriteSongProvider.setCurrentSong(queueCurrentSong);
+        if (!queueCurrentSong.isPodcast) {
+          _favoriteSongProvider.setCurrentSong(queueCurrentSong);
+        }
 
         if (_currentLocalSong == null) {
+          if (queueCurrentSong.isPodcast) {
+            _currentVideoDetails = null;
+            notifyListeners();
+            return;
+          }
           final songData = {
             'id': queueCurrentSong.videoId,
             'title': queueCurrentSong.name,
@@ -245,11 +252,15 @@ class PlayerProvider extends ChangeNotifier {
       artists: cleanedArtists,
       thumbnails: song.thumbnails,
       duration: song.duration,
+      audioUrl: song.audioUrl,
+      isPodcast: song.isPodcast,
     );
 
     _currentSong = cleanedSong;
     _lastPlayedSong = cleanedSong;
-    _favoriteSongProvider.setCurrentSong(cleanedSong);
+    if (!cleanedSong.isPodcast) {
+      _favoriteSongProvider.setCurrentSong(cleanedSong);
+    }
     _currentLocalSong = null;
 
     int songIndex = _queueProvider.queue.indexWhere(
@@ -279,10 +290,15 @@ class PlayerProvider extends ChangeNotifier {
 
     _updateLastPlayed(songData, notify: false);
     notifyListeners();
-    _fetchAndSetVideoDetails(cleanedSong.videoId);
+    if (!cleanedSong.isPodcast) {
+      _fetchAndSetVideoDetails(cleanedSong.videoId);
+    } else {
+      _currentVideoDetails = null;
+    }
   }
 
   Future<void> _fetchAndSetVideoDetails(String videoId) async {
+    if (_currentSong?.isPodcast == true) return;
     try {
       final videoInfo = await _videoInfoProvider.getVideoInfo(videoId);
       _currentVideoDetails = videoInfo;
@@ -498,6 +514,7 @@ class PlayerProvider extends ChangeNotifier {
                 m.isNotEmpty &&
                 m['id'] != null &&
                 m['title'] != null &&
+                m['isPodcast'] != true &&
                 !RegExp(r'^[0-9]+$').hasMatch(m['id'].toString()),
           )
           .toList();

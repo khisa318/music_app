@@ -22,6 +22,7 @@ import '../../../ota/data/providers/ota_provider.dart';
 import '../../../ota/presentation/widgets/ota_dialog.dart';
 import '../../../ota/presentation/widgets/ota_install_dialog.dart';
 import '../../../player/presentation/screens/player_ui.dart';
+import '../../../podcasts/presentation/screens/podcasts_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 
@@ -40,7 +41,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
     initialIndex: 0,
   );
   final List<GlobalKey<NavigatorState>> _tabNavKeys = List.generate(
-    4,
+    5,
     (_) => GlobalKey<NavigatorState>(),
   );
 
@@ -156,7 +157,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   // NAVIGATION
   // ---------------------------------------------------------------------------
 
-  static const int _profileTabIndex = 3;
+  static const int _profileTabIndex = 4;
 
   void _goToProfile() {
     if (_controller.index != _profileTabIndex) {
@@ -308,11 +309,40 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                       ),
 
                       // ----------------------------------------------------------------
-                      // LIBRARY (playlists + songs)
+                      // PODCASTS
                       // ----------------------------------------------------------------
                       PersistentTabConfig(
                         navigatorConfig: NavigatorConfig(
                           navigatorKey: _tabNavKeys[2],
+                        ),
+                        screen: const _TabWrapper(
+                          key: ValueKey('podcasts_tab'),
+                          titleKey: 'podcasts',
+                          isHome: false,
+                          showAppBar: false,
+                          child: PodcastsScreen(),
+                        ),
+                        item: ItemConfig(
+                          icon: Icon(
+                            Icons.podcasts_rounded,
+                            size: navIconSize,
+                          ),
+                          title: 'podcasts'.tr(),
+                          activeForegroundColor: accentColor,
+                          inactiveForegroundColor:
+                              theme.textTheme.bodyLarge?.color?.withValues(
+                                alpha: 0.6,
+                              ) ??
+                              Colors.grey,
+                        ),
+                      ),
+
+                      // ----------------------------------------------------------------
+                      // LIBRARY (playlists + songs)
+                      // ----------------------------------------------------------------
+                      PersistentTabConfig(
+                        navigatorConfig: NavigatorConfig(
+                          navigatorKey: _tabNavKeys[3],
                         ),
                         screen: const _TabWrapper(
                           key: ValueKey('library_tab'),
@@ -341,7 +371,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                       // ----------------------------------------------------------------
                       PersistentTabConfig(
                         navigatorConfig: NavigatorConfig(
-                          navigatorKey: _tabNavKeys[3],
+                          navigatorKey: _tabNavKeys[4],
                         ),
                         screen: const _TabWrapper(
                           key: ValueKey('profile_tab'),

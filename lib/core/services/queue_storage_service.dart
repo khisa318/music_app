@@ -16,6 +16,8 @@ class QueueStorage {
           .map((t) => {'url': t.url, 'width': t.width, 'height': t.height})
           .toList(),
       'duration': song.duration.inMilliseconds,
+      'audioUrl': song.audioUrl,
+      'isPodcast': song.isPodcast,
     };
   }
 
@@ -35,7 +37,9 @@ class QueueStorage {
             ),
           )
           .toList(),
-      duration: Duration(milliseconds: map['duration']),
+      duration: Duration(milliseconds: map['duration'] ?? 0),
+      audioUrl: map['audioUrl'] as String?,
+      isPodcast: map['isPodcast'] == true,
     );
   }
 

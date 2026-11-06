@@ -4,6 +4,7 @@
 
 import 'package:hive_ce/hive_ce.dart';
 import 'package:music_app/features/home/data/providers/home_screen_provider.dart';
+import 'package:music_app/features/home/data/providers/personalized_recommendation_provider.dart';
 import 'package:music_app/features/trending/data/provider/trending_provider.dart';
 
 extension HiveRegistrar on HiveInterface {
@@ -18,6 +19,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(SongInfoDTOAdapter());
     registerAdapter(ThumbnailDTOAdapter());
     registerAdapter(ThumbnailFullDTOAdapter());
+    registerAdapter(UserPreferenceProfileAdapter());
   }
 }
 
@@ -33,5 +35,6 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(SongInfoDTOAdapter());
     registerAdapter(ThumbnailDTOAdapter());
     registerAdapter(ThumbnailFullDTOAdapter());
+    registerAdapter(UserPreferenceProfileAdapter());
   }
 }

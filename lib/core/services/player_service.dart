@@ -455,6 +455,10 @@ class PlayerService {
 
     if (song == null || playerProvider.currentLocalSong != null) return;
 
+    // Podcast progress is owned by PodcastProvider (per-episode), not the
+    // single-slot music resume position.
+    if (song.isPodcast) return;
+
     if (_position <= Duration.zero) return;
 
     await QueueStorage.savePosition(
@@ -626,45 +630,57 @@ class PlayerService {
     try {
       final settingsProvider = GetIt.I<SettingsProvider>();
 
-      final isTempCacheEnabled = settingsProvider.audioCacheEnabled;
+      final isTempCacheEnabled =
+          settingsProvider.audioCacheEnabled && !song.isPodcast;
 
-      final downloadedPath = await downloadProvider.getDownloadedSongPath(
-        song.videoId,
-      );
+      final directUrl = song.audioUrl?.trim();
 
-      if (downloadedPath != null) {
-        await _mediaKitAdapter.openPath(downloadedPath, play: playWhenReady);
+      if (directUrl != null && directUrl.isNotEmpty) {
+        // Podcasts already carry a playable RSS enclosure URL, so skip the
+        // YouTube/JioSaavn resolver and open the stream directly.
+        await _mediaKitAdapter.openUri(directUrl, play: playWhenReady);
       } else {
-        final cachedFile = isTempCacheEnabled
-            ? await _tempAudioCacheService.getCachedFile(song)
-            : null;
+        final downloadedPath = await downloadProvider.getDownloadedSongPath(
+          song.videoId,
+        );
 
-        if (cachedFile != null) {
-          await _mediaKitAdapter.openPath(cachedFile.path, play: playWhenReady);
+        if (downloadedPath != null) {
+          await _mediaKitAdapter.openPath(downloadedPath, play: playWhenReady);
         } else {
-          final audioData = await _audioUrlService.getAudioUrl(
-            song,
-            forceRefresh: forceRefresh,
-            onError: _handleStreamFetchError,
-          );
+          final cachedFile = isTempCacheEnabled
+              ? await _tempAudioCacheService.getCachedFile(song)
+              : null;
 
-          final audioUrl = audioData?['url'] as String?;
+          if (cachedFile != null) {
+            await _mediaKitAdapter.openPath(
+              cachedFile.path,
+              play: playWhenReady,
+            );
+          } else {
+            final audioData = await _audioUrlService.getAudioUrl(
+              song,
+              forceRefresh: forceRefresh,
+              onError: _handleStreamFetchError,
+            );
 
-          if (audioUrl == null) {
-            throw Exception('Failed to get audio URL');
-          }
+            final audioUrl = audioData?['url'] as String?;
 
-          await _mediaKitAdapter.openUri(audioUrl, play: playWhenReady);
+            if (audioUrl == null) {
+              throw Exception('Failed to get audio URL');
+            }
 
-          if (isTempCacheEnabled) {
-            unawaited(() async {
-              try {
-                await _tempAudioCacheService
-                    .downloadAndCacheFile(audioUrl, song);
-              } catch (e) {
-                debugPrint('Failed to cache song in background: $e');
-              }
-            }());
+            await _mediaKitAdapter.openUri(audioUrl, play: playWhenReady);
+
+            if (isTempCacheEnabled) {
+              unawaited(() async {
+                try {
+                  await _tempAudioCacheService
+                      .downloadAndCacheFile(audioUrl, song);
+                } catch (e) {
+                  debugPrint('Failed to cache song in background: $e');
+                }
+              }());
+            }
           }
         }
       }
@@ -748,21 +764,28 @@ class PlayerService {
 
           await _openSong(song, playWhenReady: true);
 
-          _currentStatsSongId = song.videoId;
+          if (!song.isPodcast) {
+            _currentStatsSongId = song.videoId;
 
-          _currentStatsSongTitle = song.name;
+            _currentStatsSongTitle = song.name;
 
-          _currentStatsSongArtist = song.artists.map((a) => a.name).join(', ');
+            _currentStatsSongArtist = song.artists.map((a) => a.name).join(', ');
 
-          _currentStatsSessionStartPosition =
-              (await getCurrentPosition()).inSeconds;
+            _currentStatsSessionStartPosition =
+                (await getCurrentPosition()).inSeconds;
 
-          statsProvider.recordPlayStart(
-            _currentStatsSongId!,
-            _currentStatsSongTitle!,
-            _currentStatsSongArtist!,
-            _currentStatsSessionStartPosition!,
-          );
+            statsProvider.recordPlayStart(
+              _currentStatsSongId!,
+              _currentStatsSongTitle!,
+              _currentStatsSongArtist!,
+              _currentStatsSessionStartPosition!,
+            );
+          } else {
+            _currentStatsSongId = null;
+            _currentStatsSongTitle = null;
+            _currentStatsSongArtist = null;
+            _currentStatsSessionStartPosition = null;
+          }
 
           isExplicitlySettingSong = false;
 
@@ -1244,7 +1267,9 @@ class PlayerService {
 
     final currentSong = playerProvider.currentSong;
 
-    if (currentSong != null && playerProvider.currentLocalSong == null) {
+    if (currentSong != null &&
+        !currentSong.isPodcast &&
+        playerProvider.currentLocalSong == null) {
       _currentStatsSongId = currentSong.videoId;
 
       _currentStatsSongTitle = currentSong.name;
@@ -1517,22 +1542,29 @@ class PlayerService {
 
             _emitState();
 
-            _currentStatsSongId = nextSong.videoId;
+            if (!nextSong.isPodcast) {
+              _currentStatsSongId = nextSong.videoId;
 
-            _currentStatsSongTitle = nextSong.name;
+              _currentStatsSongTitle = nextSong.name;
 
-            _currentStatsSongArtist = nextSong.artists
-                .map((a) => a.name)
-                .join(', ');
+              _currentStatsSongArtist = nextSong.artists
+                  .map((a) => a.name)
+                  .join(', ');
 
-            _currentStatsSessionStartPosition = 0;
+              _currentStatsSessionStartPosition = 0;
 
-            statsProvider.recordPlayStart(
-              _currentStatsSongId!,
-              _currentStatsSongTitle!,
-              _currentStatsSongArtist!,
-              0,
-            );
+              statsProvider.recordPlayStart(
+                _currentStatsSongId!,
+                _currentStatsSongTitle!,
+                _currentStatsSongArtist!,
+                0,
+              );
+            } else {
+              _currentStatsSongId = null;
+              _currentStatsSongTitle = null;
+              _currentStatsSongArtist = null;
+              _currentStatsSessionStartPosition = null;
+            }
 
             updateBackgroundColor(
               nextSong.thumbnails.isNotEmpty
@@ -1737,22 +1769,29 @@ class PlayerService {
 
       _emitState();
 
-      _currentStatsSongId = nextSong.videoId;
+      if (!nextSong.isPodcast) {
+        _currentStatsSongId = nextSong.videoId;
 
-      _currentStatsSongTitle = nextSong.name;
+        _currentStatsSongTitle = nextSong.name;
 
-      _currentStatsSongArtist = nextSong.artists
-          .map((a) => a.name)
-          .join(', ');
+        _currentStatsSongArtist = nextSong.artists
+            .map((a) => a.name)
+            .join(', ');
 
-      _currentStatsSessionStartPosition = 0;
+        _currentStatsSessionStartPosition = 0;
 
-      statsProvider.recordPlayStart(
-        _currentStatsSongId!,
-        _currentStatsSongTitle!,
-        _currentStatsSongArtist!,
-        0,
-      );
+        statsProvider.recordPlayStart(
+          _currentStatsSongId!,
+          _currentStatsSongTitle!,
+          _currentStatsSongArtist!,
+          0,
+        );
+      } else {
+        _currentStatsSongId = null;
+        _currentStatsSongTitle = null;
+        _currentStatsSongArtist = null;
+        _currentStatsSessionStartPosition = null;
+      }
 
       updateBackgroundColor(
         nextSong.thumbnails.isNotEmpty ? nextSong.thumbnails.first.url : null,
@@ -1785,54 +1824,61 @@ class PlayerService {
 
       final settingsProvider = GetIt.I<SettingsProvider>();
 
-      final isTempCacheEnabled = settingsProvider.audioCacheEnabled;
+      final isTempCacheEnabled =
+          settingsProvider.audioCacheEnabled && !song.isPodcast;
 
-      final downloadedPath = await downloadProvider.getDownloadedSongPath(
-        song.videoId,
-      );
+      final directUrl = song.audioUrl?.trim();
 
-      if (downloadedPath != null) {
-        await _mediaKitAdapter.prebufferPath(downloadedPath, volume: _volume);
+      if (directUrl != null && directUrl.isNotEmpty) {
+        await _mediaKitAdapter.prebufferUri(directUrl, volume: _volume);
       } else {
-        final cachedFile = isTempCacheEnabled
-            ? await _tempAudioCacheService.getCachedFile(song)
-            : null;
+        final downloadedPath = await downloadProvider.getDownloadedSongPath(
+          song.videoId,
+        );
 
-        if (cachedFile != null) {
-          await _mediaKitAdapter.prebufferPath(
-            cachedFile.path,
-            volume: _volume,
-          );
+        if (downloadedPath != null) {
+          await _mediaKitAdapter.prebufferPath(downloadedPath, volume: _volume);
         } else {
-          final audioData = await _audioUrlService.getAudioUrl(
-            song,
-            isPreloading: true,
-          );
+          final cachedFile = isTempCacheEnabled
+              ? await _tempAudioCacheService.getCachedFile(song)
+              : null;
 
-          final audioUrl = audioData?['url'] as String?;
-
-          if (audioUrl == null) {
-            debugPrint(
-              '[Prebuffer] Could not resolve URL for '
-              '${song.name}',
+          if (cachedFile != null) {
+            await _mediaKitAdapter.prebufferPath(
+              cachedFile.path,
+              volume: _volume,
+            );
+          } else {
+            final audioData = await _audioUrlService.getAudioUrl(
+              song,
+              isPreloading: true,
             );
 
-            _prebufferedSong = null;
+            final audioUrl = audioData?['url'] as String?;
 
-            return;
-          }
+            if (audioUrl == null) {
+              debugPrint(
+                '[Prebuffer] Could not resolve URL for '
+                '${song.name}',
+              );
 
-          await _mediaKitAdapter.prebufferUri(audioUrl, volume: _volume);
+              _prebufferedSong = null;
 
-          if (isTempCacheEnabled) {
-            unawaited(() async {
-              try {
-                await _tempAudioCacheService
-                    .downloadAndCacheFile(audioUrl, song);
-              } catch (_) {
-                // Background caching is best-effort.
-              }
-            }());
+              return;
+            }
+
+            await _mediaKitAdapter.prebufferUri(audioUrl, volume: _volume);
+
+            if (isTempCacheEnabled) {
+              unawaited(() async {
+                try {
+                  await _tempAudioCacheService
+                      .downloadAndCacheFile(audioUrl, song);
+                } catch (_) {
+                  // Background caching is best-effort.
+                }
+              }());
+            }
           }
         }
       }

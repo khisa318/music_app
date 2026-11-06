@@ -708,6 +708,12 @@ class StatsProvider with ChangeNotifier {
   int getSongsPlayedForMonths(int months) =>
       getSongsPlayedForDates(_dateKeysForMonths(months));
 
+  /// Public getter for song stats map (read-only)
+  Map<String, SongStats> get songStats => Map.unmodifiable(_songStats);
+
+  /// Public getter for artist playback time map (read-only)
+  Map<String, int> get artistPlaybackTime => Map.unmodifiable(_artistPlaybackTime);
+
   @override
   void dispose() {
     _periodicUpdateTimer?.cancel();

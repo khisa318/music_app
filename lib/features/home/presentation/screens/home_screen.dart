@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/favorite_artists_section.dart';
-import '../widgets/home_sections.dart';
 import '../widgets/speed_dial_section.dart';
 import '../widgets/covers_and_remixes_section.dart';
 import '../widgets/download_tracker_banner.dart';
+import '../widgets/personalized_sections.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
@@ -429,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
 
-            SliverToBoxAdapter(child: HomeSections()),
+            SliverToBoxAdapter(child: PersonalizedSections()),
           ] else if (_selectedIndex == 1) ...[
             ..._buildTrendingSlivers(context),
           ] else if (_selectedIndex == 2) ...[
