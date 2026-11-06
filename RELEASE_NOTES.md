@@ -1,13 +1,14 @@
-# 1.1.0
+# 1.2.0
 
 ## Added
 
-- Added shuffle and repeat controls to the queue menu.
-- Added Telegram crash reports to the configured bot chat.
-- Added Telegram message notifications while the app is running and polling.
+- Added a personalized adaptive home page that learns from listening history and surfaces Listen Again, Top Artist Mixes, Discovery, Trending For You and Genre Exploration sections.
+- Added podcast browsing, search, category and detail screens with an in-app podcast player.
+- Added play-count, skip and completion tracking that feeds recommendations.
+- Personalized sections fall back to the regular YouTube Music home sections for new users.
 
 ## Notes
 
-- Telegram message polling uses the bot's shared update queue, so it is not a reliable broadcast to all installations. The app needs to be running to poll for messages.
+- Listening preferences are stored locally with Hive and survive app restarts.
 - Built with Flutter.
-- Full changelog: https://github.com/khisa318/music_app/compare/v1.0.9...v1.1.0
+- Full changelog: https://github.com/khisa318/music_app/compare/v1.1.0...v1.2.0
