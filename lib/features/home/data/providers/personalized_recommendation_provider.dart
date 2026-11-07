@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -604,6 +605,48 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     return sections;
   }
 
+  /// Converts a home-feed item into a playable [SongInfo].
+  ///
+  /// A shelf mixes songs, videos, albums, playlists and artists. Only
+  /// [SongDetailed] and [VideoDetailed] expose a playable `videoId`; reading
+  /// that getter off, say, a [PlaylistDetailed] throws `NoSuchMethodError` and
+  /// used to abort the whole recommendation run. Album/playlist entries are
+  /// containers rather than tracks, so they are skipped here.
+  @visibleForTesting
+  static SongInfo? songInfoFromHomeContent(dynamic content) {
+    final String videoId;
+    final String name;
+    final ArtistBasic artist;
+    final int? duration;
+    final List<ThumbnailFull> thumbnails;
+
+    if (content is SongDetailed) {
+      videoId = content.videoId;
+      name = content.name;
+      artist = content.artist;
+      duration = content.duration;
+      thumbnails = content.thumbnails;
+    } else if (content is VideoDetailed) {
+      videoId = content.videoId;
+      name = content.name;
+      artist = content.artist;
+      duration = content.duration;
+      thumbnails = content.thumbnails;
+    } else {
+      return null;
+    }
+
+    return SongInfo(
+      videoId: videoId,
+      name: name,
+      artists: [Artist(name: artist.name, id: artist.artistId ?? '')],
+      thumbnails: thumbnails
+          .map((t) => Thumbnail(url: t.url, width: t.width, height: t.height))
+          .toList(),
+      duration: Duration(seconds: duration ?? 0),
+    );
+  }
+
   Future<PersonalizedSection> _buildDiscoverySection() async {
     final songs = <SongInfo>[];
     final seen = <String>{};
@@ -640,21 +683,12 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     if (songs.length < _maxRecommendationsPerSection) {
       for (final section in _homeScreenProvider.carouselSections) {
         for (final content in section.contents) {
-          if (content.videoId != null) {
-            final videoId = content.videoId.toString();
-            if (seen.add(videoId) &&
-                _profile.songAffinities[videoId] == null &&
-                songs.length < _maxRecommendationsPerSection) {
-              songs.add(SongInfo(
-                videoId: videoId,
-                name: content.name?.toString() ?? '',
-                artists: [Artist(name: content.artist?.name?.toString() ?? '', id: '')],
-                thumbnails: content.thumbnails != null
-                    ? content.thumbnails.map((t) => Thumbnail(url: t.url, width: t.width ?? 480, height: t.height ?? 480)).toList()
-                    : [],
-                duration: Duration(seconds: content.duration ?? 0),
-              ));
-            }
+          final song = songInfoFromHomeContent(content);
+          if (song == null) continue;
+          if (seen.add(song.videoId) &&
+              _profile.songAffinities[song.videoId] == null &&
+              songs.length < _maxRecommendationsPerSection) {
+            songs.add(song);
           }
         }
       }
@@ -708,21 +742,12 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     // Get songs from home sections that we haven't seen
     for (final section in _homeScreenProvider.carouselSections) {
       for (final content in section.contents) {
-        if (content.videoId != null) {
-          final videoId = content.videoId.toString();
-          if (seen.add(videoId) &&
-              _profile.songAffinities[videoId] == null &&
-              songs.length < _maxRecommendationsPerSection) {
-            songs.add(SongInfo(
-              videoId: videoId,
-              name: content.name?.toString() ?? '',
-              artists: [Artist(name: content.artist?.name?.toString() ?? '', id: '')],
-              thumbnails: content.thumbnails != null
-                  ? content.thumbnails.map((t) => Thumbnail(url: t.url, width: t.width ?? 480, height: t.height ?? 480)).toList()
-                  : [],
-              duration: Duration(seconds: content.duration ?? 0),
-            ));
-          }
+        final song = songInfoFromHomeContent(content);
+        if (song == null) continue;
+        if (seen.add(song.videoId) &&
+            _profile.songAffinities[song.videoId] == null &&
+            songs.length < _maxRecommendationsPerSection) {
+          songs.add(song);
         }
       }
     }
@@ -767,17 +792,8 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     // Default: YouTube Music home sections (first few)
     for (final section in _homeScreenProvider.carouselSections.take(3)) {
       final songs = section.contents
-          .whereType<dynamic>()
-          .where((c) => c.videoId != null)
-          .map((c) => SongInfo(
-                videoId: c.videoId.toString(),
-                name: c.name?.toString() ?? '',
-                artists: [Artist(name: c.artist?.name?.toString() ?? '', id: '')],
-                thumbnails: c.thumbnails != null
-                    ? c.thumbnails.map((t) => Thumbnail(url: t.url, width: t.width ?? 480, height: t.height ?? 480)).toList()
-                    : [],
-                duration: Duration(seconds: c.duration ?? 0),
-              ))
+          .map(songInfoFromHomeContent)
+          .whereType<SongInfo>()
           .take(_maxRecommendationsPerSection)
           .toList();
 
