@@ -13,6 +13,7 @@
 - Personalized home sections now generate on first launch instead of waiting for the periodic refresh.
 - Personalized sections now load correctly from the local cache.
 - Added the missing translations for the personalized home sections.
+- Fixed a recommendation error caused by home-feed shelves mixing albums and playlists in with songs.
 
 ## Notes
 
