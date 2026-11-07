@@ -14,6 +14,8 @@
 - Personalized sections now load correctly from the local cache.
 - Added the missing translations for the personalized home sections.
 - Fixed a recommendation error caused by home-feed shelves mixing albums and playlists in with songs.
+- Recommendations now refresh once the home feed and listening history finish loading, so played songs appear without waiting for the periodic refresh.
+- New users now get trending songs from the API instead of an empty recommendation area.
 
 ## Notes
 
