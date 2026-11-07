@@ -392,20 +392,6 @@ Future<void> main() async {
               ChangeNotifierProvider(create: (_) => TrendingProvider()),
 
               // --------------------------------------------------
-              // PERSONALIZED RECOMMENDATIONS
-              // --------------------------------------------------
-              ChangeNotifierProvider(
-                lazy: false,
-                create: (context) => PersonalizedRecommendationProvider(
-                  statsProvider: Provider.of<StatsProvider>(context, listen: false),
-                  playerProvider: Provider.of<PlayerProvider>(context, listen: false),
-                  relatedSongService: GetIt.I<RelatedSongService>(),
-                  homeScreenProvider: Provider.of<HomeScreenProvider>(context, listen: false),
-                  trendingProvider: Provider.of<TrendingProvider>(context, listen: false),
-                ),
-              ),
-
-              // --------------------------------------------------
               // QUEUE
               // --------------------------------------------------
               ChangeNotifierProvider.value(value: queueProvider),
@@ -435,6 +421,24 @@ Future<void> main() async {
                   GetIt.I<VideoInfoProvider>(),
                   Provider.of<StatsProvider>(context, listen: false),
                   Provider.of<FavoriteSongProvider>(context, listen: false),
+                ),
+              ),
+
+              // --------------------------------------------------
+              // PERSONALIZED RECOMMENDATIONS
+              //
+              // Must come after PlayerProvider and StatsProvider: the
+              // create callback reads them, and MultiProvider only makes
+              // earlier entries available to later ones.
+              // --------------------------------------------------
+              ChangeNotifierProvider(
+                lazy: false,
+                create: (context) => PersonalizedRecommendationProvider(
+                  statsProvider: Provider.of<StatsProvider>(context, listen: false),
+                  playerProvider: Provider.of<PlayerProvider>(context, listen: false),
+                  relatedSongService: GetIt.I<RelatedSongService>(),
+                  homeScreenProvider: Provider.of<HomeScreenProvider>(context, listen: false),
+                  trendingProvider: Provider.of<TrendingProvider>(context, listen: false),
                 ),
               ),
 

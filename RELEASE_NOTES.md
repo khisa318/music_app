@@ -7,6 +7,13 @@
 - Added play-count, skip and completion tracking that feeds recommendations.
 - Personalized sections fall back to the regular YouTube Music home sections for new users.
 
+## Fixed
+
+- Fixed a crash during startup that showed a white screen after the splash screen.
+- Personalized home sections now generate on first launch instead of waiting for the periodic refresh.
+- Personalized sections now load correctly from the local cache.
+- Added the missing translations for the personalized home sections.
+
 ## Notes
 
 - Listening preferences are stored locally with Hive and survive app restarts.

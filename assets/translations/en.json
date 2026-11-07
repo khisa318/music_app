@@ -549,5 +549,20 @@
   "podcast_category_lifestyle": "Lifestyle",
   "podcast_category_relationships": "Relationships",
   "podcast_category_true_crime": "True Crime",
-  "podcast_search_error": "Search Failed"
+  "podcast_search_error": "Search Failed",
+
+  "recommended_for_you": "Recommended for You",
+  "your_recent_plays": "Your recent plays",
+  "trending_in_kenya": "Trending in Kenya",
+  "popular_right_now": "Popular right now",
+  "discover_new": "Discover New",
+  "artists_and_songs_you_might_like": "Artists and songs you might like",
+  "trending_for_you": "Trending For You",
+  "popular_songs_matching_your_taste": "Popular songs matching your taste",
+  "explore_more": "Explore More",
+  "more_music_you_might_enjoy": "More music you might enjoy",
+  "artist_mix": "{} Mix",
+  "failed_to_load_recommendations": "Failed to load recommendations",
+  "no_recommendations_yet": "No recommendations yet",
+  "start_listening_to_get_personalized": "Start listening to get personalized recommendations"
 }

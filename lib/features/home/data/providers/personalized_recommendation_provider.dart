@@ -187,6 +187,12 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     _startPeriodicUpdate();
     _hasInitialized = true;
     notifyListeners();
+
+    // First run (or an expired cache): build the initial sections, otherwise
+    // the home page would stay empty until the periodic timer fired.
+    if (_sections.isEmpty) {
+      unawaited(updateRecommendations());
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -213,7 +219,10 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
   Future<void> _loadCachedSections() async {
     try {
-      final timestamp = _box?.get(_sectionsTimestampKey) as int?;
+      final rawTimestamp = _box?.get(_sectionsTimestampKey);
+      final timestamp = rawTimestamp == null
+          ? null
+          : int.tryParse(rawTimestamp);
       if (timestamp != null) {
         final cachedTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
         if (DateTime.now().difference(cachedTime) < _sectionsCacheDuration) {
