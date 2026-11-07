@@ -9,6 +9,7 @@ import '../widgets/download_tracker_banner.dart';
 import '../widgets/personalized_sections.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
+import '../../data/providers/personalized_recommendation_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
 import '../../../../core/models/song_model.dart';
 import '../../data/services/home_screen_queue_service.dart';
@@ -44,8 +45,13 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       listen: false,
     );
+    final recommendationsProvider =
+        Provider.of<PersonalizedRecommendationProvider>(context, listen: false);
 
-    await homeScreenProvider.refreshData();
+    await Future.wait([
+      homeScreenProvider.refreshData(),
+      recommendationsProvider.refresh(),
+    ]);
   }
 
   int _selectedIndex = 0;

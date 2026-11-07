@@ -157,7 +157,12 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   bool _hasInitialized = false;
   String? _error;
   Timer? _periodicUpdateTimer;
+  Timer? _sourceChangeDebounce;
+  bool _sourceListenersAttached = false;
+  String _lastSourceSignature = '';
   static const Duration _updateInterval = Duration(minutes: 30);
+  static const Duration _sourceChangeDebounceDuration =
+      Duration(milliseconds: 1500);
 
   PersonalizedRecommendationProvider({
     required StatsProvider statsProvider,
@@ -186,6 +191,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     await _loadProfile();
     await _loadCachedSections();
     _startPeriodicUpdate();
+    _startSourceListeners();
     _hasInitialized = true;
     notifyListeners();
 
@@ -194,6 +200,54 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     if (_sections.isEmpty) {
       unawaited(updateRecommendations());
     }
+  }
+
+  /// Rebuilds recommendations when the data they depend on changes.
+  ///
+  /// On a cold start the home feed, playback history, stats and trending lists
+  /// all load asynchronously. The first build can therefore see empty sources
+  /// and cache an empty result, which made the home page say "start listening"
+  /// even after songs had been played. These listeners retry once the sources
+  /// arrive (or whenever new songs are played).
+  void _startSourceListeners() {
+    if (_sourceListenersAttached) return;
+    _sourceListenersAttached = true;
+
+    _homeScreenProvider.addListener(_onSourceDataChanged);
+    _trendingProvider.addListener(_onSourceDataChanged);
+    _playerProvider.addListener(_onSourceDataChanged);
+    _statsProvider.addListener(_onSourceDataChanged);
+  }
+
+  /// Cheap fingerprint of the inputs used to build sections. Used to ignore
+  /// the many playback notifications that do not represent new listening data
+  /// (play/pause, position updates, …).
+  String _sourceSignature() {
+    final recentIds = _playerProvider.lastPlayedSongs
+        .take(10)
+        .map((song) => song['id']?.toString() ?? '')
+        .join('|');
+    final homeIds = _homeScreenProvider.listenAgainSongs
+        .take(5)
+        .map((song) => song.videoId)
+        .join('|');
+    return '${_statsProvider.totalSongsPlayed}:$recentIds:$homeIds';
+  }
+
+  void _onSourceDataChanged() {
+    if (!_hasInitialized || _isLoading) return;
+
+    // Keep retrying while there is nothing to show; once sections exist only
+    // rebuild when genuinely new listening data (or new home content) arrived.
+    if (_sections.isNotEmpty && _sourceSignature() == _lastSourceSignature) {
+      return;
+    }
+
+    _sourceChangeDebounce?.cancel();
+    _sourceChangeDebounce = Timer(_sourceChangeDebounceDuration, () {
+      if (!_hasInitialized || _isLoading) return;
+      unawaited(updateRecommendations());
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -397,6 +451,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       await _saveSections();
       await _saveProfile();
 
+      _lastSourceSignature = _sourceSignature();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -702,16 +757,34 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     );
   }
 
+  /// Trending tracks for the default country, fetched on demand.
+  ///
+  /// The Home tab is usually opened before the Trending tab, so its lists are
+  /// empty on a fresh install. Without this fetch the default recommendations
+  /// had nothing to fall back to and the section stayed blank.
+  Future<List<SongInfo>> _loadTrendingIfNeeded() async {
+    final countries = _trendingProvider.countries;
+    if (countries.isEmpty) return const [];
+
+    final playlist = countries.firstWhere(
+      (c) => c.name.toLowerCase().contains('kenya'),
+      orElse: () => countries.first,
+    );
+
+    var songs = _trendingProvider.getTrendingSongs(playlist.playlistId);
+    if (songs.isEmpty && !_trendingProvider.isLoading(playlist.playlistId)) {
+      await _trendingProvider.loadTrendingSongs(playlist.playlistId);
+      songs = _trendingProvider.getTrendingSongs(playlist.playlistId);
+    }
+    return songs;
+  }
+
   Future<PersonalizedSection> _buildTrendingForYouSection() async {
     final songs = <SongInfo>[];
     final seen = <String>{};
 
     // Get trending songs from Kenya (default)
-    final kenyaPlaylist = _trendingProvider.countries.firstWhere(
-      (c) => c.name.toLowerCase().contains('kenya'),
-      orElse: () => _trendingProvider.countries.first,
-    );
-    final trendingSongs = _trendingProvider.getTrendingSongs(kenyaPlaylist.playlistId);
+    final trendingSongs = await _loadTrendingIfNeeded();
 
     // Filter trending songs by artist affinity
     for (final song in trendingSongs) {
@@ -775,11 +848,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     }
 
     // Default: Trending in Kenya
-    final kenyaPlaylist = _trendingProvider.countries.firstWhere(
-      (c) => c.name.toLowerCase().contains('kenya'),
-      orElse: () => _trendingProvider.countries.first,
-    );
-    final trendingSongs = _trendingProvider.getTrendingSongs(kenyaPlaylist.playlistId);
+    final trendingSongs = await _loadTrendingIfNeeded();
     if (trendingSongs.isNotEmpty) {
       sections.add(PersonalizedSection(
         title: 'trending_in_kenya'.tr(),
@@ -812,14 +881,19 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
   /// Force refresh recommendations (pull-to-refresh)
   Future<void> refresh() async {
-    await _generateSections();
-    await _saveSections();
-    notifyListeners();
+    await updateRecommendations();
   }
 
   @override
   void dispose() {
     _periodicUpdateTimer?.cancel();
+    _sourceChangeDebounce?.cancel();
+    if (_sourceListenersAttached) {
+      _homeScreenProvider.removeListener(_onSourceDataChanged);
+      _trendingProvider.removeListener(_onSourceDataChanged);
+      _playerProvider.removeListener(_onSourceDataChanged);
+      _statsProvider.removeListener(_onSourceDataChanged);
+    }
     _box?.close();
     super.dispose();
   }
