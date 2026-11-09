@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/favorite_artists_section.dart';
-import '../widgets/speed_dial_section.dart';
+import '../widgets/home_sections.dart';
 import '../widgets/covers_and_remixes_section.dart';
 import '../widgets/download_tracker_banner.dart';
 import '../widgets/personalized_sections.dart';
@@ -45,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       listen: false,
     );
+
     final recommendationsProvider =
         Provider.of<PersonalizedRecommendationProvider>(context, listen: false);
 
@@ -429,13 +430,13 @@ class _HomeScreenState extends State<HomeScreen> {
           SliverToBoxAdapter(child: _buildTabs(context)),
 
           if (_selectedIndex == 0) ...[
-            const SliverToBoxAdapter(child: SpeedDialSection()),
+            const SliverToBoxAdapter(child: PersonalizedSections()),
 
             const SliverToBoxAdapter(child: CoversAndRemixesSection()),
 
             SliverToBoxAdapter(child: FavoriteArtistsSection()),
 
-            SliverToBoxAdapter(child: PersonalizedSections()),
+            SliverToBoxAdapter(child: HomeSections()),
           ] else if (_selectedIndex == 1) ...[
             ..._buildTrendingSlivers(context),
           ] else if (_selectedIndex == 2) ...[

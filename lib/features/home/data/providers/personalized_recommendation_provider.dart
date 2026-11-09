@@ -140,7 +140,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   static const String _sectionsKey = 'personalized_sections';
   static const String _sectionsTimestampKey = 'personalized_sections_timestamp';
   static const Duration _sectionsCacheDuration = Duration(hours: 6);
-  static const int _maxRecommendationsPerSection = 15;
+  static const int _maxRecommendationsPerSection = 6;
   static const int _maxTopArtists = 10;
   static const int _minSongsForProfile = 5; // Minimum songs before personalization kicks in
 
@@ -158,11 +158,6 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   String? _error;
   Timer? _periodicUpdateTimer;
   Timer? _sourceChangeDebounce;
-  bool _sourceListenersAttached = false;
-  String _lastSourceSignature = '';
-  static const Duration _updateInterval = Duration(minutes: 30);
-  static const Duration _sourceChangeDebounceDuration =
-      Duration(milliseconds: 1500);
 
   PersonalizedRecommendationProvider({
     required StatsProvider statsProvider,
@@ -190,9 +185,8 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     _box = await Hive.openBox<String>(_hiveBoxName);
     await _loadProfile();
     await _loadCachedSections();
-    _startPeriodicUpdate();
-    _startSourceListeners();
     _hasInitialized = true;
+    _playerProvider.addListener(_updateListenAgainFromPlayer);
     notifyListeners();
 
     // First run (or an expired cache): build the initial sections, otherwise
@@ -209,46 +203,14 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   /// and cache an empty result, which made the home page say "start listening"
   /// even after songs had been played. These listeners retry once the sources
   /// arrive (or whenever new songs are played).
-  void _startSourceListeners() {
-    if (_sourceListenersAttached) return;
-    _sourceListenersAttached = true;
 
-    _homeScreenProvider.addListener(_onSourceDataChanged);
-    _trendingProvider.addListener(_onSourceDataChanged);
-    _playerProvider.addListener(_onSourceDataChanged);
-    _statsProvider.addListener(_onSourceDataChanged);
-  }
 
   /// Cheap fingerprint of the inputs used to build sections. Used to ignore
   /// the many playback notifications that do not represent new listening data
   /// (play/pause, position updates, …).
-  String _sourceSignature() {
-    final recentIds = _playerProvider.lastPlayedSongs
-        .take(10)
-        .map((song) => song['id']?.toString() ?? '')
-        .join('|');
-    final homeIds = _homeScreenProvider.listenAgainSongs
-        .take(5)
-        .map((song) => song.videoId)
-        .join('|');
-    return '${_statsProvider.totalSongsPlayed}:$recentIds:$homeIds';
-  }
 
-  void _onSourceDataChanged() {
-    if (!_hasInitialized || _isLoading) return;
 
-    // Keep retrying while there is nothing to show; once sections exist only
-    // rebuild when genuinely new listening data (or new home content) arrived.
-    if (_sections.isNotEmpty && _sourceSignature() == _lastSourceSignature) {
-      return;
-    }
 
-    _sourceChangeDebounce?.cancel();
-    _sourceChangeDebounce = Timer(_sourceChangeDebounceDuration, () {
-      if (!_hasInitialized || _isLoading) return;
-      unawaited(updateRecommendations());
-    });
-  }
 
   Future<void> _loadProfile() async {
     try {
@@ -350,14 +312,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     };
   }
 
-  void _startPeriodicUpdate() {
-    _periodicUpdateTimer?.cancel();
-    _periodicUpdateTimer = Timer.periodic(_updateInterval, (_) {
-      if (!_isLoading) {
-        updateRecommendations();
-      }
-    });
-  }
+
 
   /// Call this when a song is skipped to track negative preference.
   void recordSkip(String videoId, String title, String artist) {
@@ -451,7 +406,6 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       await _saveSections();
       await _saveProfile();
 
-      _lastSourceSignature = _sourceSignature();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -538,14 +492,14 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     final newSections = <PersonalizedSection>[];
 
     // 1. Listen Again - recently played with high affinity
-    final listenAgain = await _buildListenAgainSection();
+    final listenAgain = _buildListenAgainSection();
     if (listenAgain.songs.isNotEmpty) {
       newSections.add(listenAgain);
     }
 
-    // 2. Top Artists Mix - personalized mixes for top 3-5 artists
+    // 2. Top Artists Mix - personalized mixes for top artist only (keep refresh fast)
     final topArtistSections = await _buildTopArtistSections();
-    newSections.addAll(topArtistSections);
+    newSections.addAll(topArtistSections.take(1));
 
     // 3. Discovery - new artists related to preferences
     final discovery = await _buildDiscoverySection();
@@ -560,7 +514,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     }
 
     // 5. Genre Exploration (if we have enough data)
-    if (_profile.totalSongsAnalyzed >= 20) {
+    if (_profile.totalSongsAnalyzed >= 30) {
       final genreExploration = await _buildGenreExplorationSection();
       if (genreExploration.songs.isNotEmpty) {
         newSections.add(genreExploration);
@@ -576,7 +530,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     _sections = newSections;
   }
 
-  Future<PersonalizedSection> _buildListenAgainSection() async {
+  PersonalizedSection _buildListenAgainSection() {
     final recentSongs = _playerProvider.lastPlayedSongs.take(20).toList();
     final seen = <String>{};
     final songs = <SongInfo>[];
@@ -608,7 +562,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     final sections = <PersonalizedSection>[];
     final topArtists = _profile.preferredArtistIds.take(5).toList();
 
-    for (int i = 0; i < topArtists.length && i < 3; i++) {
+    for (int i = 0; i < topArtists.length && i < 1; i++) {
       final artist = topArtists[i];
 
       // Find a seed song from this artist in history
@@ -707,7 +661,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     final seen = <String>{};
 
     // Strategy 1: Related songs to top artists (but not the same artist mixes)
-    final topArtists = _profile.preferredArtistIds.take(3).toList();
+    final topArtists = _profile.preferredArtistIds.take(1).toList();
     for (final artist in topArtists) {
       // Find a seed song
       String? seedVideoId;
@@ -884,16 +838,29 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     await updateRecommendations();
   }
 
+  void _updateListenAgainFromPlayer() {
+    if (!_hasInitialized || _isLoading) return;
+
+    final newSection = _buildListenAgainSection();
+    if (newSection.songs.isEmpty) return;
+
+    final index = _sections.indexWhere(
+      (section) => section.type == SectionType.listenAgain,
+    );
+
+    if (index >= 0) {
+      _sections[index] = newSection;
+    } else {
+      _sections = [newSection, ..._sections];
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
+    _playerProvider.removeListener(_updateListenAgainFromPlayer);
     _periodicUpdateTimer?.cancel();
     _sourceChangeDebounce?.cancel();
-    if (_sourceListenersAttached) {
-      _homeScreenProvider.removeListener(_onSourceDataChanged);
-      _trendingProvider.removeListener(_onSourceDataChanged);
-      _playerProvider.removeListener(_onSourceDataChanged);
-      _statsProvider.removeListener(_onSourceDataChanged);
-    }
     _box?.close();
     super.dispose();
   }

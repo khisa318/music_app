@@ -1,343 +1,353 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as math;
+
 import 'package:easy_localization/easy_localization.dart';
 
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
-import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/models/song_model.dart';
+import '../../../../core/providers/player_provider.dart';
+import '../../../../core/providers/settings_provider.dart';
 import '../../data/providers/personalized_recommendation_provider.dart';
 import '../../data/services/home_screen_queue_service.dart';
 
+/// Personalized suggestion shelves rendered above the Speed Dial.
+///
+/// Each provider section keeps its own horizontal row of tiles so the home
+/// screen stays scannable while still exposing the full recommendation set.
+/// The tiles mirror the Speed Dial treatment (cover + title + artist) to keep
+/// the two areas visually consistent.
 class PersonalizedSections extends StatelessWidget {
   const PersonalizedSections({super.key});
+
+  static const double _tileWidth = 130.0;
+  static const double _tileHeight = _tileWidth + 46;
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PersonalizedRecommendationProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Show loading shimmer on first load
     if (provider.isLoading && provider.sections.isEmpty) {
-      return _buildShimmer(context, isDark);
+      return const SizedBox.shrink();
     }
 
-    // Show error state if there's an error and no sections
     if (provider.error != null && provider.sections.isEmpty) {
-      return _buildError(context, provider.error!, isDark);
+      return const SizedBox.shrink();
     }
 
-    // Show empty state if no sections (shouldn't happen with defaults)
     if (provider.sections.isEmpty) {
-      return _buildEmpty(context, isDark);
+      return const SizedBox.shrink();
     }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: provider.sections.map((section) {
-        return _buildSection(context, section, accentColor, colorScheme, isDark);
-      }).toList(),
-    );
-  }
-
-  Widget _buildSection(
-    BuildContext context,
-    PersonalizedSection section,
-    Color accentColor,
-    ColorScheme colorScheme,
-    bool isDark,
-  ) {
-    if (section.songs.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppDimens.paddingLg,
             AppDimens.paddingLg,
             AppDimens.paddingLg,
+            AppDimens.spacingSm,
+          ),
+          child: Text(
+            'personalized_suggestion'.tr(),
+            style: AppTextStyles.titleLg(
+              isDarkMode: isDark,
+              color: accentColor,
+            ),
+          ),
+        ),
+        ...provider.sections.map((section) {
+          if (section.songs.isEmpty) return const SizedBox.shrink();
+          return _PersonalizedSectionRow(
+            section: section,
+            isDark: isDark,
+          );
+        }),
+      ],
+    );
+  }
+
+
+}
+
+class _PersonalizedSectionRow extends StatelessWidget {
+  final PersonalizedSection section;
+  final bool isDark;
+
+  const _PersonalizedSectionRow({
+    required this.section,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = context.select((SettingsProvider p) => p.accentColor);
+    final songs = section.songs.take(6).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDimens.paddingLg,
+            AppDimens.paddingMd,
+            AppDimens.paddingLg,
             AppDimens.spacingXs,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      section.title,
-                      style: AppTextStyles.titleLg().copyWith(
-                        color: accentColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (section.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        section.subtitle,
-                        style: AppTextStyles.body2(
-                          isDarkMode: isDark,
-                          color: colorScheme.onSurface.withValues(alpha: 0.60),
+          child: Text(
+            section.title,
+            style: AppTextStyles.titleSm(
+              isDarkMode: isDark,
+              color: accentColor,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        if (section.subtitle.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.paddingLg,
+              0,
+              AppDimens.paddingLg,
+              AppDimens.spacingXs,
+            ),
+            child: Text(
+              section.subtitle,
+              style: AppTextStyles.body2(
+                isDarkMode: isDark,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.60),
+              ),
+            ),
+          ),
+        section.type == SectionType.listenAgain
+            ? _PersonalizedGrid(
+                songs: songs,
+                isDark: isDark,
+                onPlay: (song) =>
+                    _playSong(context, song, section.type),
+              )
+            : SizedBox(
+                height: PersonalizedSections._tileHeight,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+                  itemCount: songs.length,
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return _PersonalizedTile(
+                      song: song,
+                      isDark: isDark,
+                      onTap: () => _playSong(context, song, section.type),
+                    );
+                  },
+                ),
+              ),
+        const SizedBox(height: AppDimens.spacingSm),
+      ],
+    );
+  }
+
+  void _playSong(
+    BuildContext context,
+    SongInfo song,
+    SectionType type,
+  ) {
+    try {
+      HomeScreenQueueService(context).playSong(
+        song,
+        'personalized_${type.name}',
+      );
+    } catch (e) {
+      debugPrint('Personalized playback failed: $e');
+    }
+  }
+
+}
+
+class _PersonalizedTile extends StatelessWidget {
+  final SongInfo song;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _PersonalizedTile({
+    required this.song,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPlaying = context.select<PlayerProvider, bool>(
+      (p) => p.currentSong?.videoId == song.videoId,
+    );
+    final accentColor = context.select((SettingsProvider p) => p.accentColor);
+    final thumbnailUrl =
+        song.thumbnails.isEmpty ? '' : song.thumbnails.last.url;
+    final artistName = song.artists.isEmpty ? '' : song.artists.first.name;
+
+    return Container(
+      width: PersonalizedSections._tileWidth,
+      margin: const EdgeInsets.only(right: AppDimens.spacingSm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                    child: thumbnailUrl.isEmpty
+                        ? _thumbnailFallback(context)
+                        : CachedNetworkImage(
+                            imageUrl: thumbnailUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) =>
+                                _thumbnailFallback(context, showSpinner: true),
+                            errorWidget: (context, url, error) =>
+                                _thumbnailFallback(context),
+                          ),
+                  ),
+                  if (isPlaying)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                        ),
+                        child: Icon(
+                          Icons.graphic_eq_rounded,
+                          color: accentColor,
+                          size: AppDimens.iconXl,
                         ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              if (section.seedArtist != null)
-                Text(
-                  'artist_mix'.tr(args: [section.seedArtist!]),
-                  style: AppTextStyles.body2(
-                    isDarkMode: isDark,
-                    color: colorScheme.onSurface.withValues(alpha: 0.50),
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        // Song list
-        SizedBox(
-          height: AppDimens.shimmerListTile + AppDimens.spacingXxs,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
-            itemCount: section.songs.length,
-            itemBuilder: (context, index) {
-              final song = section.songs[index];
-              return _PersonalizedSongCard(
-                song: song,
-                sectionType: section.type,
-                index: index,
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildShimmer(BuildContext context, bool isDark) {
-    return Column(
-      children: List.generate(3, (index) => _shimmerSection(context, isDark)),
-    );
-  }
-
-  Widget _shimmerSection(BuildContext context, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            AppDimens.paddingLg,
-            AppDimens.spacingXs,
-          ),
-          child: Container(
-            height: 20,
-            width: 150,
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[300],
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-            ),
-          ),
-        ),
-        SizedBox(
-          height: AppDimens.shimmerListTile + AppDimens.spacingXxs,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
-            itemCount: 5,
-            itemBuilder: (context, index) => Container(
-              width: 220,
-              margin: const EdgeInsets.only(right: AppDimens.spacingSm),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey[850] : Colors.grey[200],
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                    ),
+                ],
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildError(BuildContext context, String error, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.all(AppDimens.paddingLg),
-      child: Column(
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: AppDimens.spacingMd),
-          Text(
-            'failed_to_load_recommendations'.tr(),
-            style: AppTextStyles.titleSm(isDarkMode: isDark),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppDimens.spacingXs),
-          Text(
-            error,
-            style: AppTextStyles.bodyMd(isDarkMode: isDark).copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            const SizedBox(height: AppDimens.spacingXs),
+            Text(
+              song.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isPlaying ? accentColor : null,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            Text(
+              artistName.isEmpty ? 'unknown_artist'.tr() : artistName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption(
+                isDarkMode: isDark,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildEmpty(BuildContext context, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.all(AppDimens.paddingLg),
-      child: Column(
-        children: [
-          Icon(
-            Icons.music_note_outlined,
-            size: 48,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: AppDimens.spacingMd),
-          Text(
-            'no_recommendations_yet'.tr(),
-            style: AppTextStyles.titleSm(isDarkMode: isDark),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppDimens.spacingXs),
-          Text(
-            'start_listening_to_get_personalized'.tr(),
-            style: AppTextStyles.bodyMd(isDarkMode: isDark).copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+  Widget _thumbnailFallback(BuildContext context, {bool showSpinner = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      color: scheme.surfaceContainerHighest,
+      child: Center(
+        child: showSpinner
+            ? SizedBox(
+                width: AppDimens.iconMd,
+                height: AppDimens.iconMd,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: scheme.onSurface.withValues(alpha: 0.5),
+                ),
+              )
+            : Icon(
+                Icons.music_note_rounded,
+                color: scheme.onSurface.withValues(alpha: 0.5),
+              ),
       ),
     );
   }
 }
 
-class _PersonalizedSongCard extends StatelessWidget {
-  final SongInfo song;
-  final SectionType sectionType;
-  final int index;
+class _PersonalizedGrid extends StatelessWidget {
+  final List<SongInfo> songs;
+  final bool isDark;
+  final ValueChanged<SongInfo> onPlay;
 
-  const _PersonalizedSongCard({
-    required this.song,
-    required this.sectionType,
-    required this.index,
+  const _PersonalizedGrid({
+    required this.songs,
+    required this.isDark,
+    required this.onPlay,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-    final accentColor = context.select((SettingsProvider p) => p.accentColor);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final padding = AppDimens.paddingLg * 2;
+        final available = math.min(
+          constraints.maxWidth - padding,
+          AppDimens.maxContentWidth - padding,
+        );
+        final columns = math.min(
+          6,
+          math.max(3, (available / PersonalizedSections._tileWidth).round()),
+        );
+        final tileWidth =
+            (available - AppDimens.spacingXs * (columns - 1)) / columns;
 
-    return Container(
-      width: 220,
-      margin: const EdgeInsets.only(right: AppDimens.spacingSm),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _playSong(context),
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          child: Container(
-            padding: const EdgeInsets.all(AppDimens.spacingXxs),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-              border: Border.all(
-                color: colorScheme.outline.withValues(alpha: 0.12),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Artwork
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  child: song.thumbnails.isNotEmpty
-                      ? Image.network(
-                          song.thumbnails.first.url,
-                          width: AppDimens.songTileImage,
-                          height: AppDimens.songTileImage,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => _placeholderArtwork(isDark),
-                        )
-                      : _placeholderArtwork(isDark),
-                ),
-
-                const SizedBox(width: AppDimens.spacingSm),
-
-                // Song info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        song.name,
-                        style: AppTextStyles.bodyMd(isDarkMode: isDark).copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        song.artists.map((a) => a.name).join(', '),
-                        style: AppTextStyles.body2(
-                          isDarkMode: isDark,
-                          color: colorScheme.onSurface.withValues(alpha: 0.60),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Play button
-                Icon(
-                  Icons.play_arrow_rounded,
-                  color: accentColor,
-                  size: 24,
-                ),
-              ],
-            ),
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
+          itemCount: songs.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: AppDimens.spacingXs,
+            crossAxisSpacing: AppDimens.spacingXs,
+            mainAxisExtent: tileWidth + 46,
           ),
-        ),
-      ),
+          itemBuilder: (context, index) {
+            final song = songs[index];
+            return _PersonalizedTile(
+              song: song,
+              isDark: isDark,
+              onTap: () => onPlay(song),
+            );
+          },
+        );
+      },
     );
   }
+}
 
-  Widget _placeholderArtwork(bool isDark) {
-    return Container(
-      width: AppDimens.songTileImage,
-      height: AppDimens.songTileImage,
-      color: isDark ? Colors.grey[850] : Colors.grey[300],
-      child: Icon(
-        Icons.music_note,
-        color: isDark ? Colors.grey[600] : Colors.grey[500],
-      ),
-    );
-  }
+// Back-compat aliases for older callers/tests.
+class PersonalizedSectionsView extends PersonalizedSections {
+  const PersonalizedSectionsView({super.key});
+}
 
-  void _playSong(BuildContext context) {
-    HomeScreenQueueService(context).playSong(
-      song,
-      'personalized_${sectionType.name}',
-    );
-  }
+class PersonalizedSuggestionSection extends PersonalizedSections {
+  const PersonalizedSuggestionSection({super.key});
 }
