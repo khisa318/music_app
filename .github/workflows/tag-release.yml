@@ -16,9 +16,8 @@ name: Tag release
 # creates a tag when pubspec.yaml's version is strictly newer than the last
 # released one - which is itself a deliberate act.
 on:
-  # Stable releases are tagged and pushed by hand (the old way) so a
-  # GITHUB_TOKEN tag push can no longer fail to trigger release.yml.
-  # workflow_dispatch remains available for re-creating a tag if needed.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # `contents: write` writes the tag; `actions: write` starts release.yml - see

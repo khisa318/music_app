@@ -97,19 +97,16 @@ Deleting the file in a follow-up commit does not remove it from history.
 
 ## Releasing
 
-Stable releases are published the old way: bump `version:` in `pubspec.yaml`,
-commit and merge to `main`, then push the matching tag by hand:
+Bumping `version:` in `pubspec.yaml` **is** the release. Full procedure in the
+README: [Releasing](README.md#releasing).
 
 ```bash
-# edit pubspec.yaml -> version: 1.2.5+13
-git commit -am "chore(release): 1.2.5"
-git tag -a v1.2.5 -m "Release 1.2.5"
-git push origin main
-git push origin v1.2.5
+# edit pubspec.yaml -> version: 1.1.0+2
+# commit, PR, merge to main. That is the whole release.
 ```
 
-`release.yml` builds, signs and publishes the APK from that pushed tag. Do not rely
-on an automatic tag push from CI.
+Merging a version bump to `main` makes CI push the matching tag, which builds,
+signs and publishes the APK. Never type `git tag` for a stable release.
 
 Raise **both** halves. `1.0.9+7` → `1.0.10+1` passes a glance but produces an
 APK Android refuses to install, because `versionCode` went backwards. CI fails
