@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/utils/content_router.dart';
@@ -37,9 +38,21 @@ class HomeSections extends StatelessWidget {
       return !title.contains('india') && !title.contains('all hits');
     }).toList();
 
+    final filteredSections = visibleSections
+        .map((section) {
+          final contents = section.contents
+              .where((content) => content is! VideoDetailed)
+              .toList();
+          return contents.isEmpty ? null : (section: section, contents: contents);
+        })
+        .whereType<({dynamic section, List<dynamic> contents})>()
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: visibleSections.map((section) {
+      children: filteredSections.map((entry) {
+        final section = entry.section;
+        final contents = entry.contents;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -55,9 +68,9 @@ class HomeSections extends StatelessWidget {
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
-                itemCount: section.contents.length,
+                itemCount: contents.length,
                 itemBuilder: (context, index) {
-                  final content = section.contents[index];
+                  final content = contents[index];
                   return ContentCard(
                     content: content,
                     isArtist: content.type == 'artist',

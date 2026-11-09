@@ -4,11 +4,12 @@ import 'package:provider/provider.dart';
 
 import '../widgets/favorite_artists_section.dart';
 import '../widgets/home_sections.dart';
-import '../widgets/speed_dial_section.dart';
 import '../widgets/covers_and_remixes_section.dart';
 import '../widgets/download_tracker_banner.dart';
+import '../widgets/personalized_sections.dart';
 import '../../../../core/providers/favorite_song_provider.dart';
 import '../../data/providers/home_screen_provider.dart';
+import '../../data/providers/personalized_recommendation_provider.dart';
 import '../../../../shared/components/song_list_tile.dart';
 import '../../../../core/models/song_model.dart';
 import '../../data/services/home_screen_queue_service.dart';
@@ -45,7 +46,13 @@ class _HomeScreenState extends State<HomeScreen> {
       listen: false,
     );
 
-    await homeScreenProvider.refreshData();
+    final recommendationsProvider =
+        Provider.of<PersonalizedRecommendationProvider>(context, listen: false);
+
+    await Future.wait([
+      homeScreenProvider.refreshData(),
+      recommendationsProvider.refresh(),
+    ]);
   }
 
   int _selectedIndex = 0;
@@ -423,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SliverToBoxAdapter(child: _buildTabs(context)),
 
           if (_selectedIndex == 0) ...[
-            const SliverToBoxAdapter(child: SpeedDialSection()),
+            const SliverToBoxAdapter(child: PersonalizedSections()),
 
             const SliverToBoxAdapter(child: CoversAndRemixesSection()),
 

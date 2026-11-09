@@ -92,7 +92,7 @@ class _PodcastCategoryScreenState extends State<PodcastCategoryScreen> {
                   final show = shows[index];
                   return PodcastCard(
                     show: show,
-                    width: double.infinity,
+                    width: 154,
                     onTap: () => _openShow(show),
                   );
                 },

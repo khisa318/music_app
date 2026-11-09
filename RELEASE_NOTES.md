@@ -1,3 +1,22 @@
+# 1.2.1
+
+## Changed
+
+- Replaced the Speed Dial with a "Personalized suggestion" area: responsive rows/grid using 6 tiles per section.
+- Listen Again now updates immediately from playback history without manual refresh.
+- Listen Again tiles use tighter spacing to match the previous Speed Dial layout.
+- Removed automatic background recommendation updates; refresh via pull-to-refresh.
+
+## Fixed
+
+- Fixed podcast category screens where shows existed but artwork/items were invisible.
+- Filtered non-song videos out of home feed carousels.
+- Removed leftover Speed Dial files and references.
+
+## Notes
+
+- Built with Flutter.
+
 # 1.2.0
 
 ## Added
