@@ -75,7 +75,9 @@ class UserPreferenceProfile {
 
   factory UserPreferenceProfile.fromJson(Map<String, dynamic> json) {
     return UserPreferenceProfile(
-      artistAffinities: Map<String, double>.from(json['artistAffinities'] ?? {}),
+      artistAffinities: Map<String, double>.from(
+        json['artistAffinities'] ?? {},
+      ),
       songAffinities: Map<String, double>.from(json['songAffinities'] ?? {}),
       skipCounts: Map<String, int>.from(json['skipCounts'] ?? {}),
       completionCounts: Map<String, int>.from(json['completionCounts'] ?? {}),
@@ -126,12 +128,22 @@ class PersonalizedSection {
 }
 
 enum SectionType {
-  listenAgain,        // Recently played, high affinity
-  topArtists,         // Songs from top artists
-  artistMix,          // Mix of songs from a specific top artist
-  discovery,          // New artists/genres related to preferences
-  genreExploration,   // Genre-based exploration
-  trendingForYou,     // Trending songs matching preferences
+  listenAgain, // Recently played, high affinity
+  topArtists, // Songs from top artists
+  artistMix, // Mix of songs from a specific top artist
+  discovery, // New artists/genres related to preferences
+  genreExploration, // Genre-based exploration
+  trendingForYou, // Trending songs matching preferences
+}
+
+/// A small, time-limited cache entry for one artist's related tracks.
+class _CachedRelatedSongs {
+  final List<SongInfo> songs;
+  final DateTime fetchedAt;
+
+  const _CachedRelatedSongs(this.songs, this.fetchedAt);
+
+  bool isFresh(DateTime now, Duration ttl) => now.difference(fetchedAt) < ttl;
 }
 
 class PersonalizedRecommendationProvider with ChangeNotifier {
@@ -139,10 +151,38 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   static const String _profileKey = 'user_preference_profile';
   static const String _sectionsKey = 'personalized_sections';
   static const String _sectionsTimestampKey = 'personalized_sections_timestamp';
+  static const String _sectionsSignatureKey = 'personalized_sections_signature';
   static const Duration _sectionsCacheDuration = Duration(hours: 6);
   static const int _maxRecommendationsPerSection = 6;
   static const int _maxTopArtists = 10;
-  static const int _minSongsForProfile = 5; // Minimum songs before personalization kicks in
+
+  /// Number of artist mixes shown at once. Two keeps the feed varied without
+  /// firing more network lookups than the old single-mix + discovery pair.
+  static const int _maxArtistMixes = 2;
+  static const int _minSongsForProfile =
+      5; // Minimum songs before personalization kicks in
+
+  /// How much relative weight recent (7-day) listening gets when ranking
+  /// artists. High enough that a new flavour of music can unseat an all-time
+  /// favourite, but not so high that lifetime taste is thrown away.
+  static const double _recentArtistWeight = 0.65;
+
+  // The persisted profile is bounded so it cannot grow forever for users with
+  // very large libraries.
+  static const int _maxTrackedSongs = 600;
+  static const int _maxTrackedArtists = 80;
+  static const int _maxTrackedEvents = 300;
+
+  // Taste fingerprint: the first few distinct artists in recent playback.
+  static const int _tasteArtistCount = 3;
+  static const int _tasteHistoryWindow = 12;
+  static const Duration _sourceChangeDebounceDuration = Duration(seconds: 4);
+
+  // Small, bounded cache so re-ranking does not re-fetch the same artist's
+  // related tracks every time another artist moves into the top slots.
+  static const Duration _relatedCacheTtl = Duration(minutes: 30);
+  static const int _relatedCacheSize = 8;
+  static const int _relatedCacheSongs = 12;
 
   final StatsProvider _statsProvider;
   final PlayerProvider _playerProvider;
@@ -156,8 +196,11 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _hasInitialized = false;
   String? _error;
-  Timer? _periodicUpdateTimer;
   Timer? _sourceChangeDebounce;
+  bool _sourceListenersAttached = false;
+  bool _refreshQueued = false;
+  String _sectionSourceSignature = '';
+  final Map<String, _CachedRelatedSongs> _relatedCache = {};
 
   PersonalizedRecommendationProvider({
     required StatsProvider statsProvider,
@@ -165,11 +208,11 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     required RelatedSongService relatedSongService,
     required HomeScreenProvider homeScreenProvider,
     required TrendingProvider trendingProvider,
-  })  : _statsProvider = statsProvider,
-        _playerProvider = playerProvider,
-        _relatedSongService = relatedSongService,
-        _homeScreenProvider = homeScreenProvider,
-        _trendingProvider = trendingProvider {
+  }) : _statsProvider = statsProvider,
+       _playerProvider = playerProvider,
+       _relatedSongService = relatedSongService,
+       _homeScreenProvider = homeScreenProvider,
+       _trendingProvider = trendingProvider {
     _init();
   }
 
@@ -185,14 +228,19 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     _box = await Hive.openBox<String>(_hiveBoxName);
     await _loadProfile();
     await _loadCachedSections();
+    _startSourceListeners();
     _hasInitialized = true;
-    _playerProvider.addListener(_updateListenAgainFromPlayer);
     notifyListeners();
 
     // First run (or an expired cache): build the initial sections, otherwise
-    // the home page would stay empty until the periodic timer fired.
+    // the home page would stay empty until new listening data arrived.
     if (_sections.isEmpty) {
       unawaited(updateRecommendations());
+    } else {
+      // The cached rows may have been built before the listener started
+      // hearing a different kind of music. Regenerate only when the current
+      // source fingerprint no longer matches the cached one.
+      _scheduleRefreshIfSourcesChanged();
     }
   }
 
@@ -202,15 +250,91 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   /// all load asynchronously. The first build can therefore see empty sources
   /// and cache an empty result, which made the home page say "start listening"
   /// even after songs had been played. These listeners retry once the sources
-  /// arrive (or whenever new songs are played).
+  /// arrive (or whenever the listener moves to a different artist).
+  void _startSourceListeners() {
+    if (_sourceListenersAttached) return;
+    _sourceListenersAttached = true;
 
+    _homeScreenProvider.addListener(_onSourceChanged);
+    _trendingProvider.addListener(_onSourceChanged);
+    _playerProvider.addListener(_onPlayerChanged);
+    _statsProvider.addListener(_onSourceChanged);
+  }
 
-  /// Cheap fingerprint of the inputs used to build sections. Used to ignore
-  /// the many playback notifications that do not represent new listening data
-  /// (play/pause, position updates, …).
+  /// Cheap fingerprint of the kind of music being played right now plus the
+  /// home shelves used by the default/discovery rows.
+  ///
+  /// It deliberately uses artists rather than every song id: playing another
+  /// track by the same artist does not warrant a full rebuild, while moving to
+  /// a different artist/genre does.
+  String _sourceSignature() {
+    final artists = <String>[];
+    for (final song in _playerProvider.lastPlayedSongs.take(
+      _tasteHistoryWindow,
+    )) {
+      final artist = (song['artist'] ?? '').toString().trim();
+      if (artist.isEmpty || artists.contains(artist)) continue;
+      artists.add(artist);
+      if (artists.length >= _tasteArtistCount) break;
+    }
 
+    if (artists.isEmpty) {
+      artists.addAll(_profile.preferredArtistIds.take(_tasteArtistCount));
+    }
+    // Order-independent: rotating between the same artists should not rebuild.
+    artists.sort();
+    final taste = artists.join('|');
 
+    // Once real personalization exists, the feed only depends on the listening
+    // fingerprint. Avoiding the home-shelf part here keeps stats ticks cheap
+    // and prevents a rebuild just because the home cache loaded.
+    if (_profile.totalSongsAnalyzed >= _minSongsForProfile) {
+      return taste;
+    }
 
+    final home = _homeScreenProvider.homeSections;
+    final firstContents = home.isEmpty ? null : home.first.contents;
+    final homeFingerprint =
+        '$home.length:${firstContents is List ? firstContents.length : 0}';
+
+    return '$taste#$homeFingerprint';
+  }
+
+  void _onPlayerChanged() {
+    if (!_hasInitialized) return;
+
+    // The Listen Again row can be updated without any network work, so keep it
+    // responsive even when a full rebuild is not needed.
+    _updateListenAgainFromPlayer();
+
+    if (_isLoading) return;
+    _scheduleRefreshIfSourcesChanged();
+  }
+
+  void _onSourceChanged() {
+    if (!_hasInitialized || _isLoading) return;
+    _scheduleRefreshIfSourcesChanged();
+  }
+
+  void _scheduleRefreshIfSourcesChanged() {
+    final signature = _sourceSignature();
+    final needsRefresh =
+        _sections.isEmpty || signature != _sectionSourceSignature;
+
+    _sourceChangeDebounce?.cancel();
+    if (!needsRefresh) return;
+
+    _sourceChangeDebounce = Timer(_sourceChangeDebounceDuration, () {
+      if (!_hasInitialized || _isLoading) return;
+      // Re-check after the debounce: a burst of notifications while a song
+      // starts should not trigger more than one regeneration.
+      if (_sections.isNotEmpty &&
+          _sourceSignature() == _sectionSourceSignature) {
+        return;
+      }
+      unawaited(updateRecommendations());
+    });
+  }
 
   Future<void> _loadProfile() async {
     try {
@@ -218,7 +342,9 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       if (jsonString != null) {
         final jsonMap = json.decode(jsonString) as Map<String, dynamic>;
         _profile = UserPreferenceProfile.fromJson(jsonMap);
-        debugPrint('Loaded user preference profile: ${_profile.totalSongsAnalyzed} songs analyzed');
+        debugPrint(
+          'Loaded user preference profile: ${_profile.totalSongsAnalyzed} songs analyzed',
+        );
       }
     } catch (e) {
       debugPrint('Error loading preference profile: $e');
@@ -251,7 +377,10 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
                 .map(_sectionFromJson)
                 .where((s) => s.songs.isNotEmpty)
                 .toList();
-            debugPrint('Loaded ${_sections.length} personalized sections from cache');
+            _sectionSourceSignature = _box?.get(_sectionsSignatureKey) ?? '';
+            debugPrint(
+              'Loaded ${_sections.length} personalized sections from cache',
+            );
             return;
           }
         }
@@ -266,7 +395,11 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     try {
       final jsonList = _sections.map(_sectionToJson).toList();
       await _box?.put(_sectionsKey, json.encode(jsonList));
-      await _box?.put(_sectionsTimestampKey, DateTime.now().millisecondsSinceEpoch.toString());
+      await _box?.put(
+        _sectionsTimestampKey,
+        DateTime.now().millisecondsSinceEpoch.toString(),
+      );
+      await _box?.put(_sectionsSignatureKey, _sectionSourceSignature);
     } catch (e) {
       debugPrint('Error saving sections: $e');
     }
@@ -299,20 +432,29 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       'type': section.type.name,
       'seedArtist': section.seedArtist,
       'songs': section.songs
-          .map((s) => {
-                'id': s.videoId,
-                'title': s.name,
-                'artist': s.artists.map((a) => a.name).join(', '),
-                'thumbnail': s.thumbnails.isNotEmpty ? s.thumbnails.last.url : '',
-                'artists': s.artists.map((a) => {'name': a.name, 'id': a.id}).toList(),
-                'duration': s.duration.inSeconds,
-                'isPodcast': s.isPodcast,
-              })
+          .map(
+            (s) => {
+              'id': s.videoId,
+              'title': s.name,
+              'artist': s.artists.map((a) => a.name).join(', '),
+              'thumbnail': s.thumbnails.isNotEmpty ? s.thumbnails.last.url : '',
+              'artists': s.artists
+                  .map((a) => {'name': a.name, 'id': a.id})
+                  .toList(),
+              'duration': s.duration.inSeconds,
+              'isPodcast': s.isPodcast,
+            },
+          )
           .toList(),
     };
   }
 
-
+  /// Keeps a persisted map from growing without bound. Dart maps preserve
+  /// insertion order, so the oldest entries are dropped first.
+  static Map<String, T> _capMap<T>(Map<String, T> map, int maxEntries) {
+    if (map.length <= maxEntries) return map;
+    return Map.fromEntries(map.entries.skip(map.length - maxEntries));
+  }
 
   /// Call this when a song is skipped to track negative preference.
   void recordSkip(String videoId, String title, String artist) {
@@ -321,7 +463,10 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
     // Update profile
     _profile = _profile.copyWith(
-      skipCounts: {..._profile.skipCounts, videoId: newSkips},
+      skipCounts: _capMap({
+        ..._profile.skipCounts,
+        videoId: newSkips,
+      }, _maxTrackedEvents),
     );
 
     // Reduce affinity for this song and artist
@@ -353,7 +498,10 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
     // Update profile
     _profile = _profile.copyWith(
-      completionCounts: {..._profile.completionCounts, videoId: newCompletions},
+      completionCounts: _capMap({
+        ..._profile.completionCounts,
+        videoId: newCompletions,
+      }, _maxTrackedEvents),
     );
 
     // Increase affinity for this song and artist
@@ -376,20 +524,30 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   }
 
   void _removeSongFromSections(String videoId) {
-    _sections = _sections.map((section) {
-      return PersonalizedSection(
-        title: section.title,
-        subtitle: section.subtitle,
-        songs: section.songs.where((s) => s.videoId != videoId).toList(),
-        type: section.type,
-        seedArtist: section.seedArtist,
-      );
-    }).where((s) => s.songs.isNotEmpty).toList();
+    _sections = _sections
+        .map((section) {
+          return PersonalizedSection(
+            title: section.title,
+            subtitle: section.subtitle,
+            songs: section.songs.where((s) => s.videoId != videoId).toList(),
+            type: section.type,
+            seedArtist: section.seedArtist,
+          );
+        })
+        .where((s) => s.songs.isNotEmpty)
+        .toList();
   }
 
   /// Main method to update recommendations based on current listening data.
   Future<void> updateRecommendations() async {
-    if (_isLoading) return;
+    if (_isLoading) {
+      // A pull-to-refresh can land while an automatic update is running.
+      _refreshQueued = true;
+      return;
+    }
+
+    // Any pending debounce is now redundant.
+    _sourceChangeDebounce?.cancel();
 
     _isLoading = true;
     _error = null;
@@ -402,7 +560,10 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       // 2. Generate personalized sections
       await _generateSections();
 
-      // 3. Save to cache
+      // 3. Fingerprint what this build was based on, then cache it. The
+      // fingerprint lets source-change listeners skip rebuilding while the
+      // same artists keep playing.
+      _sectionSourceSignature = _sourceSignature();
       await _saveSections();
       await _saveProfile();
 
@@ -414,6 +575,57 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       debugPrint(_error);
       notifyListeners();
     }
+
+    if (_refreshQueued) {
+      _refreshQueued = false;
+      unawaited(updateRecommendations());
+    }
+  }
+
+  /// Blends lifetime and recent (rolling 7-day) listening into an artist
+  /// affinity map.
+  ///
+  /// Lifetime playtime alone is what used to "fingerprint" the most-played
+  /// artist forever: a new artist could never outrank years of history. Recent
+  /// listening gets [_recentArtistWeight] of the score, so a shift in taste
+  /// surfaces quickly while long-term favourites remain in the top artists
+  /// list for the secondary mix.
+  @visibleForTesting
+  static Map<String, double> calculateArtistAffinities({
+    required Map<String, int> lifetimeSeconds,
+    required Map<String, int> recentSeconds,
+  }) {
+    if (lifetimeSeconds.isEmpty && recentSeconds.isEmpty) {
+      return const {};
+    }
+
+    final totalLifetime = lifetimeSeconds.values.fold<int>(0, (a, b) => a + b);
+    final totalRecent = recentSeconds.values.fold<int>(0, (a, b) => a + b);
+    final artists = <String>{...lifetimeSeconds.keys, ...recentSeconds.keys};
+
+    final scores = <String, double>{};
+    for (final artist in artists) {
+      final lifetimeShare = totalLifetime > 0
+          ? (lifetimeSeconds[artist] ?? 0) / totalLifetime
+          : 0.0;
+      final recentShare = totalRecent > 0
+          ? (recentSeconds[artist] ?? 0) / totalRecent
+          : 0.0;
+      scores[artist] =
+          (lifetimeShare * (1 - _recentArtistWeight) +
+                  recentShare * _recentArtistWeight)
+              .clamp(0.0, 1.0);
+    }
+
+    // Normalise so the top artist is 1.0. With no recent data (e.g. right
+    // after upgrading) this preserves the previous absolute thresholds.
+    final highest = scores.values.fold<double>(0, math.max);
+    if (highest > 0) {
+      for (final artist in scores.keys.toList()) {
+        scores[artist] = scores[artist]! / highest;
+      }
+    }
+    return scores;
   }
 
   Future<void> _analyzeAndUpdateProfile() async {
@@ -431,46 +643,61 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       return;
     }
 
-    final newArtistAffinities = <String, double>{};
+    // Song affinities: single pass over the stats instead of repeatedly
+    // scanning the whole map per artist.
     final newSongAffinities = <String, double>{};
-    final newSkipCounts = Map<String, int>.from(_profile.skipCounts);
-    final newCompletionCounts = Map<String, int>.from(_profile.completionCounts);
-
-    // Calculate artist affinities based on playback time
-    int totalPlaybackSeconds = artistPlaybackTime.values.fold(0, (a, b) => a + b);
-    if (totalPlaybackSeconds > 0) {
-      for (final entry in artistPlaybackTime.entries) {
-        final affinity = (entry.value / totalPlaybackSeconds).clamp(0.0, 1.0);
-        // Boost by play count factor
-        final stats = songStats.values.where((s) => s.artist == entry.key).toList();
-        final playCount = stats.fold(0, (a, b) => a + b.playCount);
-        final boostedAffinity = (affinity * 0.7 + (playCount / 100).clamp(0.0, 0.3)).clamp(0.0, 1.0);
-        newArtistAffinities[entry.key] = boostedAffinity;
-      }
-    }
-
-    // Calculate song affinities based on play count and completion rate
     for (final stats in songStats.values) {
       final playCountFactor = (stats.playCount / 20).clamp(0.0, 0.5);
       final recencyFactor = _recencyFactor(stats.lastPlayedTimestamp);
-      final skipPenalty = (newSkipCounts[stats.id] ?? 0) * 0.1;
-      final completionBonus = (newCompletionCounts[stats.id] ?? 0) * 0.05;
+      final skipPenalty = (_profile.skipCounts[stats.id] ?? 0) * 0.1;
+      final completionBonus = (_profile.completionCounts[stats.id] ?? 0) * 0.05;
 
-      final affinity = (playCountFactor + recencyFactor * 0.3 + completionBonus - skipPenalty).clamp(0.0, 1.0);
+      final affinity =
+          (playCountFactor +
+                  recencyFactor * 0.3 +
+                  completionBonus -
+                  skipPenalty)
+              .clamp(0.0, 1.0);
       newSongAffinities[stats.id] = affinity;
     }
+
+    // Artist affinities: blend all-time playback time with the rolling 7-day
+    // window. `dailyArtists` already aggregates recent listening, so no extra
+    // history is kept in memory.
+    final recentArtistSeconds = <String, int>{
+      for (final entry in _statsProvider.dailyArtists.entries)
+        entry.key: entry.value.inSeconds,
+    };
+    final newArtistAffinities = calculateArtistAffinities(
+      lifetimeSeconds: artistPlaybackTime,
+      recentSeconds: recentArtistSeconds,
+    );
 
     // Get top artists by affinity
     final sortedArtists = newArtistAffinities.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final topArtistNames = sortedArtists.take(_maxTopArtists).map((e) => e.key).toList();
+    final topArtistNames = sortedArtists
+        .take(_maxTopArtists)
+        .map((e) => e.key)
+        .toList();
+
+    // Bound the persisted maps. Affinities keep the strongest entries; the
+    // event counters keep the most recently touched ones.
+    final cappedSongs = newSongAffinities.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     // Update profile
     _profile = _profile.copyWith(
-      artistAffinities: newArtistAffinities,
-      songAffinities: newSongAffinities,
-      skipCounts: newSkipCounts,
-      completionCounts: newCompletionCounts,
+      artistAffinities: Map.fromEntries(sortedArtists.take(_maxTrackedArtists)),
+      songAffinities: Map.fromEntries(cappedSongs.take(_maxTrackedSongs)),
+      skipCounts: _capMap(
+        Map<String, int>.from(_profile.skipCounts),
+        _maxTrackedEvents,
+      ),
+      completionCounts: _capMap(
+        Map<String, int>.from(_profile.completionCounts),
+        _maxTrackedEvents,
+      ),
       lastUpdated: DateTime.now(),
       totalSongsAnalyzed: songStats.length,
       preferredArtistIds: topArtistNames,
@@ -478,9 +705,9 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   }
 
   double _recencyFactor(int timestamp) {
-    final daysSince = DateTime.now().difference(
-      DateTime.fromMillisecondsSinceEpoch(timestamp),
-    ).inDays;
+    final daysSince = DateTime.now()
+        .difference(DateTime.fromMillisecondsSinceEpoch(timestamp))
+        .inDays;
     if (daysSince <= 1) return 0.5;
     if (daysSince <= 3) return 0.3;
     if (daysSince <= 7) return 0.2;
@@ -497,12 +724,14 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       newSections.add(listenAgain);
     }
 
-    // 2. Top Artists Mix - personalized mixes for top artist only (keep refresh fast)
+    // 2. Artist mixes - the two strongest artists, which now reflect recent
+    // listening instead of only the all-time favourite.
     final topArtistSections = await _buildTopArtistSections();
-    newSections.addAll(topArtistSections.take(1));
+    newSections.addAll(topArtistSections);
 
-    // 3. Discovery - new artists related to preferences
-    final discovery = await _buildDiscoverySection();
+    // 3. Discovery - a different flavour, sourced from the already-fetched
+    // home shelves so this does not add another network request.
+    final discovery = _buildDiscoverySection();
     if (discovery.songs.isNotEmpty) {
       newSections.add(discovery);
     }
@@ -515,7 +744,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
     // 5. Genre Exploration (if we have enough data)
     if (_profile.totalSongsAnalyzed >= 30) {
-      final genreExploration = await _buildGenreExplorationSection();
+      final genreExploration = _buildGenreExplorationSection();
       if (genreExploration.songs.isNotEmpty) {
         newSections.add(genreExploration);
       }
@@ -527,7 +756,28 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       newSections.addAll(defaults);
     }
 
-    _sections = newSections;
+    // Never repeat the same track across rows. Duplicates make the feed feel
+    // repetitive and keep unnecessary song objects alive.
+    final deduped = <PersonalizedSection>[];
+    final seen = <String>{};
+    for (final section in newSections) {
+      final songs = <SongInfo>[];
+      for (final song in section.songs) {
+        if (seen.add(song.videoId)) songs.add(song);
+      }
+      if (songs.isEmpty) continue;
+      deduped.add(
+        PersonalizedSection(
+          title: section.title,
+          subtitle: section.subtitle,
+          songs: songs,
+          type: section.type,
+          seedArtist: section.seedArtist,
+        ),
+      );
+    }
+
+    _sections = deduped;
   }
 
   PersonalizedSection _buildListenAgainSection() {
@@ -536,7 +786,8 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     final songs = <SongInfo>[];
 
     for (final songMap in recentSongs) {
-      final videoId = songMap['id']?.toString() ?? songMap['videoId']?.toString() ?? '';
+      final videoId =
+          songMap['id']?.toString() ?? songMap['videoId']?.toString() ?? '';
       if (videoId.isEmpty || !seen.add(videoId)) continue;
 
       final affinity = _profile.songAffinities[videoId] ?? 0.3;
@@ -559,59 +810,102 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   }
 
   Future<List<PersonalizedSection>> _buildTopArtistSections() async {
-    final sections = <PersonalizedSection>[];
-    final topArtists = _profile.preferredArtistIds.take(5).toList();
+    final seeds = _artistSeeds();
+    if (seeds.isEmpty) return const [];
 
-    for (int i = 0; i < topArtists.length && i < 1; i++) {
-      final artist = topArtists[i];
+    // `preferredArtistIds` is affinity-ranked (recent + lifetime), so this
+    // picks two different kinds of music rather than the same artist twice.
+    final artists = <String>[];
+    for (final artist in _profile.preferredArtistIds) {
+      if (!seeds.containsKey(artist)) continue;
+      artists.add(artist);
+      if (artists.length >= _maxArtistMixes) break;
+    }
+    if (artists.isEmpty) {
+      artists.addAll(seeds.keys.take(_maxArtistMixes));
+    }
 
-      // Find a seed song from this artist in history
-      String? seedVideoId;
-      for (final songMap in _playerProvider.lastPlayedSongs) {
-        final songArtist = songMap['artist']?.toString() ?? '';
-        if (songArtist == artist) {
-          seedVideoId = songMap['id']?.toString() ?? songMap['videoId']?.toString();
-          break;
-        }
-      }
+    // Fetch in parallel so two mixes cost roughly the latency of one.
+    final built = await Future.wait(
+      artists.map((artist) async {
+        final seedVideoId = seeds[artist];
+        if (seedVideoId == null) return null;
 
-      // Also check stats
-      if (seedVideoId == null) {
-        for (final stats in _statsProvider.songStats.values) {
-          if (stats.artist == artist) {
-            seedVideoId = stats.id;
-            break;
-          }
-        }
-      }
-
-      if (seedVideoId != null) {
         try {
-          final relatedSongs = await _relatedSongService.getRelatedSongs(seedVideoId);
-          // Filter out already known songs and apply affinity
+          final relatedSongs = await _getRelatedForArtist(seedVideoId);
+
+          // Filter out already over-recommended songs; the final dedupe pass
+          // removes overlaps with other rows.
           final seen = <String>{};
           final filteredSongs = relatedSongs
               .where((s) => seen.add(s.videoId))
-              .where((s) => (_profile.songAffinities[s.videoId] ?? 0.5) < 0.8) // Avoid over-recommending
+              .where(
+                (s) =>
+                    s.videoId != seedVideoId &&
+                    (_profile.songAffinities[s.videoId] ?? 0.5) < 0.8,
+              )
               .take(_maxRecommendationsPerSection)
               .toList();
 
-          if (filteredSongs.isNotEmpty) {
-            sections.add(PersonalizedSection(
-              title: '$artist Mix',
-              subtitle: 'Songs inspired by $artist',
-              songs: filteredSongs,
-              type: SectionType.artistMix,
-              seedArtist: artist,
-            ));
-          }
+          if (filteredSongs.isEmpty) return null;
+
+          return PersonalizedSection(
+            title: '$artist Mix',
+            subtitle: 'Songs inspired by $artist',
+            songs: filteredSongs,
+            type: SectionType.artistMix,
+            seedArtist: artist,
+          );
         } catch (e) {
           debugPrint('Error getting related songs for $artist: $e');
+          return null;
         }
-      }
+      }),
+    );
+
+    return built.whereType<PersonalizedSection>().toList();
+  }
+
+  /// One seed track per artist, built in a single pass over history/stats.
+  Map<String, String> _artistSeeds() {
+    final seeds = <String, String>{};
+
+    for (final songMap in _playerProvider.lastPlayedSongs) {
+      final artist = (songMap['artist'] ?? '').toString();
+      final id =
+          songMap['id']?.toString() ?? songMap['videoId']?.toString() ?? '';
+      if (artist.isEmpty || id.isEmpty) continue;
+      seeds.putIfAbsent(artist, () => id);
     }
 
-    return sections;
+    for (final stats in _statsProvider.songStats.values) {
+      if (stats.artist.isEmpty) continue;
+      seeds.putIfAbsent(stats.artist, () => stats.id);
+    }
+
+    return seeds;
+  }
+
+  /// Bounded cache around related-track lookups. Returning the same list for
+  /// a while avoids re-hitting the network when the top-two artists swap
+  /// order after a single play.
+  Future<List<SongInfo>> _getRelatedForArtist(String seedVideoId) async {
+    final now = DateTime.now();
+    final cached = _relatedCache[seedVideoId];
+    if (cached != null && cached.isFresh(now, _relatedCacheTtl)) {
+      return cached.songs;
+    }
+
+    final related = await _relatedSongService
+        .getRelatedSongs(seedVideoId)
+        .timeout(const Duration(seconds: 20));
+    final songs = related.take(_relatedCacheSongs).toList(growable: false);
+
+    if (_relatedCache.length >= _relatedCacheSize) {
+      _relatedCache.remove(_relatedCache.keys.first);
+    }
+    _relatedCache[seedVideoId] = _CachedRelatedSongs(songs, now);
+    return songs;
   }
 
   /// Converts a home-feed item into a playable [SongInfo].
@@ -656,57 +950,38 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     );
   }
 
-  Future<PersonalizedSection> _buildDiscoverySection() async {
-    final songs = <SongInfo>[];
+  PersonalizedSection _buildDiscoverySection() {
+    // Home shelves are already fetched for the home screen. Using them here
+    // means discovery is a genuinely different source from the artist mixes,
+    // and it costs no extra network request.
+    final knownArtists = _profile.artistAffinities.keys.toSet();
+    final candidates = <SongInfo>[];
     final seen = <String>{};
 
-    // Strategy 1: Related songs to top artists (but not the same artist mixes)
-    final topArtists = _profile.preferredArtistIds.take(1).toList();
-    for (final artist in topArtists) {
-      // Find a seed song
-      String? seedVideoId;
-      for (final stats in _statsProvider.songStats.values) {
-        if (stats.artist == artist) {
-          seedVideoId = stats.id;
-          break;
-        }
-      }
-
-      if (seedVideoId != null) {
-        try {
-          final related = await _relatedSongService.getRelatedSongs(seedVideoId);
-          for (final song in related) {
-            if (seen.add(song.videoId) &&
-                _profile.songAffinities[song.videoId] == null && // Not in history
-                songs.length < _maxRecommendationsPerSection) {
-              songs.add(song);
-            }
-          }
-        } catch (e) {
-          debugPrint('Discovery error for $artist: $e');
-        }
+    for (final section in _homeScreenProvider.carouselSections) {
+      for (final content in section.contents) {
+        final song = songInfoFromHomeContent(content);
+        if (song == null) continue;
+        if (!seen.add(song.videoId)) continue;
+        if (_profile.songAffinities.containsKey(song.videoId)) continue;
+        candidates.add(song);
       }
     }
 
-    // Strategy 2: YouTube Music home sections (from HomeScreenProvider)
-    if (songs.length < _maxRecommendationsPerSection) {
-      for (final section in _homeScreenProvider.carouselSections) {
-        for (final content in section.contents) {
-          final song = songInfoFromHomeContent(content);
-          if (song == null) continue;
-          if (seen.add(song.videoId) &&
-              _profile.songAffinities[song.videoId] == null &&
-              songs.length < _maxRecommendationsPerSection) {
-            songs.add(song);
-          }
-        }
-      }
+    bool isNewArtist(SongInfo song) {
+      final artist = song.artists.isNotEmpty ? song.artists.first.name : '';
+      return artist.isNotEmpty && !knownArtists.contains(artist);
     }
+
+    final songs = <SongInfo>[
+      ...candidates.where(isNewArtist),
+      ...candidates.where((song) => !isNewArtist(song)),
+    ].take(_maxRecommendationsPerSection).toList();
 
     return PersonalizedSection(
       title: 'discover_new'.tr(),
       subtitle: 'artists_and_songs_you_might_like'.tr(),
-      songs: songs.take(_maxRecommendationsPerSection).toList(),
+      songs: songs,
       type: SectionType.discovery,
     );
   }
@@ -746,7 +1021,8 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       final affinity = _profile.artistAffinities[artistName] ?? 0.0;
 
       if (seen.add(song.videoId) &&
-          (affinity > 0.1 || songs.length < 5) && // Include if affinity match or need filler
+          (affinity > 0.1 ||
+              songs.length < 5) && // Include if affinity match or need filler
           songs.length < _maxRecommendationsPerSection) {
         songs.add(song);
       }
@@ -760,14 +1036,13 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     );
   }
 
-  Future<PersonalizedSection> _buildGenreExplorationSection() async {
-    // Infer genres from top artists and find related content
-    // For now, use a broader discovery from home sections
+  PersonalizedSection _buildGenreExplorationSection() {
+    // Deeper home shelves: discovery already consumed the first shelves, so
+    // this row adds genuinely new tracks (deduped again later).
     final songs = <SongInfo>[];
     final seen = <String>{};
 
-    // Get songs from home sections that we haven't seen
-    for (final section in _homeScreenProvider.carouselSections) {
+    for (final section in _homeScreenProvider.carouselSections.skip(2)) {
       for (final content in section.contents) {
         final song = songInfoFromHomeContent(content);
         if (song == null) continue;
@@ -793,23 +1068,27 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     // Default: Listen Again from YouTube Music home
     final listenAgainSongs = _homeScreenProvider.listenAgainSongs;
     if (listenAgainSongs.isNotEmpty) {
-      sections.add(PersonalizedSection(
-        title: 'listen_again'.tr(),
-        subtitle: 'your_recent_plays'.tr(),
-        songs: listenAgainSongs.take(_maxRecommendationsPerSection).toList(),
-        type: SectionType.listenAgain,
-      ));
+      sections.add(
+        PersonalizedSection(
+          title: 'listen_again'.tr(),
+          subtitle: 'your_recent_plays'.tr(),
+          songs: listenAgainSongs.take(_maxRecommendationsPerSection).toList(),
+          type: SectionType.listenAgain,
+        ),
+      );
     }
 
     // Default: Trending in Kenya
     final trendingSongs = await _loadTrendingIfNeeded();
     if (trendingSongs.isNotEmpty) {
-      sections.add(PersonalizedSection(
-        title: 'trending_in_kenya'.tr(),
-        subtitle: 'popular_right_now'.tr(),
-        songs: trendingSongs.take(_maxRecommendationsPerSection).toList(),
-        type: SectionType.trendingForYou,
-      ));
+      sections.add(
+        PersonalizedSection(
+          title: 'trending_in_kenya'.tr(),
+          subtitle: 'popular_right_now'.tr(),
+          songs: trendingSongs.take(_maxRecommendationsPerSection).toList(),
+          type: SectionType.trendingForYou,
+        ),
+      );
     }
 
     // Default: YouTube Music home sections (first few)
@@ -821,12 +1100,14 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
           .toList();
 
       if (songs.isNotEmpty) {
-        sections.add(PersonalizedSection(
-          title: section.title,
-          subtitle: 'recommended_for_you'.tr(),
-          songs: songs,
-          type: SectionType.discovery,
-        ));
+        sections.add(
+          PersonalizedSection(
+            title: section.title,
+            subtitle: 'recommended_for_you'.tr(),
+            songs: songs,
+            type: SectionType.discovery,
+          ),
+        );
       }
     }
 
@@ -848,6 +1129,12 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
       (section) => section.type == SectionType.listenAgain,
     );
 
+    // Player notifications also fire for play/pause and queue changes. Only
+    // rebuild the widget tree when the actual track list changed.
+    if (index >= 0 && _sameSongs(_sections[index].songs, newSection.songs)) {
+      return;
+    }
+
     if (index >= 0) {
       _sections[index] = newSection;
     } else {
@@ -856,11 +1143,24 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  static bool _sameSongs(List<SongInfo> a, List<SongInfo> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].videoId != b[i].videoId) return false;
+    }
+    return true;
+  }
+
   @override
   void dispose() {
-    _playerProvider.removeListener(_updateListenAgainFromPlayer);
-    _periodicUpdateTimer?.cancel();
     _sourceChangeDebounce?.cancel();
+    if (_sourceListenersAttached) {
+      _homeScreenProvider.removeListener(_onSourceChanged);
+      _trendingProvider.removeListener(_onSourceChanged);
+      _playerProvider.removeListener(_onPlayerChanged);
+      _statsProvider.removeListener(_onSourceChanged);
+    }
+    _relatedCache.clear();
     _box?.close();
     super.dispose();
   }
