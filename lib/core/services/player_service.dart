@@ -162,8 +162,6 @@ class PlayerService {
 
   AudioSession? _audioSession;
 
-  Timer? _progressSyncTimer;
-
   Timer? _positionSaveTimer;
 
   static const Duration _positionSaveInterval = Duration(seconds: 10);
@@ -252,6 +250,7 @@ class PlayerService {
     _positionSubscription = _mediaKitAdapter.positionStream.listen((position) {
       _position = position;
       _positionController.add(position);
+      _checkAndTriggerPrebuffer(position, _duration);
     });
 
     _durationSubscription = _mediaKitAdapter.durationStream.listen((duration) {
@@ -301,35 +300,6 @@ class PlayerService {
           _emitState();
         }
       }
-    });
-
-    _progressSyncTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
-      final currentPos = _mediaKitAdapter.currentPosition;
-      final currentDur = _mediaKitAdapter.currentDuration;
-      final currentBuf = _mediaKitAdapter.currentBuffered;
-      final currentPlay = _mediaKitAdapter.currentPlaying;
-
-      if (currentPos != _position) {
-        _position = currentPos;
-        _positionController.add(currentPos);
-      }
-
-      if (currentDur != _duration) {
-        _duration = currentDur;
-        _durationController.add(currentDur);
-      }
-
-      if (currentBuf != _bufferedPosition) {
-        _bufferedPosition = currentBuf;
-        _bufferedController.add(currentBuf);
-      }
-
-      if (currentPlay != _isPlaying) {
-        _isPlaying = currentPlay;
-        _emitState();
-      }
-
-      _checkAndTriggerPrebuffer(currentPos, currentDur);
     });
   }
 
@@ -1946,8 +1916,6 @@ class PlayerService {
     sleepTimer?.cancel();
 
     _bufferingTimeoutTimer?.cancel();
-
-    _progressSyncTimer?.cancel();
 
     await _playingSubscription?.cancel();
 

@@ -592,6 +592,9 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+
+    _syncTelegramPolling(state);
+
     if (state == AppLifecycleState.detached) {
       try {
         final playerProvider = Provider.of<PlayerProvider>(
@@ -600,6 +603,23 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
         );
         unawaited(playerProvider.shutdownIfIdle());
       } catch (_) {}
+    }
+  }
+
+  /// Telegram broadcast polling uses the network, so it only runs while the
+  /// app is visible. Leaving it on in the background keeps waking the radio
+  /// for no visible benefit and counts as background activity.
+  void _syncTelegramPolling(AppLifecycleState state) {
+    if (!GetIt.I.isRegistered<TelegramBroadcastService>()) return;
+
+    final service = GetIt.I<TelegramBroadcastService>();
+
+    if (state == AppLifecycleState.resumed) {
+      unawaited(service.start());
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      service.stop();
     }
   }
 

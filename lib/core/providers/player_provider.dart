@@ -168,13 +168,16 @@ class PlayerProvider extends ChangeNotifier {
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.khisa318.musiX',
           androidNotificationChannelName: 'MusiX Playback',
-          // Keep the service in the foreground while paused. With `true`,
-          // pausing calls stopForeground() and resuming calls
-          // startForeground() again, which Android 13+ rejects (killing the
-          // process) once the user has turned notifications off. audio_service
-          // 0.18.x does not catch that native exception, so avoiding the
-          // restart is the fix.
-          androidStopForegroundOnPause: false,
+          // Leave the foreground state when paused. Keeping it (false) holds a
+          // partial wake lock and a foreground service for as long as the app
+          // stays paused, which shows up as hours of background activity.
+          //
+          // Pausing then resumes with another startForeground(). That is safe
+          // here because DownloadNotificationService creates this channel
+          // unconditionally at startup, before anything goes foreground:
+          // Android 13+ only kills the process when startForeground() is given
+          // a notification whose channel does not exist yet.
+          androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
           androidNotificationOngoing: false,
           androidNotificationIcon: 'mipmap/ic_launcher',

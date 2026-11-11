@@ -56,25 +56,49 @@ class TelegramBroadcastService {
   Future<void> start() async {
     if (_isRunning) return;
     _isRunning = true;
-    await _poll();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _poll());
+    final configured = await _poll();
+    if (configured && _isRunning) {
+      _scheduleNextPoll();
+    } else {
+      _isRunning = false;
+    }
   }
 
+  /// Stops polling.
+  ///
+  /// Call this when the app leaves the foreground. A permanent 10 second poll
+  /// keeps waking the radio long after the user stopped looking at the app,
+  /// which shows up as background activity and battery drain.
   void stop() {
     _timer?.cancel();
     _timer = null;
     _isRunning = false;
   }
 
-  Future<void> _poll() async {
-    if (_isPolling) return;
+  void _scheduleNextPoll() {
+    _timer?.cancel();
+    _timer = Timer(const Duration(seconds: 10), () async {
+      if (!_isRunning) return;
+      final configured = await _poll();
+      if (configured && _isRunning) {
+        _scheduleNextPoll();
+      } else {
+        _isRunning = false;
+      }
+    });
+  }
+
+  /// Polls once. Returns false when broadcasting is disabled or not fully
+  /// configured, so the caller can stop the timer instead of ticking forever.
+  Future<bool> _poll() async {
+    if (_isPolling) return true;
     _isPolling = true;
     try {
       final config = await getConfig();
       final token = config['botToken'] as String;
       final allowedChatId = config['chatId'] as String;
       final enabled = config['enabled'] as bool;
-      if (!enabled || token.isEmpty || allowedChatId.isEmpty) return;
+      if (!enabled || token.isEmpty || allowedChatId.isEmpty) return false;
 
       final prefs = await SharedPreferences.getInstance();
       final lastUpdateId = prefs.getInt(_lastUpdateIdKey) ?? 0;
@@ -89,19 +113,16 @@ class TelegramBroadcastService {
       );
       final res = await _client.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) {
-        _isPolling = false;
-        return;
+        return true;
       }
 
       final data = jsonDecode(res.body);
       if (data is! Map || data['ok'] != true) {
-        _isPolling = false;
-        return;
+        return true;
       }
       final result = data['result'];
       if (result is! List || result.isEmpty) {
-        _isPolling = false;
-        return;
+        return true;
       }
 
       for (final update in result) {
@@ -138,8 +159,12 @@ class TelegramBroadcastService {
           break;
         }
       }
+      return true;
     } catch (e) {
       debugPrint('Telegram broadcast poll error: $e');
+      // Network errors are transient: keep polling as long as broadcasting is
+      // configured.
+      return true;
     } finally {
       _isPolling = false;
     }

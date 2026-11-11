@@ -15,8 +15,8 @@ class CustomAudioHandler extends BaseAudioHandler
   final PlayerProvider _playerProvider;
   final FavoriteSongProvider _favoriteSongProvider;
 
-  // ignore: unused_field
   Timer? _throttleTimer;
+  static const Duration _throttleInterval = Duration(milliseconds: 500);
   bool _stateDirty = false;
 
   Duration _position = Duration.zero;
@@ -59,12 +59,8 @@ class CustomAudioHandler extends BaseAudioHandler
     _playerProvider.addListener(_updateMediaItem);
     _favoriteSongProvider.addListener(_markStateDirty);
 
-    _throttleTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (_stateDirty) {
-        _stateDirty = false;
-        _broadcastState();
-      }
-    });
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
 
     _updateQueue();
     _updateMediaItem();
@@ -73,6 +69,18 @@ class CustomAudioHandler extends BaseAudioHandler
 
   void _markStateDirty() {
     _stateDirty = true;
+
+    // Coalesce bursts of position/state events into at most one broadcast per
+    // interval. A one-shot timer (rather than a permanently ticking periodic
+    // one) means the app goes completely idle once playback stops.
+    _throttleTimer ??= Timer(_throttleInterval, _flushStateIfDirty);
+  }
+
+  void _flushStateIfDirty() {
+    _throttleTimer = null;
+    if (!_stateDirty) return;
+    _stateDirty = false;
+    _broadcastState();
   }
 
   void _updateQueue() {
@@ -223,7 +231,18 @@ class CustomAudioHandler extends BaseAudioHandler
   Future<void> seek(Duration position) => _playerService.seek(position);
 
   @override
-  Future<void> stop() => _playerService.stop();
+  Future<void> stop() async {
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
+    _stateDirty = false;
+    await _playerService.stop();
+    // Send the idle state straight away so audio_service tears down the
+    // foreground service and its wake lock instead of waiting for the next
+    // throttled tick (which may never come once playback has stopped).
+    _broadcastState();
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
+  }
 
   @override
   Future<void> skipToNext() async => _playerService.playNext();

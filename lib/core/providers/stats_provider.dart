@@ -98,7 +98,7 @@ class StatsProvider with ChangeNotifier {
   static const String _hiveDailyBoxName = 'playback_stats_daily';
   static const String _hiveDailyArtistBoxName = 'playback_stats_daily_artist';
   static const int _playCountThresholdSeconds = 15;
-  static const Duration _saveInterval = Duration(seconds: 10);
+  static const Duration _saveDebounce = Duration(seconds: 10);
 
   Box<String>? _statsBox;
   Box<String>? _dailyBox;
@@ -138,7 +138,6 @@ class StatsProvider with ChangeNotifier {
     _dailyBox = await Hive.openBox<String>(_hiveDailyBoxName);
     _dailyArtistBox = await Hive.openBox<String>(_hiveDailyArtistBoxName);
     await _loadStats();
-    _startSaveTimer();
   }
 
   Future<void> _loadStats() async {
@@ -197,13 +196,19 @@ class StatsProvider with ChangeNotifier {
     );
   }
 
-  void _startSaveTimer() {
-    _saveTimer?.cancel();
-    _saveTimer = Timer.periodic(_saveInterval, (timer) {
-      if (_isDirty) {
-        _saveStats();
-        _isDirty = false;
-      }
+  /// Persists pending stats after a short quiet period.
+  ///
+  /// This used to be a permanently ticking periodic timer, which woke the
+  /// isolate every 10 seconds forever even with nothing to save. A one-shot
+  /// timer rescheduled only while data is dirty keeps the app idle when it is
+  /// not playing.
+  void _scheduleSave() {
+    if (_saveTimer != null) return;
+    _saveTimer = Timer(_saveDebounce, () {
+      _saveTimer = null;
+      if (!_isDirty) return;
+      _isDirty = false;
+      unawaited(_saveStats());
     });
   }
 
@@ -318,6 +323,7 @@ class StatsProvider with ChangeNotifier {
 
     _lastFlushTime = now;
     _isDirty = true;
+    _scheduleSave();
     notifyListeners();
   }
 
