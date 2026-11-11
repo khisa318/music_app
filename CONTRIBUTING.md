@@ -92,6 +92,11 @@ Release signing is configured via `android/key.properties` locally and via the
 `MUSIX_KEYSTORE_*` GitHub secrets in CI. See the README section
 [Release signing](README.md#release-signing).
 
+`android/app/google-services.json` is injected from the
+`GOOGLE_SERVICES_JSON_BASE64` secret for release builds and is gitignored. The
+Telegram → FCM backend has its own secrets; see
+[docs/push-notifications.md](docs/push-notifications.md).
+
 If you ever commit a secret, assume it is compromised: rotate it immediately.
 Deleting the file in a follow-up commit does not remove it from history.
 

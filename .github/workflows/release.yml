@@ -171,9 +171,28 @@ jobs:
           done
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing GitHub Secret(s): ${missing[*]}"
-            echo "Add both secrets to enable Telegram crash reports and message notifications."
+            echo "Add both secrets to enable Telegram crash reports."
             exit 1
           fi
+
+      # Push notifications use FCM, not a config committed to the repository.
+      # The service-account credentials stay in Firebase; only the Android app
+      # config file is restored here.
+      - name: Inject Firebase config
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
+            echo "::error::Missing GitHub Secret: GOOGLE_SERVICES_JSON_BASE64"
+            echo "Release builds need android/app/google-services.json so FCM"
+            echo "push notifications work. See docs/push-notifications.md."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode \
+            > android/app/google-services.json
+          echo "OK: google-services.json injected"
 
       - name: flutter pub get
         run: flutter pub get

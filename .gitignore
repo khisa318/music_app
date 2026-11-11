@@ -74,3 +74,16 @@ keystore.b64
 
 # Downloaded update staging (runtime only, but keep it out of git)
 updates/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Firebase / FCM
+# google-services.json is injected from a CI secret (and placed locally when
+# developing push notifications). It must never be committed.
+# ─────────────────────────────────────────────────────────────────────────────
+android/app/google-services.json
+.firebaserc
+.firebase/
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/.env.*

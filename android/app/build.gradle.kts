@@ -10,6 +10,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// google-services.json is injected at build time (see
+// docs/push-notifications.md) and deliberately kept out of git. Applying the
+// plugin conditionally lets contributors build without a Firebase project;
+// push notifications stay disabled and the rest of the app works.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Load release signing properties from android/key.properties.
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties().apply {

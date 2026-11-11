@@ -1,0 +1,23 @@
+{
+  "name": "musix-functions",
+  "description": "Telegram webhook that relays MusiX announcements through FCM",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\"",
+    "deploy": "npm run build && firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.9.3"
+  }
+}
