@@ -33,8 +33,8 @@ import 'core/providers/video_info_provider.dart';
 
 import 'core/services/crash_log_service.dart';
 import 'core/services/download_notification_service.dart';
-import 'core/services/telegram_broadcast_service.dart';
 import 'core/services/intent_service.dart';
+import 'core/services/push_notification_service.dart';
 import 'core/services/related_song_service.dart';
 
 import 'core/theme/app_theme.dart';
@@ -305,13 +305,25 @@ Future<void> main() async {
         }
       }
 
+      // ------------------------------------------------------------
+      // PUSH NOTIFICATIONS (FCM)
+      // ------------------------------------------------------------
+
       try {
-        final telegramBroadcast = TelegramBroadcastService();
-        GetIt.I.registerSingleton<TelegramBroadcastService>(telegramBroadcast);
-        // ignore: discarded_futures
-        telegramBroadcast.start();
+        final pushNotifications = PushNotificationService();
+        GetIt.I.registerSingleton<PushNotificationService>(pushNotifications);
+
+        final ready = await pushNotifications
+            .initialize()
+            .timeout(const Duration(seconds: 10));
+
+        if (ready) {
+          talker.info('Push notifications initialized');
+        } else {
+          talker.info('Push notifications not configured; skipping');
+        }
       } catch (e, st) {
-        talker.handle(e, st, 'Telegram broadcast initialization failed');
+        talker.handle(e, st, 'Push notification initialization failed');
       }
 
       // ------------------------------------------------------------
@@ -593,8 +605,6 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    _syncTelegramPolling(state);
-
     if (state == AppLifecycleState.detached) {
       try {
         final playerProvider = Provider.of<PlayerProvider>(
@@ -603,23 +613,6 @@ class _MusiXAppState extends State<MusiXApp> with WidgetsBindingObserver {
         );
         unawaited(playerProvider.shutdownIfIdle());
       } catch (_) {}
-    }
-  }
-
-  /// Telegram broadcast polling uses the network, so it only runs while the
-  /// app is visible. Leaving it on in the background keeps waking the radio
-  /// for no visible benefit and counts as background activity.
-  void _syncTelegramPolling(AppLifecycleState state) {
-    if (!GetIt.I.isRegistered<TelegramBroadcastService>()) return;
-
-    final service = GetIt.I<TelegramBroadcastService>();
-
-    if (state == AppLifecycleState.resumed) {
-      unawaited(service.start());
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
-      service.stop();
     }
   }
 

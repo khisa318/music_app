@@ -26,6 +26,15 @@ class DownloadNotificationService {
   static const String _completeChannelDescription =
       'Shows completed and failed downloads';
 
+  // Announcements delivered over FCM. The id is also sent by the Cloud
+  // Function in `android.notification.channel_id`, so both sides must stay in
+  // sync. Created at launch for the same Android 13+ reason as the media
+  // channel below.
+  static const String broadcastChannelId = 'musix_broadcasts';
+  static const String _broadcastChannelName = 'Announcements';
+  static const String _broadcastChannelDescription =
+      'Messages sent from the MusiX team';
+
   // Playback (media) notification channel. audio_service owns the notification
   // itself, but we create its channel here, at app startup, on purpose.
   //
@@ -149,6 +158,17 @@ class DownloadNotificationService {
       playSound: false,
     );
 
+    const AndroidNotificationChannel broadcastChannel =
+        AndroidNotificationChannel(
+          broadcastChannelId,
+          _broadcastChannelName,
+          description: _broadcastChannelDescription,
+          importance: Importance.high,
+          showBadge: true,
+          enableVibration: true,
+          playSound: true,
+        );
+
     final AndroidFlutterLocalNotificationsPlugin? android = _notifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -161,6 +181,7 @@ class DownloadNotificationService {
     await android?.createNotificationChannel(progressChannel);
     await android?.createNotificationChannel(completeChannel);
     await android?.createNotificationChannel(mediaChannel);
+    await android?.createNotificationChannel(broadcastChannel);
   }
 
   /// Whether the OS currently allows this app to post notifications.
@@ -446,7 +467,7 @@ class DownloadNotificationService {
     } catch (_) {}
   }
 
-  Future<bool> showTelegramMessage({
+  Future<bool> showBroadcastMessage({
     required String title,
     required String body,
   }) async {
@@ -456,9 +477,9 @@ class DownloadNotificationService {
 
     final AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          _completeChannelId,
-          _completeChannelName,
-          channelDescription: _completeChannelDescription,
+          broadcastChannelId,
+          _broadcastChannelName,
+          channelDescription: _broadcastChannelDescription,
           importance: Importance.high,
           priority: Priority.high,
           ongoing: false,
