@@ -44,6 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Kotlin Gradle plugin build cache, created on every Android build.
+/android/.kotlin/
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Release signing - never commit any of this.
 # The copies inside android/ are also ignored by android/.gitignore; the
@@ -87,3 +90,15 @@ functions/node_modules/
 functions/lib/
 functions/.env
 functions/.env.*
+
+# Cloudflare Worker backend
+worker/node_modules/
+worker/.wrangler/
+worker/.dev.vars
+worker/.env
+worker/.env.*
+worker/.secrets.json
+
+# Firebase service account keys used by the Worker (never commit)
+*service-account*.json
+*service_account*.json

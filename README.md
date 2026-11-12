@@ -254,7 +254,8 @@ music_app/
 │   ├── screenshots/             # README screenshots and mockup
 │   └── translations/            # Localization JSON files
 ├── docs/                        # Changelogs, release metadata and setup guides
-├── functions/                   # Firebase Cloud Functions (Telegram → FCM backend)
+├── functions/                   # Optional Firebase Cloud Functions backend (needs Blaze)
+├── worker/                      # Cloudflare Worker backend (Telegram → FCM, free plan)
 ├── lib/
 │   ├── core/                    # Shared providers, services, models, constants, theme
 │   ├── features/                # Feature-first modules (player, search, library, etc.)
@@ -322,14 +323,14 @@ inspects the APK. Use a dedicated bot and rotate the token if it is exposed.
 
 ### Push notifications (Telegram → FCM)
 
-Announcements are no longer polled by the app. A Firebase Cloud Function receives
-Telegram webhook updates and publishes them to every installation through
-Firebase Cloud Messaging. Release builds additionally require the
+Announcements are no longer polled by the app. A Cloudflare Worker on the free
+plan receives Telegram webhook updates and publishes them to every installation
+through Firebase Cloud Messaging. Release builds additionally require the
 `GOOGLE_SERVICES_JSON_BASE64` secret; the file is injected during the build and is
 never committed.
 
-Full setup — Firebase project, Cloud Functions deployment, Telegram webhook,
-secrets, and testing — is in [docs/push-notifications.md](docs/push-notifications.md).
+Full setup — Firebase project, service account, Worker deployment, Telegram
+webhook, secrets, and testing — is in [docs/push-notifications.md](docs/push-notifications.md).
 
 ## 🙌 Credits
 

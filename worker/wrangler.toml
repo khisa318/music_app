@@ -1,0 +1,7 @@
+name = "musix-broadcasts"
+main = "src/index.ts"
+compatibility_date = "2026-11-12"
+
+# Deployed on the Workers free plan. The public URL is
+# https://musix-broadcasts.<account-subdomain>.workers.dev
+# No custom domain, KV, or Durable Objects are required.
