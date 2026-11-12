@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_locales.dart';
+import '../services/push_notification_service.dart';
 import '../services/settings_storage_service.dart';
 import '../../features/search/data/search_screen_services.dart';
 
@@ -179,9 +183,21 @@ class SettingsProvider with ChangeNotifier {
   }
 
   set notificationsEnabled(bool value) {
+    if (_notificationsEnabled == value) return;
+
     _notificationsEnabled = value;
     _saveToPrefs(_notificationsKey, value);
+    _syncPushSubscription(value);
     notifyListeners();
+  }
+
+  /// Keeps the FCM broadcast subscription in step with the Notifications
+  /// setting. Turning it off unsubscribes, so announcements no longer arrive
+  /// even though the OS permission itself is unchanged.
+  void _syncPushSubscription(bool enabled) {
+    if (!GetIt.I.isRegistered<PushNotificationService>()) return;
+
+    unawaited(GetIt.I<PushNotificationService>().setBroadcastsEnabled(enabled));
   }
 
   set streamingQuality(String value) {

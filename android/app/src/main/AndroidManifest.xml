@@ -104,6 +104,16 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
 
+        <!-- FCM uses these when a message does not override the channel or
+             icon. The channel mirrors DownloadNotificationService's
+             broadcastChannelId and the Cloud Function payload. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="musix_broadcasts" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+
         <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
 

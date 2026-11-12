@@ -314,7 +314,7 @@ Future<void> main() async {
         GetIt.I.registerSingleton<PushNotificationService>(pushNotifications);
 
         final ready = await pushNotifications
-            .initialize()
+            .initialize(enabled: settingsProvider.notificationsEnabled)
             .timeout(const Duration(seconds: 10));
 
         if (ready) {

@@ -35,20 +35,29 @@ class PushNotificationService {
 
   final DownloadNotificationService _notifications;
 
+  FirebaseMessaging? _messaging;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
   bool _initialized = false;
+  bool _broadcastsEnabled = true;
 
   bool get isInitialized => _initialized;
 
   /// Initializes Firebase, subscribes to the broadcast topic, and wires the
   /// foreground message handler.
   ///
+  /// [enabled] mirrors the app's Notifications setting. When it is false the
+  /// device stays unsubscribed, so turning notifications off also stops
+  /// announcement pushes instead of relying on the OS permission alone.
+  ///
   /// Returns false when Firebase is not configured (for example a local build
   /// without `google-services.json`). The app keeps working; it just does not
   /// receive push messages.
-  Future<bool> initialize() async {
-    if (_initialized) return true;
+  Future<bool> initialize({bool enabled = true}) async {
+    if (_initialized) {
+      await setBroadcastsEnabled(enabled);
+      return true;
+    }
 
     try {
       if (Firebase.apps.isEmpty) {
@@ -56,12 +65,8 @@ class PushNotificationService {
       }
 
       final messaging = FirebaseMessaging.instance;
-
-      // Notification permission is requested during onboarding, where there is
-      // UI behind the system dialog. Subscribing does not need the permission,
-      // so an existing user whose permission is already granted starts
-      // receiving broadcasts immediately.
-      await messaging.subscribeToTopic(broadcastTopic);
+      _messaging = messaging;
+      _broadcastsEnabled = enabled;
 
       FirebaseMessaging.onBackgroundMessage(
         firebaseMessagingBackgroundHandler,
@@ -83,6 +88,11 @@ class PushNotificationService {
       }
 
       _initialized = true;
+
+      // Subscription is best-effort: a temporary network failure must not stop
+      // the handlers above from being registered. The next app start, or the
+      // next settings change, retries it.
+      await _syncTopicSubscription();
       return true;
     } catch (e) {
       debugPrint('Push notifications unavailable: $e');
@@ -90,7 +100,39 @@ class PushNotificationService {
     }
   }
 
+  /// Re-applies the broadcast topic subscription.
+  ///
+  /// Safe to call repeatedly. Used at startup and whenever the user flips the
+  /// Notifications setting.
+  Future<void> setBroadcastsEnabled(bool enabled) async {
+    if (_broadcastsEnabled == enabled && _initialized) return;
+    _broadcastsEnabled = enabled;
+    if (!_initialized) return;
+    await _syncTopicSubscription();
+  }
+
+  Future<void> _syncTopicSubscription() async {
+    final messaging = _messaging;
+    if (messaging == null) return;
+
+    try {
+      // Notification permission is requested during onboarding, where there is
+      // UI behind the system dialog. Subscribing does not need the permission,
+      // so an existing user whose permission is already granted starts
+      // receiving broadcasts immediately.
+      if (_broadcastsEnabled) {
+        await messaging.subscribeToTopic(broadcastTopic);
+      } else {
+        await messaging.unsubscribeFromTopic(broadcastTopic);
+      }
+    } catch (e) {
+      debugPrint('Push notification subscription sync failed: $e');
+    }
+  }
+
   void _showForegroundMessage(RemoteMessage message) {
+    if (!_broadcastsEnabled) return;
+
     final notification = message.notification;
 
     final title = notification?.title ?? _dataString(message, 'title');
@@ -123,6 +165,7 @@ class PushNotificationService {
     await _openedSubscription?.cancel();
     _foregroundSubscription = null;
     _openedSubscription = null;
+    _messaging = null;
     _initialized = false;
   }
 }
