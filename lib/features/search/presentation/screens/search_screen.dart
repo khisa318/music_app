@@ -98,10 +98,10 @@ class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  State<SearchScreen> createState() => SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen>
+class SearchScreenState extends State<SearchScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
 
@@ -392,6 +392,7 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _clearSearch() {
+    _debounceTimer?.cancel();
     _searchController.clear();
 
     _categorizedResultsNotifier.value = {
@@ -408,6 +409,14 @@ class _SearchScreenState extends State<SearchScreen>
     _showSuggestionsNotifier.value = false;
     _hasErrorNotifier.value = false;
     _isLoadingNotifier.value = false;
+  }
+
+  /// Clears the query and results. Called when the Search tab is left so the
+  /// next visit starts from a clean search field instead of the last query.
+  void resetSearch() {
+    if (!mounted) return;
+    _focusNode.unfocus();
+    _clearSearch();
   }
 
   void _onModeChanged() {

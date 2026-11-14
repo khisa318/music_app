@@ -32,9 +32,9 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
   }
 
   void _openShow(PodcastShow show) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PodcastDetailScreen(show: show)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PodcastDetailScreen(show: show)));
   }
 
   void _openCategory(PodcastCategory category) {
@@ -160,9 +160,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
 
             if (continueListening.isNotEmpty) ...[
               const SizedBox(height: AppDimens.spacingXl),
-              PodcastSectionHeader(
-                title: 'podcast_continue_listening'.tr(),
-              ),
+              PodcastSectionHeader(title: 'podcast_continue_listening'.tr()),
               const SizedBox(height: AppDimens.spacingMd),
               SizedBox(
                 height: 106,
@@ -216,9 +214,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
 
             if (provider.trendingShows.isNotEmpty) ...[
               const SizedBox(height: AppDimens.spacingXl),
-              PodcastSectionHeader(
-                title: 'podcast_trending'.tr(),
-              ),
+              PodcastSectionHeader(title: 'podcast_trending'.tr()),
               const SizedBox(height: AppDimens.spacingMd),
               _HorizontalShowList(
                 shows: provider.trendingShows,
@@ -244,7 +240,7 @@ class _PodcastsScreenState extends State<PodcastsScreen> {
                       crossAxisCount: columns,
                       mainAxisSpacing: AppDimens.spacingMd,
                       crossAxisSpacing: AppDimens.spacingMd,
-                      childAspectRatio: 2.15,
+                      mainAxisExtent: 96,
                     ),
                     itemBuilder: (context, index) {
                       final category = categories[index];
@@ -306,7 +302,7 @@ class _HorizontalShowList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 214,
+      height: 220,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
@@ -314,10 +310,7 @@ class _HorizontalShowList extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppDimens.spacingMd),
         itemBuilder: (context, index) {
           final show = shows[index];
-          return PodcastCard(
-            show: show,
-            onTap: () => onTap(show),
-          );
+          return PodcastCard(show: show, onTap: () => onTap(show));
         },
       ),
     );

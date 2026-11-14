@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
 
@@ -15,15 +14,15 @@ import '../../data/services/home_screen_queue_service.dart';
 
 /// Personalized suggestion shelves rendered above the Speed Dial.
 ///
-/// Each provider section keeps its own horizontal row of tiles so the home
-/// screen stays scannable while still exposing the full recommendation set.
-/// The tiles mirror the Speed Dial treatment (cover + title + artist) to keep
-/// the two areas visually consistent.
+/// Each provider section is laid out as a compact grid so a whole shelf is
+/// visible without a horizontal swipe. Every shelf, Listen Again included, shows
+/// up to nine tracks (three rows of three) with tight gutters so the artwork
+/// stays as large as possible.
 class PersonalizedSections extends StatelessWidget {
   const PersonalizedSections({super.key});
 
-  static const double _tileWidth = 130.0;
-  static const double _tileHeight = _tileWidth + 46;
+  static const int _columns = 3;
+  static const int _maxTiles = 9;
 
   @override
   Widget build(BuildContext context) {
@@ -63,23 +62,18 @@ class PersonalizedSections extends StatelessWidget {
         ),
         ...provider.sections.map((section) {
           if (section.songs.isEmpty) return const SizedBox.shrink();
-          return _PersonalizedSectionRow(
-            section: section,
-            isDark: isDark,
-          );
+          return _PersonalizedSectionBlock(section: section, isDark: isDark);
         }),
       ],
     );
   }
-
-
 }
 
-class _PersonalizedSectionRow extends StatelessWidget {
+class _PersonalizedSectionBlock extends StatelessWidget {
   final PersonalizedSection section;
   final bool isDark;
 
-  const _PersonalizedSectionRow({
+  const _PersonalizedSectionBlock({
     required this.section,
     required this.isDark,
   });
@@ -87,7 +81,6 @@ class _PersonalizedSectionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
-    final songs = section.songs.take(6).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,58 +112,31 @@ class _PersonalizedSectionRow extends StatelessWidget {
               section.subtitle,
               style: AppTextStyles.body2(
                 isDarkMode: isDark,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.60),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.60),
               ),
             ),
           ),
-        section.type == SectionType.listenAgain
-            ? _PersonalizedGrid(
-                songs: songs,
-                isDark: isDark,
-                onPlay: (song) =>
-                    _playSong(context, song, section.type),
-              )
-            : SizedBox(
-                height: PersonalizedSections._tileHeight,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
-                  itemCount: songs.length,
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-                    return _PersonalizedTile(
-                      song: song,
-                      isDark: isDark,
-                      onTap: () => _playSong(context, song, section.type),
-                    );
-                  },
-                ),
-              ),
+        _PersonalizedGrid(
+          section: section,
+          isDark: isDark,
+          onPlay: (song) => _playSong(context, song, section.type),
+        ),
         const SizedBox(height: AppDimens.spacingSm),
       ],
     );
   }
 
-  void _playSong(
-    BuildContext context,
-    SongInfo song,
-    SectionType type,
-  ) {
+  void _playSong(BuildContext context, SongInfo song, SectionType type) {
     try {
-      HomeScreenQueueService(context).playSong(
-        song,
-        'personalized_${type.name}',
-      );
+      HomeScreenQueueService(
+        context,
+      ).playSong(song, 'personalized_${type.name}');
     } catch (e) {
       debugPrint('Personalized playback failed: $e');
     }
   }
-
 }
 
 class _PersonalizedTile extends StatelessWidget {
@@ -190,80 +156,76 @@ class _PersonalizedTile extends StatelessWidget {
       (p) => p.currentSong?.videoId == song.videoId,
     );
     final accentColor = context.select((SettingsProvider p) => p.accentColor);
-    final thumbnailUrl =
-        song.thumbnails.isEmpty ? '' : song.thumbnails.last.url;
+    final thumbnailUrl = song.thumbnails.isEmpty
+        ? ''
+        : song.thumbnails.last.url;
     final artistName = song.artists.isEmpty ? '' : song.artists.first.name;
 
-    return Container(
-      width: PersonalizedSections._tileWidth,
-      margin: const EdgeInsets.only(right: AppDimens.spacingSm),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                    child: thumbnailUrl.isEmpty
-                        ? _thumbnailFallback(context)
-                        : CachedNetworkImage(
-                            imageUrl: thumbnailUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                _thumbnailFallback(context, showSpinner: true),
-                            errorWidget: (context, url, error) =>
-                                _thumbnailFallback(context),
-                          ),
-                  ),
-                  if (isPlaying)
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                  child: thumbnailUrl.isEmpty
+                      ? _thumbnailFallback(context)
+                      : CachedNetworkImage(
+                          imageUrl: thumbnailUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              _thumbnailFallback(context, showSpinner: true),
+                          errorWidget: (context, url, error) =>
+                              _thumbnailFallback(context),
                         ),
-                        child: Icon(
-                          Icons.graphic_eq_rounded,
-                          color: accentColor,
-                          size: AppDimens.iconXl,
-                        ),
+                ),
+                if (isPlaying)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                      ),
+                      child: Icon(
+                        Icons.graphic_eq_rounded,
+                        color: accentColor,
+                        size: AppDimens.iconXl,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
-            const SizedBox(height: AppDimens.spacingXs),
-            Text(
-              song.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isPlaying ? accentColor : null,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+          ),
+          const SizedBox(height: AppDimens.spacingXs),
+          Text(
+            song.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isPlaying ? accentColor : null,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
-            Text(
-              artistName.isEmpty ? 'unknown_artist'.tr() : artistName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption(
-                isDarkMode: isDark,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
-              ),
+          ),
+          Text(
+            artistName.isEmpty ? 'unknown_artist'.tr() : artistName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption(
+              isDarkMode: isDark,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -292,12 +254,12 @@ class _PersonalizedTile extends StatelessWidget {
 }
 
 class _PersonalizedGrid extends StatelessWidget {
-  final List<SongInfo> songs;
+  final PersonalizedSection section;
   final bool isDark;
   final ValueChanged<SongInfo> onPlay;
 
   const _PersonalizedGrid({
-    required this.songs,
+    required this.section,
     required this.isDark,
     required this.onPlay,
   });
@@ -307,14 +269,13 @@ class _PersonalizedGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final padding = AppDimens.paddingLg * 2;
-        final available = math.min(
-          constraints.maxWidth - padding,
-          AppDimens.maxContentWidth - padding,
-        );
-        final columns = math.min(
-          6,
-          math.max(3, (available / PersonalizedSections._tileWidth).round()),
-        );
+        final available = constraints.maxWidth - padding;
+
+        final columns = PersonalizedSections._columns;
+        final songs = section.songs
+            .take(PersonalizedSections._maxTiles)
+            .toList();
+
         final tileWidth =
             (available - AppDimens.spacingXs * (columns - 1)) / columns;
 
@@ -327,7 +288,7 @@ class _PersonalizedGrid extends StatelessWidget {
             crossAxisCount: columns,
             mainAxisSpacing: AppDimens.spacingXs,
             crossAxisSpacing: AppDimens.spacingXs,
-            mainAxisExtent: tileWidth + 46,
+            mainAxisExtent: tileWidth + 48,
           ),
           itemBuilder: (context, index) {
             final song = songs[index];

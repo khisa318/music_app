@@ -153,7 +153,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
   static const String _sectionsTimestampKey = 'personalized_sections_timestamp';
   static const String _sectionsSignatureKey = 'personalized_sections_signature';
   static const Duration _sectionsCacheDuration = Duration(hours: 6);
-  static const int _maxRecommendationsPerSection = 6;
+  static const int _maxRecommendationsPerSection = 9;
   static const int _maxTopArtists = 10;
 
   /// Number of artist mixes shown at once. Two keeps the feed varied without

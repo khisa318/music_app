@@ -57,9 +57,9 @@ class _PodcastSearchScreenState extends State<PodcastSearchScreen> {
   }
 
   void _openShow(PodcastShow show) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PodcastDetailScreen(show: show)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PodcastDetailScreen(show: show)));
   }
 
   @override
@@ -218,8 +218,7 @@ class _SearchResults extends StatelessWidget {
         bottom: AppDimens.spacing4Xl,
       ),
       itemCount: provider.searchResults.length,
-      separatorBuilder: (_, _) =>
-          const SizedBox(height: AppDimens.spacingXxs),
+      separatorBuilder: (_, _) => const SizedBox(height: AppDimens.spacingXxs),
       itemBuilder: (context, index) {
         final show = provider.searchResults[index];
         return PodcastListTile(
@@ -251,9 +250,7 @@ class _SearchLanding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = MainScreenColors.getTextColor(
-      isDark,
-    ).withValues(alpha: 0.55);
+    final muted = MainScreenColors.getTextColor(isDark).withValues(alpha: 0.55);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -322,7 +319,7 @@ class _SearchLanding extends StatelessWidget {
                 crossAxisCount: columns,
                 mainAxisSpacing: AppDimens.spacingMd,
                 crossAxisSpacing: AppDimens.spacingMd,
-                childAspectRatio: 2.15,
+                mainAxisExtent: 96,
               ),
               itemBuilder: (context, index) {
                 final category = PodcastCategory.values[index];
@@ -343,10 +340,7 @@ class _SearchLanding extends StatelessWidget {
             Expanded(
               child: Text(
                 'podcast_search_tip'.tr(),
-                style: AppTextStyles.caption(
-                  isDarkMode: isDark,
-                  color: muted,
-                ),
+                style: AppTextStyles.caption(isDarkMode: isDark, color: muted),
               ),
             ),
           ],
@@ -375,8 +369,7 @@ class _SearchSkeleton extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(AppDimens.paddingLg),
         itemCount: 8,
-        separatorBuilder: (_, _) =>
-            const SizedBox(height: AppDimens.spacingMd),
+        separatorBuilder: (_, _) => const SizedBox(height: AppDimens.spacingMd),
         itemBuilder: (_, _) => Row(
           children: [
             Container(

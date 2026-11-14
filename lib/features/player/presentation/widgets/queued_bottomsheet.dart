@@ -269,60 +269,79 @@ class _QueueBottomSheetState extends State<QueueBottomSheet> {
                           vertical: AppDimens.spacingS,
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.queue_music,
-                                  color: accentColor,
-                                  size: AppDimens.iconMd,
-                                ),
-                                const SizedBox(width: AppDimens.paddingSm),
-                                Text(
-                                  'Playing',
-                                  style: AppTextStyles.titleSm(
-                                    isDarkMode: isDarkMode,
-                                  ),
-                                ),
-                                const SizedBox(width: AppDimens.spacingSmMd),
-                                IconButton(
-                                  tooltip: 'Shuffle',
-                                  onPressed: () {
-                                    queueProvider.toggleShuffle();
-                                  },
-                                  icon: Icon(
-                                    queueProvider.isShuffleEnabled
-                                        ? Icons.shuffle_on_rounded
-                                        : Icons.shuffle_rounded,
-                                    color: queueProvider.isShuffleEnabled
-                                        ? accentColor
-                                        : MainScreenColors.getTextColor(
-                                            isDarkMode,
-                                          ).withValues(alpha: 0.7),
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.queue_music,
+                                    color: accentColor,
                                     size: AppDimens.iconMd,
                                   ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Repeat',
-                                  onPressed: () {
-                                    queueProvider.toggleRepeat();
-                                  },
-                                  icon: Icon(
-                                    queueProvider.repeatMode.name == 'one'
-                                        ? Icons.repeat_one_rounded
-                                        : Icons.repeat_rounded,
-                                    color: queueProvider.isRepeatEnabled
-                                        ? accentColor
-                                        : MainScreenColors.getTextColor(
-                                            isDarkMode,
-                                          ).withValues(alpha: 0.7),
-                                    size: AppDimens.iconMd,
+                                  const SizedBox(width: AppDimens.paddingSm),
+                                  Flexible(
+                                    child: Text(
+                                      'Playing',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTextStyles.titleSm(
+                                        isDarkMode: isDarkMode,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: AppDimens.spacingSmMd),
+                                  IconButton(
+                                    tooltip: 'Shuffle',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 36,
+                                      minHeight: 36,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      queueProvider.toggleShuffle();
+                                    },
+                                    icon: Icon(
+                                      queueProvider.isShuffleEnabled
+                                          ? Icons.shuffle_on_rounded
+                                          : Icons.shuffle_rounded,
+                                      color: queueProvider.isShuffleEnabled
+                                          ? accentColor
+                                          : MainScreenColors.getTextColor(
+                                              isDarkMode,
+                                            ).withValues(alpha: 0.7),
+                                      size: AppDimens.iconMd,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Repeat',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 36,
+                                      minHeight: 36,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () {
+                                      queueProvider.toggleRepeat();
+                                    },
+                                    icon: Icon(
+                                      queueProvider.repeatMode.name == 'one'
+                                          ? Icons.repeat_one_rounded
+                                          : Icons.repeat_rounded,
+                                      color: queueProvider.isRepeatEnabled
+                                          ? accentColor
+                                          : MainScreenColors.getTextColor(
+                                              isDarkMode,
+                                            ).withValues(alpha: 0.7),
+                                      size: AppDimens.iconMd,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(

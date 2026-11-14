@@ -35,14 +35,16 @@ class DesktopMainScreen extends StatefulWidget {
 class _DesktopMainScreenState extends State<DesktopMainScreen> {
   int _currentIndex = 0;
   final GlobalKey<NavigatorState> _innerNavKey = GlobalKey<NavigatorState>();
+  final GlobalKey<SearchScreenState> _searchScreenKey =
+      GlobalKey<SearchScreenState>();
 
   bool _isExpanded = true;
 
   late TextStyle _selectedLabelStyle;
 
-  final List<Widget> _screens = [
+  late final List<Widget> _screens = [
     const HomeScreen(),
-    const SearchScreen(),
+    SearchScreen(key: _searchScreenKey),
     const PodcastsScreen(),
     const TrendingScreen(),
     const PlaylistScreen(),
@@ -102,6 +104,9 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
           onTap: () {
             if (_innerNavKey.currentState?.canPop() ?? false) {
               _innerNavKey.currentState!.popUntil((route) => route.isFirst);
+            }
+            if (_currentIndex == 1 && index != 1) {
+              _searchScreenKey.currentState?.resetSearch();
             }
             setState(() => _currentIndex = index);
           },

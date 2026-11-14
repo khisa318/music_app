@@ -45,6 +45,11 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
     (_) => GlobalKey<NavigatorState>(),
   );
 
+  final GlobalKey<SearchScreenState> _searchScreenKey =
+      GlobalKey<SearchScreenState>();
+
+  int _lastTabIndex = 0;
+
   DateTime? _lastBackPressTime;
 
   OTAProvider? _otaProvider;
@@ -97,6 +102,11 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
   }
 
   void _onTabChanged() {
+    final currentIndex = _controller.index;
+    if (_lastTabIndex == 1 && currentIndex != 1) {
+      _searchScreenKey.currentState?.resetSearch();
+    }
+    _lastTabIndex = currentIndex;
     _lastBackPressTime = null;
   }
 
@@ -126,7 +136,8 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
         // that was interrupted by a dropped connection. A cancelled download
         // discards its partial, so `hasPartialOnDisk` is false there and the
         // deliberately-abandoned update stays put.
-        (info.latestVersion != _autoDownloadedVersion || ota.hasPartialOnDisk)) {
+        (info.latestVersion != _autoDownloadedVersion ||
+            ota.hasPartialOnDisk)) {
       _autoDownloadedVersion = info.latestVersion;
 
       // Start the download *before* suppressing the launch dialog:
@@ -289,12 +300,12 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                         navigatorConfig: NavigatorConfig(
                           navigatorKey: _tabNavKeys[1],
                         ),
-                        screen: const _TabWrapper(
-                          key: ValueKey('search_tab'),
+                        screen: _TabWrapper(
+                          key: const ValueKey('search_tab'),
                           titleKey: 'search',
                           isHome: false,
                           showAppBar: false,
-                          child: SearchScreen(),
+                          child: SearchScreen(key: _searchScreenKey),
                         ),
                         item: ItemConfig(
                           icon: Icon(Icons.search_rounded, size: navIconSize),
@@ -323,10 +334,7 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                           child: PodcastsScreen(),
                         ),
                         item: ItemConfig(
-                          icon: Icon(
-                            Icons.podcasts_rounded,
-                            size: navIconSize,
-                          ),
+                          icon: Icon(Icons.podcasts_rounded, size: navIconSize),
                           title: 'podcasts'.tr(),
                           activeForegroundColor: accentColor,
                           inactiveForegroundColor:

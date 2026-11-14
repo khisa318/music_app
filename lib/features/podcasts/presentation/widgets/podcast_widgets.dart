@@ -86,9 +86,7 @@ class PodcastSectionHeader extends StatelessWidget {
     required this.title,
     this.actionLabel,
     this.onAction,
-    this.padding = const EdgeInsets.symmetric(
-      horizontal: AppDimens.paddingLg,
-    ),
+    this.padding = const EdgeInsets.symmetric(horizontal: AppDimens.paddingLg),
   });
 
   final String title;
@@ -151,7 +149,7 @@ class PodcastCard extends StatelessWidget {
     required this.show,
     required this.onTap,
     this.width = 154,
-    this.height = 214,
+    this.height = 220,
     this.showPublisher = true,
   });
 
@@ -190,10 +188,9 @@ class PodcastCard extends StatelessWidget {
                       show.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyMd(isDarkMode: isDark).copyWith(
-                        fontWeight: FontWeight.w600,
-                        height: 1.25,
-                      ),
+                      style: AppTextStyles.bodyMd(
+                        isDarkMode: isDark,
+                      ).copyWith(fontWeight: FontWeight.w600, height: 1.25),
                     ),
                     if (showPublisher) ...[
                       const SizedBox(height: AppDimens.spacingXxs),
@@ -292,12 +289,11 @@ class PodcastFeaturedCard extends StatelessWidget {
                               show.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.titleSm(
-                                isDarkMode: true,
-                              ).copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: AppTextStyles.titleSm(isDarkMode: true)
+                                  .copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                             ),
                             const SizedBox(height: AppDimens.spacingXxs),
                             Text(
@@ -408,9 +404,9 @@ class PodcastListTile extends StatelessWidget {
                       show.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyMd(isDarkMode: isDark).copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.bodyMd(
+                        isDarkMode: isDark,
+                      ).copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: AppDimens.spacingXxs),
                     Text(
@@ -488,9 +484,7 @@ class PodcastEpisodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = context.accentColor;
-    final muted = MainScreenColors.getTextColor(
-      isDark,
-    ).withValues(alpha: 0.55);
+    final muted = MainScreenColors.getTextColor(isDark).withValues(alpha: 0.55);
 
     return Material(
       color: Colors.transparent,
@@ -622,9 +616,7 @@ class PodcastEpisodeTile extends StatelessWidget {
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         size: AppDimens.iconSm,
-                        color: isFavorite
-                            ? accent
-                            : muted,
+                        color: isFavorite ? accent : muted,
                       ),
                     ),
                 ],
@@ -695,10 +687,7 @@ class PodcastContinueCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodyMd(
                           isDarkMode: isDark,
-                        ).copyWith(
-                          fontWeight: FontWeight.w600,
-                          height: 1.25,
-                        ),
+                        ).copyWith(fontWeight: FontWeight.w600, height: 1.25),
                       ),
                       const SizedBox(height: AppDimens.spacingXs),
                       Text(
@@ -732,11 +721,7 @@ class PodcastContinueCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppDimens.spacingSm),
-                Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: accent,
-                  size: 34,
-                ),
+                Icon(Icons.play_circle_fill_rounded, color: accent, size: 34),
               ],
             ),
           ),
@@ -859,9 +844,7 @@ class PodcastEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = MainScreenColors.getTextColor(
-      isDark,
-    ).withValues(alpha: 0.55);
+    final muted = MainScreenColors.getTextColor(isDark).withValues(alpha: 0.55);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppDimens.paddingXxl),
