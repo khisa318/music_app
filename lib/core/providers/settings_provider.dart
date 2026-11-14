@@ -71,7 +71,8 @@ class SettingsProvider with ChangeNotifier {
   String _theme = 'Dark';
   bool _notificationsEnabled = true;
   String _language = 'English';
-  Color _accentColor = MainScreenColors.secondaryPink; // default accent (first swatch)
+  Color _accentColor =
+      MainScreenColors.secondaryPink; // default accent (first swatch)
   String _progressBarStyle = 'Default';
 
   String _animationType = 'Animation 1';
@@ -501,7 +502,13 @@ class SettingsProvider with ChangeNotifier {
         (box.get('playbackHistoryEnabled') as bool?) ?? true;
     _searchHistoryEnabled = (box.get('searchHistoryEnabled') as bool?) ?? true;
     _jioSaavnEnabled = (box.get(_jioSaavnEnabledKey) as bool?) ?? true;
-    _lyricsProvider = (box.get(_lyricsProviderKey) as String?) ?? 'LRCLib';
+    final savedLyricsProvider =
+        (box.get(_lyricsProviderKey) as String?) ?? 'LRCLib';
+    // AI is no longer offered as a lyrics source; old installs fall back to
+    // the default instead of starting on a provider that is not in the list.
+    _lyricsProvider = savedLyricsProvider == 'AI'
+        ? 'LRCLib'
+        : savedLyricsProvider;
     _progressBarStyle = (box.get(_progressBarStyleKey) as String?) ?? 'Default';
 
     final savedAnimationType =

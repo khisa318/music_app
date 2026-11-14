@@ -1,11 +1,9 @@
-﻿
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/providers/settings_provider.dart';
 import '../../../equalizer/presentation/screens/equalizer_screen.dart';
-import '../screens/ai_api_config_screen.dart';
 import 'custom_dropdown.dart';
 import 'settings_item.dart';
 
@@ -16,14 +14,10 @@ class AudioSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<
-      SettingsProvider,
-      ({bool isDarkMode, Color accentColor, String lyricsProvider})
-    >(
+    return Selector<SettingsProvider, ({bool isDarkMode, Color accentColor})>(
       selector: (context, settingsProvider) => (
         isDarkMode: settingsProvider.themeMode == ThemeMode.dark,
         accentColor: settingsProvider.accentColor,
-        lyricsProvider: settingsProvider.lyricsProvider,
       ),
       builder: (context, themeData, child) {
         final isDarkMode = themeData.isDarkMode;
@@ -136,8 +130,7 @@ class AudioSettingsSection extends StatelessWidget {
                   title: 'concurrent_downloads'.tr(),
                   showChevron: false,
                   trailing: CustomDropdown<String>(
-                    value: settingsProvider.maxConcurrentDownloads
-                        .toString(),
+                    value: settingsProvider.maxConcurrentDownloads.toString(),
                     items: ['1', '2', '3', '4'],
                     onChanged: (value) {
                       if (value != null) {
@@ -193,8 +186,10 @@ class AudioSettingsSection extends StatelessWidget {
                   title: 'lyrics_provider_card_title'.tr(),
                   showChevron: false,
                   trailing: CustomDropdown<String>(
-                    value: settingsProvider.lyricsProvider,
-                    items: ['LRCLib', 'YT Music', 'AI'],
+                    value: settingsProvider.lyricsProvider == 'AI'
+                        ? 'LRCLib'
+                        : settingsProvider.lyricsProvider,
+                    items: const ['LRCLib', 'YT Music'],
                     onChanged: (value) {
                       if (value != null) {
                         settingsProvider.lyricsProvider = value;
@@ -209,22 +204,6 @@ class AudioSettingsSection extends StatelessWidget {
                 );
               },
             ),
-
-            if (themeData.lyricsProvider == 'AI')
-              SettingsItem(
-                icon: Icons.vpn_key_rounded,
-                title: 'ai_api_config_card_title'.tr(),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AiApiConfigScreen(),
-                    ),
-                  );
-                },
-                isDarkMode: isDarkMode,
-                accentColor: accentColor,
-              ),
 
             Consumer<SettingsProvider>(
               builder: (context, settingsProvider, child) {
