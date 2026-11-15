@@ -4,7 +4,8 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, ScrollDirection;
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -54,17 +55,6 @@ class _LyricFrame {
   const _LyricFrame(this.index, this.progress, this.positionMs);
 }
 
-/// Lenis' `easeOutExpo`: the long, soft glide Liquid Lyrics uses between lines.
-class _EaseOutExpoCurve extends Curve {
-  const _EaseOutExpoCurve();
-
-  @override
-  double transformInternal(double t) {
-    if (t >= 1.0) return 1.0;
-    return 1.0 - math.pow(2.0, -10.0 * t).toDouble();
-  }
-}
-
 class LyricsDisplay extends StatefulWidget {
   final Stream<Duration> positionStream;
   final VoidCallback onClose;
@@ -83,6 +73,10 @@ class LyricsDisplay extends StatefulWidget {
 
 class _LyricsDisplayState extends State<LyricsDisplay>
     with TickerProviderStateMixin {
+  /// Where the active line sits vertically: a third of the way down the
+  /// viewport, keeping the coming lines in view.
+  static const double _activeLineAlignment = 0.32;
+
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<_LyricFrame> _frame = ValueNotifier(
     const _LyricFrame(-1, 0, 0),
@@ -112,6 +106,7 @@ class _LyricsDisplayState extends State<LyricsDisplay>
   /// False until the first line has been aligned to the song; the first jump
   /// is instant, later line changes glide.
   bool _hasAnchoredToPlayback = false;
+  int _lastAutoScrollAtMs = 0;
 
   Object? _lastResponse;
   Object? _lastSongKey;
@@ -171,15 +166,44 @@ class _LyricsDisplayState extends State<LyricsDisplay>
     final lyricsResponse = _lyricsProvider.lyricsResponse;
     final localSong = _playerProvider.currentLocalSong;
     final songKey =
-        _playerProvider.currentSong?.videoId ??
-        localSong?['id'] ??
-        localSong?['path'];
+        (_playerProvider.currentSong?.videoId ??
+                localSong?['id'] ??
+                localSong?['path'])
+            ?.toString();
+    final songChanged = songKey != _lastSongKey;
+    final responseMatchesSong = songKey == _lyricsProvider.currentSongKey;
 
-    if (identical(lyricsResponse, _lastResponse) && songKey == _lastSongKey) {
+    if (!songChanged && identical(lyricsResponse, _lastResponse)) {
       return;
     }
+
+    if (songChanged) {
+      _lastSongKey = songKey;
+      // Drop the outgoing song's words immediately, before the new fetch has
+      // answered, so the old lyrics never linger over the new track.
+      _parsedLyrics = [];
+      _lineKeys = [];
+      _currentLineIndex = -1;
+      _frame.value = const _LyricFrame(-1, 0, 0);
+      _displayPositionMs = 0;
+      _targetPosition = Duration.zero;
+      _anchorPositionMs = 0;
+      _hasPosition = false;
+      _hasAnchoredToPlayback = false;
+      _entranceController
+        ..reset()
+        ..forward();
+
+      if (!responseMatchesSong) {
+        // The provider still holds the previous song's response; wait for its
+        // notification rather than rendering the wrong words.
+        _lastResponse = lyricsResponse;
+        if (mounted) setState(() {});
+        return;
+      }
+    }
+
     _lastResponse = lyricsResponse;
-    _lastSongKey = songKey;
 
     if (lyricsResponse?.lyrics != null) {
       if (lyricsResponse!.isSynced) {
@@ -304,9 +328,7 @@ class _LyricsDisplayState extends State<LyricsDisplay>
         for (var i = 0; i < words.length; i++) {
           final start = words[i].start;
           if (start == null) continue;
-          final end = i + 1 < words.length
-              ? words[i + 1].start
-              : timestamp + const Duration(milliseconds: 4500);
+          final end = i + 1 < words.length ? words[i + 1].start : null;
           words[i] = LyricWord(words[i].text, start: start, end: end);
         }
       } else if (text.isNotEmpty) {
@@ -323,9 +345,14 @@ class _LyricsDisplayState extends State<LyricsDisplay>
       );
     }
 
+    // Some providers emit lines out of order; play them in time order so the
+    // active-line scan never stalls on an early timestamp.
+    parsedLines.sort((a, b) => a.timestamp!.compareTo(b.timestamp!));
+
     final withEnds = <LyricLine>[];
     for (var i = 0; i < parsedLines.length; i++) {
-      final start = parsedLines[i].timestamp!;
+      final line = parsedLines[i];
+      final start = line.timestamp!;
       var end = i + 1 < parsedLines.length
           ? parsedLines[i + 1].timestamp!
           : start + const Duration(milliseconds: 4500);
@@ -333,12 +360,21 @@ class _LyricsDisplayState extends State<LyricsDisplay>
       if (end <= start) {
         end = start + const Duration(milliseconds: 1200);
       }
+      // Without per-word timings the fill is spread across the whole line, so
+      // don't let a long instrumental gap before the next line drag the sweep
+      // behind the vocal: cap it at a natural singing time for the text.
+      final hasWordTimings = line.words.any((word) => word.start != null);
+      if (!hasWordTimings && line.text.isNotEmpty) {
+        final estimatedMs = (600 + line.text.length * 55).clamp(1200, 7000);
+        final naturalEnd = start + Duration(milliseconds: estimatedMs);
+        if (naturalEnd < end) end = naturalEnd;
+      }
       withEnds.add(
         LyricLine(
-          text: parsedLines[i].text,
+          text: line.text,
           timestamp: start,
           end: end,
-          words: parsedLines[i].words,
+          words: line.words,
         ),
       );
     }
@@ -352,13 +388,24 @@ class _LyricsDisplayState extends State<LyricsDisplay>
     if (dtMs <= 0 || !mounted) return;
 
     // Extrapolate from the last position sample so the words move with the
-    // audio between player updates, then ease out any jitter.
+    // audio between player updates. Cap the extrapolation so a stalled stream
+    // (buffering, pause) can't let the words run away from the song.
     var targetMs = _anchorPositionMs.toDouble();
     if (_hasPosition && _playerProvider.playerService.isPlaying) {
-      targetMs += (_playbackClock.elapsedMilliseconds - _anchorAtMs).toDouble();
+      final elapsedSinceSample =
+          (_playbackClock.elapsedMilliseconds - _anchorAtMs).clamp(0, 1200);
+      targetMs += elapsedSinceSample.toDouble();
     }
-    final smoothing = 1 - math.exp(-dtMs.clamp(0.0, 120.0) / 90.0);
-    _displayPositionMs += (targetMs - _displayPositionMs) * smoothing;
+
+    final drift = targetMs - _displayPositionMs;
+    if (drift.abs() > 250) {
+      // A seek or a corrected sample: jump instead of crawling, otherwise the
+      // fill oscillates between ahead of and behind the vocal.
+      _displayPositionMs = targetMs;
+    } else {
+      final smoothing = 1 - math.exp(-dtMs.clamp(0.0, 120.0) / 90.0);
+      _displayPositionMs += drift * smoothing;
+    }
 
     if (_showPlainLyrics) return;
     if (!(_lyricsProvider.lyricsResponse?.isSynced ?? false) ||
@@ -377,11 +424,20 @@ class _LyricsDisplayState extends State<LyricsDisplay>
       setState(() {});
       if (!_userScrolling) {
         _scrollToCurrentLine(animate: !firstAnchor);
+        _lastAutoScrollAtMs = _playbackClock.elapsedMilliseconds;
       }
       _hasAnchoredToPlayback = true;
     } else if (index >= 0 &&
         (positionMs - _frame.value.positionMs).abs() >= 3.0) {
       _frame.value = _LyricFrame(index, progress, positionMs);
+    }
+
+    // Keep the list glued to the current line even if a line change landed
+    // while the list wasn't laid out yet (e.g. right after opening).
+    if (!_userScrolling &&
+        _playbackClock.elapsedMilliseconds - _lastAutoScrollAtMs > 1000) {
+      _lastAutoScrollAtMs = _playbackClock.elapsedMilliseconds;
+      _scrollToCurrentLine();
     }
   }
 
@@ -401,7 +457,7 @@ class _LyricsDisplayState extends State<LyricsDisplay>
 
     if (!_userScrolling) return;
     _scrollTimer?.cancel();
-    _scrollTimer = Timer(const Duration(milliseconds: 5000), () {
+    _scrollTimer = Timer(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
       setState(() => _userScrolling = false);
       _displayPositionMs = _targetPosition.inMilliseconds.toDouble();
@@ -416,25 +472,29 @@ class _LyricsDisplayState extends State<LyricsDisplay>
     // first upcoming line in view rather than leaving the list at the top
     // spacer near the bottom of the panel.
     final targetIndex = _currentLineIndex >= 0 ? _currentLineIndex : 0;
-    if (targetIndex >= _parsedLyrics.length) return;
-    final key = _lineKeys[targetIndex];
+    if (targetIndex >= _lineKeys.length) return;
 
-    void performScroll() {
-      if (key.currentContext == null) return;
-      Scrollable.ensureVisible(
-        key.currentContext!,
-        duration: animate ? const Duration(milliseconds: 620) : Duration.zero,
-        curve: animate ? const _EaseOutExpoCurve() : Curves.linear,
-        alignment: 0.5,
+    final targetObject = _lineKeys[targetIndex].currentContext
+        ?.findRenderObject();
+    if (targetObject == null) return;
+
+    final viewport = RenderAbstractViewport.of(targetObject);
+    final position = _scrollController.position;
+    final targetOffset = viewport
+        .getOffsetToReveal(targetObject, _activeLineAlignment)
+        .offset
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+
+    if ((targetOffset - position.pixels).abs() < 1.0) return;
+
+    if (animate) {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
       );
-    }
-
-    if (key.currentContext != null) {
-      performScroll();
     } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) performScroll();
-      });
+      _scrollController.jumpTo(targetOffset);
     }
   }
 
@@ -903,10 +963,9 @@ class _LyricsDisplayState extends State<LyricsDisplay>
                                           // Size the lead-in/trailing gaps to
                                           // the lyrics viewport, not the whole
                                           // screen, so the first line starts
-                                          // near the middle instead of ~75%
-                                          // down the panel.
+                                          // in the upper third of the panel.
                                           final double spacer =
-                                              constraints.maxHeight * 0.44;
+                                              constraints.maxHeight * 0.34;
                                           return SingleChildScrollView(
                                             controller: _scrollController,
                                             physics: const BouncingScrollPhysics(

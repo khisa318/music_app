@@ -35,6 +35,15 @@ class LyricsProvider with ChangeNotifier {
   String? get error => _error;
   SongInfo? get currentSong => _currentSong;
 
+  /// Identifies the song that [lyricsResponse] belongs to, so the lyrics view
+  /// can drop the previous song's words the instant a new song is picked.
+  String? get currentSongKey {
+    if (_currentSong != null) return _currentSong!.videoId;
+    final local = _currentLocalSong;
+    if (local != null) return (local['id'] ?? local['path'])?.toString();
+    return null;
+  }
+
   bool hasTriedProvider(String provider) =>
       _triedProvidersForCurrentSong.contains(provider);
 
