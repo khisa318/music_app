@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -16,11 +18,51 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/glass_modal.dart';
 
+/// A single word (or syllable) inside a lyric line. Word timings are only
+/// present for enhanced LRC (`<mm:ss.xx>`); otherwise progress is derived from
+/// the line's own timeline.
+class LyricWord {
+  final String text;
+  final Duration? start;
+  final Duration? end;
+
+  const LyricWord(this.text, {this.start, this.end});
+}
+
 class LyricLine {
   final String text;
   final Duration? timestamp;
+  final Duration? end;
+  final List<LyricWord> words;
 
-  LyricLine({required this.text, this.timestamp});
+  LyricLine({
+    required this.text,
+    this.timestamp,
+    this.end,
+    this.words = const [],
+  });
+}
+
+/// The per-frame playback snapshot that drives the karaoke fill. It is kept in
+/// a [ValueNotifier] so a 60 fps tick only rebuilds the line being sung, never
+/// the whole list.
+class _LyricFrame {
+  final int index;
+  final double progress;
+  final double positionMs;
+
+  const _LyricFrame(this.index, this.progress, this.positionMs);
+}
+
+/// Lenis' `easeOutExpo`: the long, soft glide Liquid Lyrics uses between lines.
+class _EaseOutExpoCurve extends Curve {
+  const _EaseOutExpoCurve();
+
+  @override
+  double transformInternal(double t) {
+    if (t >= 1.0) return 1.0;
+    return 1.0 - math.pow(2.0, -10.0 * t).toDouble();
+  }
 }
 
 class LyricsDisplay extends StatefulWidget {
@@ -39,17 +81,40 @@ class LyricsDisplay extends StatefulWidget {
   State<LyricsDisplay> createState() => _LyricsDisplayState();
 }
 
-class _LyricsDisplayState extends State<LyricsDisplay> {
+class _LyricsDisplayState extends State<LyricsDisplay>
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<_LyricFrame> _frame = ValueNotifier(
+    const _LyricFrame(-1, 0, 0),
+  );
   List<LyricLine> _parsedLyrics = [];
   List<GlobalKey> _lineKeys = [];
-  int _currentLineIndex = 0;
+  int _currentLineIndex = -1;
   bool _userScrolling = false;
   Timer? _scrollTimer;
   bool _showPlainLyrics = false;
   StreamSubscription<Duration>? _positionSubscription;
 
-  Duration _lastPosition = Duration.zero;
+  late final AnimationController _entranceController;
+  Ticker? _ticker;
+  Duration _lastTickElapsed = Duration.zero;
+
+  /// Where the audio actually is, and where the lyrics are painted. Between
+  /// player updates the clock is extrapolated so the karaoke sweep moves with
+  /// the audio instead of stepping once per position sample.
+  Duration _targetPosition = Duration.zero;
+  double _displayPositionMs = 0;
+  final Stopwatch _playbackClock = Stopwatch()..start();
+  int _anchorPositionMs = 0;
+  int _anchorAtMs = 0;
+  bool _hasPosition = false;
+
+  /// False until the first line has been aligned to the song; the first jump
+  /// is instant, later line changes glide.
+  bool _hasAnchoredToPlayback = false;
+
+  Object? _lastResponse;
+  Object? _lastSongKey;
 
   late LyricsProvider _lyricsProvider;
   late PlayerProvider _playerProvider;
@@ -58,13 +123,12 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onUserScroll);
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..forward();
 
-    _positionSubscription = widget.positionStream.listen((position) {
-      _lastPosition = position;
-      if (!_userScrolling && !_showPlainLyrics) {
-        _updateCurrentLine(position);
-      }
-    });
+    _positionSubscription = widget.positionStream.listen(_onPosition);
   }
 
   @override
@@ -78,6 +142,8 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     _playerProvider.removeListener(_onPlayerProviderChanged);
     _playerProvider.addListener(_onPlayerProviderChanged);
 
+    _ticker ??= createTicker(_onTick)..start();
+
     _parseLyrics();
   }
 
@@ -89,8 +155,32 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     _parseLyrics();
   }
 
+  void _onPosition(Duration position) {
+    final diff = (position.inMilliseconds - _displayPositionMs).abs();
+    _targetPosition = position;
+    _anchorPositionMs = position.inMilliseconds;
+    _anchorAtMs = _playbackClock.elapsedMilliseconds;
+    _hasPosition = true;
+    // A seek should not make the fill crawl across the whole song: snap.
+    if (diff > 900) {
+      _displayPositionMs = position.inMilliseconds.toDouble();
+    }
+  }
+
   void _parseLyrics() {
     final lyricsResponse = _lyricsProvider.lyricsResponse;
+    final localSong = _playerProvider.currentLocalSong;
+    final songKey =
+        _playerProvider.currentSong?.videoId ??
+        localSong?['id'] ??
+        localSong?['path'];
+
+    if (identical(lyricsResponse, _lastResponse) && songKey == _lastSongKey) {
+      return;
+    }
+    _lastResponse = lyricsResponse;
+    _lastSongKey = songKey;
+
     if (lyricsResponse?.lyrics != null) {
       if (lyricsResponse!.isSynced) {
         _parsedLyrics = _parseSyncedLyrics(lyricsResponse.lyrics);
@@ -105,42 +195,194 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     }
 
     _lineKeys = List.generate(_parsedLyrics.length, (_) => GlobalKey());
+    _displayPositionMs = _targetPosition.inMilliseconds.toDouble();
+    _currentLineIndex = _resolveIndex(_displayPositionMs);
+    _frame.value = _LyricFrame(
+      _currentLineIndex,
+      _progressFor(_currentLineIndex, _displayPositionMs),
+      _displayPositionMs,
+    );
+    _hasAnchoredToPlayback = false;
+    _entranceController
+      ..reset()
+      ..forward();
 
     if (mounted) {
       setState(() {});
+      // Put the first upcoming line in view straight away instead of leaving
+      // the list parked at the top spacer, far down the panel.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToCurrentLine(animate: false);
+      });
     }
   }
 
-  List<LyricLine> _parseSyncedLyrics(String lyrics) {
-    final lines = lyrics.split('\n');
-    final parsedLines = <LyricLine>[];
-
-    for (var line in lines) {
-      final match = RegExp(
-        r'\[(\d{2}):(\d{2})\.(\d{2})\](.*)',
-      ).firstMatch(line);
-      if (match != null) {
-        final minutes = int.parse(match.group(1)!);
-        final seconds = int.parse(match.group(2)!);
-        final milliseconds = int.parse(match.group(3)!) * 10;
-        final text = match.group(4)!.trim();
-
-        if (text.isNotEmpty) {
-          parsedLines.add(
-            LyricLine(
-              text: text,
-              timestamp: Duration(
-                minutes: minutes,
-                seconds: seconds,
-                milliseconds: milliseconds,
-              ),
-            ),
-          );
-        }
+  int _resolveIndex(double positionMs) {
+    var index = -1;
+    for (var i = 0; i < _parsedLyrics.length; i++) {
+      final timestamp = _parsedLyrics[i].timestamp;
+      if (timestamp == null) continue;
+      if (timestamp.inMilliseconds <= positionMs) {
+        index = i;
+      } else {
+        break;
       }
     }
+    return index;
+  }
 
-    return parsedLines;
+  double _progressFor(int index, double positionMs) {
+    if (index < 0 || index >= _parsedLyrics.length) return 0.0;
+    final start = _parsedLyrics[index].timestamp!.inMilliseconds;
+    final end = _parsedLyrics[index].end?.inMilliseconds ?? (start + 4500);
+    return end > start
+        ? ((positionMs - start) / (end - start)).clamp(0.0, 1.0)
+        : 1.0;
+  }
+
+  static Duration? _durationFromMatch(RegExpMatch match) {
+    final minutes = int.tryParse(match.group(1) ?? '');
+    final seconds = int.tryParse(match.group(2) ?? '');
+    if (minutes == null || seconds == null) return null;
+    final fraction = match.group(3) ?? '';
+    var millis = 0;
+    if (fraction.isNotEmpty) {
+      final value = int.tryParse(fraction) ?? 0;
+      millis = fraction.length == 1
+          ? value * 100
+          : fraction.length == 2
+          ? value * 10
+          : value;
+    }
+    return Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
+  }
+
+  List<LyricLine> _parseSyncedLyrics(String lyrics) {
+    final parsedLines = <LyricLine>[];
+    final timeTag = RegExp(r'\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]');
+    final wordTag = RegExp(r'<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>');
+
+    // LRC files may carry a global timing shift, e.g. `[offset:500]`.
+    final offsetMatch = RegExp(
+      r'\[offset:\s*([+-]?\d+)\s*\]',
+      caseSensitive: false,
+    ).firstMatch(lyrics);
+    final offset = Duration(
+      milliseconds: int.tryParse(offsetMatch?.group(1) ?? '') ?? 0,
+    );
+
+    for (final rawLine in lyrics.split('\n')) {
+      final match = timeTag.firstMatch(rawLine);
+      if (match == null) continue;
+      final parsed = _durationFromMatch(match);
+      if (parsed == null) continue;
+      final timestamp = parsed + offset;
+
+      final content = rawLine.replaceFirst(
+        RegExp(r'^(\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\])+'),
+        '',
+      );
+      final wordMatches = wordTag.allMatches(content).toList();
+      final text = content.replaceAll(wordTag, '').trim();
+      if (text.isEmpty && wordMatches.isEmpty) continue;
+
+      final words = <LyricWord>[];
+      if (wordMatches.isNotEmpty) {
+        for (var i = 0; i < wordMatches.length; i++) {
+          final wordMatch = wordMatches[i];
+          final wordStart = _durationFromMatch(wordMatch);
+          final start = wordStart == null ? null : wordStart + offset;
+          final textStart = wordMatch.end;
+          final textEnd = i + 1 < wordMatches.length
+              ? wordMatches[i + 1].start
+              : content.length;
+          final wordText = content.substring(textStart, textEnd).trim();
+          if (wordText.isEmpty) continue;
+          words.add(LyricWord(wordText, start: start));
+        }
+        for (var i = 0; i < words.length; i++) {
+          final start = words[i].start;
+          if (start == null) continue;
+          final end = i + 1 < words.length
+              ? words[i + 1].start
+              : timestamp + const Duration(milliseconds: 4500);
+          words[i] = LyricWord(words[i].text, start: start, end: end);
+        }
+      } else if (text.isNotEmpty) {
+        words.addAll(
+          text
+              .split(RegExp(r'\s+'))
+              .where((word) => word.isNotEmpty)
+              .map((word) => LyricWord(word)),
+        );
+      }
+
+      parsedLines.add(
+        LyricLine(text: text, timestamp: timestamp, words: words),
+      );
+    }
+
+    final withEnds = <LyricLine>[];
+    for (var i = 0; i < parsedLines.length; i++) {
+      final start = parsedLines[i].timestamp!;
+      var end = i + 1 < parsedLines.length
+          ? parsedLines[i + 1].timestamp!
+          : start + const Duration(milliseconds: 4500);
+      // Guard against duplicate timestamps collapsing a line to zero length.
+      if (end <= start) {
+        end = start + const Duration(milliseconds: 1200);
+      }
+      withEnds.add(
+        LyricLine(
+          text: parsedLines[i].text,
+          timestamp: start,
+          end: end,
+          words: parsedLines[i].words,
+        ),
+      );
+    }
+
+    return withEnds;
+  }
+
+  void _onTick(Duration elapsed) {
+    final dtMs = (elapsed - _lastTickElapsed).inMicroseconds / 1000.0;
+    _lastTickElapsed = elapsed;
+    if (dtMs <= 0 || !mounted) return;
+
+    // Extrapolate from the last position sample so the words move with the
+    // audio between player updates, then ease out any jitter.
+    var targetMs = _anchorPositionMs.toDouble();
+    if (_hasPosition && _playerProvider.playerService.isPlaying) {
+      targetMs += (_playbackClock.elapsedMilliseconds - _anchorAtMs).toDouble();
+    }
+    final smoothing = 1 - math.exp(-dtMs.clamp(0.0, 120.0) / 90.0);
+    _displayPositionMs += (targetMs - _displayPositionMs) * smoothing;
+
+    if (_showPlainLyrics) return;
+    if (!(_lyricsProvider.lyricsResponse?.isSynced ?? false) ||
+        _parsedLyrics.isEmpty) {
+      return;
+    }
+
+    final positionMs = _displayPositionMs;
+    final index = _resolveIndex(positionMs);
+    final progress = _progressFor(index, positionMs);
+
+    if (index != _currentLineIndex) {
+      final firstAnchor = !_hasAnchoredToPlayback;
+      _currentLineIndex = index;
+      _frame.value = _LyricFrame(index, progress, positionMs);
+      setState(() {});
+      if (!_userScrolling) {
+        _scrollToCurrentLine(animate: !firstAnchor);
+      }
+      _hasAnchoredToPlayback = true;
+    } else if (index >= 0 &&
+        (positionMs - _frame.value.positionMs).abs() >= 3.0) {
+      _frame.value = _LyricFrame(index, progress, positionMs);
+    }
   }
 
   void _onUserScroll() {
@@ -148,8 +390,8 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
 
     final direction = _scrollController.position.userScrollDirection;
     if (direction != ScrollDirection.idle) {
-      // Reading ahead wins over following the song, but only while the finger
-      // (or its momentum) is moving the list.
+      // Reading ahead wins over following the song, for a moment after the
+      // finger (or its momentum) stops moving the list.
       _scrollTimer?.cancel();
       if (!_userScrolling) {
         setState(() => _userScrolling = true);
@@ -159,66 +401,40 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
 
     if (!_userScrolling) return;
     _scrollTimer?.cancel();
-    _scrollTimer = Timer(const Duration(milliseconds: 2400), () {
+    _scrollTimer = Timer(const Duration(milliseconds: 5000), () {
       if (!mounted) return;
       setState(() => _userScrolling = false);
-      _updateCurrentLine(_lastPosition);
+      _displayPositionMs = _targetPosition.inMilliseconds.toDouble();
       _scrollToCurrentLine();
     });
   }
 
-  void _updateCurrentLine(Duration position) {
-    final lyricsProvider = Provider.of<LyricsProvider>(context, listen: false);
-    if (!(lyricsProvider.lyricsResponse?.isSynced ?? false) ||
-        _showPlainLyrics) {
-      return;
+  void _scrollToCurrentLine({bool animate = true}) {
+    if (!_scrollController.hasClients || _parsedLyrics.isEmpty) return;
+
+    // Before the first timestamp there is nothing "current" yet, so keep the
+    // first upcoming line in view rather than leaving the list at the top
+    // spacer near the bottom of the panel.
+    final targetIndex = _currentLineIndex >= 0 ? _currentLineIndex : 0;
+    if (targetIndex >= _parsedLyrics.length) return;
+    final key = _lineKeys[targetIndex];
+
+    void performScroll() {
+      if (key.currentContext == null) return;
+      Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: animate ? const Duration(milliseconds: 620) : Duration.zero,
+        curve: animate ? const _EaseOutExpoCurve() : Curves.linear,
+        alignment: 0.5,
+      );
     }
 
-    int newLineIndex = _parsedLyrics.indexWhere(
-      (line) => line.timestamp != null && line.timestamp! > position,
-    );
-
-    if (newLineIndex == -1) {
-      newLineIndex = _parsedLyrics.length - 1;
-    } else if (newLineIndex > 0) {
-      newLineIndex--;
-    }
-
-    if (newLineIndex != _currentLineIndex) {
-      setState(() {
-        _currentLineIndex = newLineIndex;
+    if (key.currentContext != null) {
+      performScroll();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) performScroll();
       });
-
-      if (!_userScrolling) {
-        _scrollToCurrentLine();
-      }
-    }
-  }
-
-  void _scrollToCurrentLine() {
-    if (_scrollController.hasClients &&
-        _currentLineIndex < _parsedLyrics.length &&
-        _currentLineIndex >= 0) {
-      final key = _lineKeys[_currentLineIndex];
-
-      void performScroll() {
-        if (key.currentContext != null) {
-          Scrollable.ensureVisible(
-            key.currentContext!,
-            duration: AppDimens.animSmooth,
-            curve: Curves.easeOutCubic,
-            alignment: 0.5,
-          );
-        }
-      }
-
-      if (key.currentContext != null) {
-        performScroll();
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) performScroll();
-        });
-      }
     }
   }
 
@@ -228,12 +444,16 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     });
 
     if (!_showPlainLyrics) {
-      _scrollToCurrentLine();
+      _displayPositionMs = _targetPosition.inMilliseconds.toDouble();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToCurrentLine();
+      });
     }
   }
 
   void _seekToLine(int lineIndex) {
-    if (_lyricsProvider.lyricsResponse!.isSynced &&
+    if ((_lyricsProvider.lyricsResponse?.isSynced ?? false) &&
+        lineIndex >= 0 &&
         lineIndex < _parsedLyrics.length &&
         _parsedLyrics[lineIndex].timestamp != null) {
       widget.onSeek(_parsedLyrics[lineIndex].timestamp!);
@@ -263,25 +483,56 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     return single.length <= 140 ? single : '${single.substring(0, 136)}...';
   }
 
-  List<Widget> _buildLyricsLines(Color accentColor) {
-    final canSeek = _lyricsProvider.lyricsResponse?.isSynced ?? false;
-    final activeIndex = _parsedLyrics.isEmpty
-        ? -1
-        : _currentLineIndex.clamp(0, _parsedLyrics.length - 1);
+  List<Widget> _buildLyricsLines(Color accentColor, double fontSize) {
+    final isSynced = _lyricsProvider.lyricsResponse?.isSynced ?? false;
+    final activeIndex = _currentLineIndex;
 
     return List<Widget>.generate(_parsedLyrics.length, (i) {
-      final distance = activeIndex < 0 ? 99 : (i - activeIndex).abs();
-      final timestamp = _parsedLyrics[i].timestamp;
-      return _LyricLineTile(
+      final line = _parsedLyrics[i];
+      final isActive = isSynced && i == activeIndex;
+      final isPast = activeIndex >= 0 && i < activeIndex;
+      return _LiquidLyricLine(
         key: _lineKeys[i],
-        text: _parsedLyrics[i].text,
-        isActive: distance == 0,
-        distance: distance,
-        isReadingAhead: _userScrolling,
+        line: line,
+        isActive: isActive,
+        isPast: isPast,
+        isStatic: line.timestamp == null,
+        fontSize: fontSize,
         accentColor: accentColor,
-        onTap: canSeek && timestamp != null ? () => _seekToLine(i) : null,
+        frame: isActive ? _frame : null,
+        onTap: isSynced && line.timestamp != null ? () => _seekToLine(i) : null,
       );
     });
+  }
+
+  /// Liquid Lyrics' content entrance: arrives from below with a short blur,
+  /// overshoots a touch, then settles.
+  Widget _entrance(Widget child) {
+    return AnimatedBuilder(
+      animation: _entranceController,
+      child: child,
+      builder: (context, child) {
+        final v = Curves.easeOutCubic.transform(_entranceController.value);
+        if (v >= 0.999) return child!;
+        return Opacity(
+          opacity: v,
+          child: Transform.translate(
+            offset: Offset(18 * (1 - v), 24 * (1 - v)),
+            child: Transform.scale(
+              scale: 0.972 + 0.028 * v,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: 7 * (1 - v),
+                  sigmaY: 7 * (1 - v),
+                  tileMode: TileMode.decal,
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -298,6 +549,9 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     final double navIconScale = textScale > 1.0
         ? (1.0 / textScale).clamp(0.75, 1.0).toDouble()
         : 1.0;
+    final double lyricsFontSize =
+        (mq.size.width * 0.075).clamp(27.0, 36.0).toDouble() *
+        textScale.clamp(1.0, 1.15);
 
     final hasPlayer =
         playerProvider.currentSong != null ||
@@ -635,31 +889,44 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
                                     Colors.white,
                                     Colors.transparent,
                                   ],
-                                  stops: [0.0, 0.08, 0.92, 1.0],
+                                  stops: [0.0, 0.11, 0.82, 1.0],
                                 ).createShader(rect),
                                 blendMode: BlendMode.dstIn,
                                 child: Center(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 720,
-                                    ),
-                                    child: SingleChildScrollView(
-                                      controller: _scrollController,
-                                      physics: const BouncingScrollPhysics(
-                                        parent: AlwaysScrollableScrollPhysics(),
+                                  child: _entrance(
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 720,
                                       ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            height: mq.size.height * 0.42,
-                                          ),
-                                          ..._buildLyricsLines(accentColor),
-                                          SizedBox(
-                                            height: mq.size.height * 0.42,
-                                          ),
-                                        ],
+                                      child: LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          // Size the lead-in/trailing gaps to
+                                          // the lyrics viewport, not the whole
+                                          // screen, so the first line starts
+                                          // near the middle instead of ~75%
+                                          // down the panel.
+                                          final double spacer =
+                                              constraints.maxHeight * 0.44;
+                                          return SingleChildScrollView(
+                                            controller: _scrollController,
+                                            physics: const BouncingScrollPhysics(
+                                              parent:
+                                                  AlwaysScrollableScrollPhysics(),
+                                            ),
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                SizedBox(height: spacer),
+                                                ..._buildLyricsLines(
+                                                  accentColor,
+                                                  lyricsFontSize,
+                                                ),
+                                                SizedBox(height: spacer),
+                                              ],
+                                            ),
+                                          );
+                                        },
                                       ),
                                     ),
                                   ),
@@ -703,6 +970,9 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
     _scrollController.removeListener(_onUserScroll);
     _scrollController.dispose();
     _scrollTimer?.cancel();
+    _ticker?.dispose();
+    _entranceController.dispose();
+    _frame.dispose();
     _positionSubscription?.cancel();
     _lyricsProvider.removeListener(_onLyricsProviderChanged);
     _playerProvider.removeListener(_onPlayerProviderChanged);
@@ -710,119 +980,240 @@ class _LyricsDisplayState extends State<LyricsDisplay> {
   }
 }
 
-/// One line of the immersive lyrics list.
+/// One line of the Liquid-Lyrics-style list.
 ///
-/// Mirrors Orpheon's panel: the line being sung is crisp and full-weight, and
-/// the lines around it fall away by distance — dimmer, fractionally smaller and
-/// softly blurred — so the eye is drawn to the present line without losing the
-/// ones on either side. A tap seeks to the line when its timing is known.
-class _LyricLineTile extends StatelessWidget {
-  final String text;
+/// The line being sung is rendered word by word: each word carries a horizontal
+/// karaoke wipe, rises on a soft sine arc as it is sung, and cools back down
+/// once it passes. Neighbouring lines rest faint and slightly small, and the
+/// handover is eased over ~600 ms. A tap seeks when the line has a timestamp.
+class _LiquidLyricLine extends StatelessWidget {
+  final LyricLine line;
   final bool isActive;
-  final int distance;
-
-  /// True while the list is being scrolled by hand: the blur clears and every
-  /// line becomes readable, so reading ahead is not punished.
-  final bool isReadingAhead;
+  final bool isPast;
+  final bool isStatic;
+  final double fontSize;
   final Color accentColor;
+  final ValueNotifier<_LyricFrame>? frame;
   final VoidCallback? onTap;
 
-  const _LyricLineTile({
+  const _LiquidLyricLine({
     super.key,
-    required this.text,
+    required this.line,
     required this.isActive,
-    required this.distance,
-    required this.isReadingAhead,
+    required this.isPast,
+    required this.isStatic,
+    required this.fontSize,
     required this.accentColor,
+    this.frame,
     this.onTap,
   });
 
-  /// How the stack falls away either side of the playing line, indexed by
-  /// distance from it. The two lines around the playing one stay legible so
-  /// you can read ahead and behind; the last entry covers everything further.
-  static const List<double> _alphaFalloff = [1.0, 0.8, 0.7, 0.58, 0.46];
-  static const List<double> _blurFalloff = [0.0, 1.0, 1.0, 1.7, 2.4];
+  static const Cubic _ease = Cubic(0.16, 1, 0.3, 1);
+  static const double _activeScale = 1.07;
+  static const double _restScale = 0.955;
 
-  /// The playing line sits at 1; the rest sit fractionally back from it.
-  static const double _inactiveScale = 0.98;
-
-  double get _alpha => distance < _alphaFalloff.length
-      ? _alphaFalloff[distance]
-      : _alphaFalloff.last;
-
-  double get _blur => distance < _blurFalloff.length
-      ? _blurFalloff[distance]
-      : _blurFalloff.last;
+  TextStyle _style(Color color) => GoogleFonts.manrope(
+    fontSize: fontSize,
+    height: 1.24,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.5,
+    color: color,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final alpha = isReadingAhead ? (isActive ? 1.0 : 0.88) : _alpha;
-    final blur = isReadingAhead ? 0.0 : _blur;
+    final opacity = isActive ? 1.0 : (isStatic ? 0.72 : 0.28);
+    final restingColor = isActive
+        ? Colors.white
+        : isStatic
+        ? Colors.white.withValues(alpha: 0.85)
+        : isPast
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.28);
 
-    // Orpheon's lyric type: one big, tight size for every line, with the
-    // playing line separated by weight, light and focus rather than by a
-    // smaller font. The stack reads as a single block of words, not a list.
-    final style = GoogleFonts.manrope(
-      fontSize: 29.0,
-      height: 1.22,
-      letterSpacing: isActive ? -0.7 : -0.5,
-      fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-      color: Colors.white.withValues(alpha: alpha),
-      shadows: [
-        Shadow(
-          color: isActive
-              ? accentColor.withValues(alpha: 0.35)
-              : Colors.transparent,
-          blurRadius: isActive ? 18 : 0,
-        ),
-      ],
-    );
-
-    Widget line = AnimatedDefaultTextStyle(
-      duration: AppDimens.animSmooth,
-      curve: Curves.easeOutCubic,
-      style: style,
-      child: Text(text, textAlign: TextAlign.center),
-    );
-
-    line = TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: blur),
-      duration: AppDimens.animSmooth,
-      curve: Curves.easeOutCubic,
-      child: line,
-      builder: (context, sigma, child) {
-        if (sigma <= 0.01) return child!;
-        return ImageFiltered(
-          imageFilter: ImageFilter.blur(
-            sigmaX: sigma,
-            sigmaY: sigma,
-            tileMode: TileMode.decal,
-          ),
-          child: child,
-        );
-      },
-    );
+    Widget content;
+    if (isActive && frame != null && line.words.isNotEmpty) {
+      content = ValueListenableBuilder<_LyricFrame>(
+        valueListenable: frame!,
+        builder: (context, value, _) => _buildActiveWords(value),
+      );
+    } else {
+      content = Text(
+        line.text,
+        textAlign: TextAlign.center,
+        style: _style(restingColor),
+      );
+    }
 
     return Semantics(
       button: onTap != null,
-      label: text,
+      label: line.text,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: AnimatedScale(
-          scale: isActive || isReadingAhead ? 1.0 : _inactiveScale,
-          duration: AppDimens.animSmooth,
-          curve: Curves.easeOutCubic,
-          child: AnimatedPadding(
-            duration: AppDimens.animSmooth,
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(
-              horizontal: AppDimens.paddingXxl,
-              vertical: isActive ? AppDimens.spacingMd : AppDimens.spacingSm,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 520),
+          curve: _ease,
+          opacity: opacity,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: isActive ? 1.0 : 0.0),
+            duration: const Duration(milliseconds: 620),
+            curve: _ease,
+            builder: (context, t, child) {
+              return Transform.translate(
+                offset: Offset(0, -2.0 * t),
+                child: Transform.scale(
+                  scale: _restScale + (_activeScale - _restScale) * t,
+                  alignment: Alignment.center,
+                  child: child,
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: content,
             ),
-            child: line,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActiveWords(_LyricFrame value) {
+    final words = line.words;
+    final total = words.fold<int>(
+      0,
+      (sum, word) => sum + math.max(1, word.text.length),
+    );
+    var cumulative = 0;
+    final children = <Widget>[];
+
+    for (final word in words) {
+      final weight = math.max(1, word.text.length);
+      final startFraction = total == 0 ? 0.0 : cumulative / total;
+      cumulative += weight;
+      final endFraction = total == 0 ? 1.0 : cumulative / total;
+
+      double wordProgress;
+      final wordStart = word.start;
+      if (wordStart != null) {
+        final startMs = wordStart.inMilliseconds.toDouble();
+        final endMs =
+            word.end?.inMilliseconds.toDouble() ??
+            (line.end?.inMilliseconds.toDouble() ?? startMs + 400);
+        wordProgress = endMs > startMs
+            ? ((value.positionMs - startMs) / (endMs - startMs)).clamp(0.0, 1.0)
+            : (value.positionMs >= startMs ? 1.0 : 0.0);
+      } else {
+        final span = endFraction - startFraction;
+        wordProgress = span > 0
+            ? ((value.progress - startFraction) / span).clamp(0.0, 1.0)
+            : value.progress;
+      }
+
+      children.add(
+        _KaraokeWord(
+          text: word.text,
+          progress: wordProgress,
+          style: _style(Colors.white),
+          accentColor: accentColor,
+        ),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: fontSize * 0.26,
+      runSpacing: fontSize * 0.12,
+      children: children,
+    );
+  }
+}
+
+/// A single word with Liquid Lyrics' per-word motion: a horizontal karaoke
+/// wipe, a sine-shaped lift and scale while it is being sung, and a soft halo
+/// that blooms at the head of the fill.
+class _KaraokeWord extends StatelessWidget {
+  final String text;
+  final double progress;
+  final TextStyle style;
+  final Color accentColor;
+
+  const _KaraokeWord({
+    required this.text,
+    required this.progress,
+    required this.style,
+    required this.accentColor,
+  });
+
+  static double _smoothstep(double edge0, double edge1, double x) {
+    final t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = progress.clamp(0.0, 1.0);
+    final r = math.sin(p * math.pi);
+    final lift = -5.0 * r;
+    final scale = 1.0 + 0.018 * r;
+    final glow = _smoothstep(0.0, 0.15, r) * (1 - _smoothstep(0.6, 1.0, r));
+    final dim = Colors.white.withValues(alpha: 0.32);
+
+    Widget fill;
+    if (p <= 0.001) {
+      fill = Text(text, style: style.copyWith(color: dim));
+    } else if (p >= 0.999) {
+      fill = Text(text, style: style.copyWith(color: Colors.white));
+    } else {
+      fill = ShaderMask(
+        blendMode: BlendMode.srcIn,
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Colors.white, Colors.white, dim, dim],
+          stops: [0.0, p, math.min(1.0, p + 0.2), 1.0],
+        ).createShader(rect),
+        child: Text(text, style: style.copyWith(color: Colors.white)),
+      );
+    }
+
+    Widget content = fill;
+    if (glow > 0.02) {
+      content = Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          IgnorePointer(
+            child: Text(
+              text,
+              style: style.copyWith(
+                color: Colors.transparent,
+                shadows: [
+                  Shadow(
+                    color: Colors.white.withValues(alpha: 0.5 * glow),
+                    blurRadius: 10 * glow,
+                  ),
+                  Shadow(
+                    color: accentColor.withValues(alpha: 0.22 * glow),
+                    blurRadius: 22 * glow,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          fill,
+        ],
+      );
+    }
+
+    return Transform.translate(
+      offset: Offset(0, lift),
+      child: Transform.scale(
+        scale: scale,
+        alignment: Alignment.bottomCenter,
+        child: content,
       ),
     );
   }
@@ -838,6 +1229,15 @@ class _LyricsBackdrop extends StatelessWidget {
 
   static bool _isRemote(String value) =>
       value.startsWith('http://') || value.startsWith('https://');
+
+  /// A gentler cousin of Kawarp: the artwork is pushed a little past life so
+  /// the moving dark scrim reads as colour drift rather than a grey wash.
+  static const ColorFilter _saturation = ColorFilter.matrix(<double>[
+    1.2756, -0.2503, -0.0253, 0, 0, //
+    -0.0744, 1.0997, -0.0253, 0, 0, //
+    -0.0744, -0.2503, 1.3247, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ]);
 
   @override
   Widget build(BuildContext context) {
@@ -858,18 +1258,22 @@ class _LyricsBackdrop extends StatelessWidget {
           ClipRect(
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(
-                sigmaX: 52,
-                sigmaY: 52,
+                sigmaX: 46,
+                sigmaY: 46,
                 tileMode: TileMode.decal,
               ),
               child: Transform.scale(
-                scale: 1.4,
-                child: CachedNetworkImage(
-                  imageUrl: thumbnail,
-                  fit: BoxFit.cover,
-                  fadeInDuration: const Duration(milliseconds: 400),
-                  placeholder: (context, url) => const SizedBox.shrink(),
-                  errorWidget: (context, url, error) => const SizedBox.shrink(),
+                scale: 1.45,
+                child: ColorFiltered(
+                  colorFilter: _saturation,
+                  child: CachedNetworkImage(
+                    imageUrl: thumbnail,
+                    fit: BoxFit.cover,
+                    fadeInDuration: const Duration(milliseconds: 400),
+                    placeholder: (context, url) => const SizedBox.shrink(),
+                    errorWidget: (context, url, error) =>
+                        const SizedBox.shrink(),
+                  ),
                 ),
               ),
             ),
