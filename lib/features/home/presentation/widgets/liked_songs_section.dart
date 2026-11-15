@@ -100,14 +100,14 @@ class LikedSongsSection extends StatelessWidget {
                         itemCount: pageItems.length,
                         itemBuilder: (context, index) {
                           final song = pageItems[index];
-                          final globalIndex = pageIndex * rowsPerPage + index;
                           return MusicListTile(
                             song: song,
                             onTap: () async {
                               try {
-                                await homeScreenQueueService.playAll(
+                                await homeScreenQueueService.playSongFromMap(
+                                  song,
                                   'liked_songs',
-                                  currentIndex: globalIndex,
+                                  playlistName: 'favorites',
                                 );
                               } catch (e) {
                                 if (!context.mounted) return;

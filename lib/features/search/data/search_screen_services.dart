@@ -1,14 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:dart_ytmusic_api/dart_ytmusic_api.dart';
 import 'package:get_it/get_it.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Thumbnail;
 
 import '../../../core/models/song_model.dart';
-import '../../../core/services/related_song_service.dart';
+import '../../../core/providers/queued_provider.dart';
+import '../../../core/services/queue_builder_service.dart';
 import '../../../core/services/settings_storage_service.dart';
-import '../../../core/services/yt_music_api.dart' as yt_api;
 
 enum SearchMode { youtubeMusic, youtube }
 
@@ -16,14 +14,10 @@ class SearchScreenServices {
   final YTMusic _ytMusic = GetIt.I<YTMusic>();
   final YoutubeExplode _yt = GetIt.I<YoutubeExplode>();
 
-  final RelatedSongService _relatedSongService = RelatedSongService();
+  final QueueBuilderService _queueBuilderService = QueueBuilderService();
 
   static const String searchHistoryKey = 'search_history';
   static const String searchHistoryEnabledKey = 'searchHistoryEnabled';
-
-  static const int _maxSearchQueueSize = 250;
-  static const int _initialRadioBatchLimit = 50;
-  static const int _extraRadioFetchCount = 6;
 
   // ---------------------------------------------------------------------------
   // SEARCH HISTORY
@@ -201,7 +195,7 @@ class SearchScreenServices {
   Future<void> playSong(
     dynamic song,
     dynamic playerProvider,
-    dynamic queueProvider,
+    QueueProvider queueProvider,
   ) async {
     /*
      * IMPORTANT:
@@ -272,21 +266,13 @@ class SearchScreenServices {
     // There is deliberately NO await here.
     // -------------------------------------------------------------------------
 
-    final isYouTube = _isYouTubeSong(song);
-
-    if (isYouTube) {
-      _buildYouTubeRelatedQueueInBackground(
-        currentSong: songInfo,
-        seedVideoId: songInfo.videoId,
-        queueProvider: queueProvider,
-      );
-    } else {
-      _buildRadioQueueInBackground(
-        currentSong: songInfo,
-        seedVideoId: songInfo.videoId,
-        queueProvider: queueProvider,
-      );
-    }
+    _queueBuilderService.buildInBackground(
+      currentSong: songInfo,
+      queueProvider: queueProvider,
+      playlistId: 'search_results',
+      playlistName: 'Search Results',
+      useYouTubeRelated: _isYouTubeSong(song),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -367,335 +353,4 @@ class SearchScreenServices {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // YOUTUBE RELATED QUEUE - BACKGROUND
-  // ---------------------------------------------------------------------------
-
-  void _buildYouTubeRelatedQueueInBackground({
-    required SongInfo currentSong,
-    required String seedVideoId,
-    required dynamic queueProvider,
-  }) {
-    Future<void>(() async {
-      try {
-        debugPrint(
-          'Background related queue generation started for '
-          '$seedVideoId',
-        );
-
-        final songsList = await _relatedSongService.createSongListWithRelated(
-          currentSong,
-          seedVideoId,
-        );
-
-        if (songsList.isEmpty) {
-          return;
-        }
-
-        final songIndex = songsList.indexWhere(
-          (s) => s.videoId == currentSong.videoId,
-        );
-
-        try {
-          queueProvider.setQueue(
-            songsList,
-            currentIndex: songIndex >= 0 ? songIndex : 0,
-            playlistId: 'search_results',
-            playlistName: 'Search Results',
-          );
-
-          debugPrint(
-            'Background YouTube queue ready: '
-            '${songsList.length} songs',
-          );
-        } catch (e) {
-          debugPrint('Failed to update YouTube queue: $e');
-        }
-      } catch (e) {
-        /*
-         * VERY IMPORTANT:
-         *
-         * Related songs are optional.
-         * Their failure must NEVER stop playback.
-         */
-        debugPrint('Background YouTube related queue failed: $e');
-      }
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // YOUTUBE MUSIC RADIO - BACKGROUND
-  // ---------------------------------------------------------------------------
-
-  void _buildRadioQueueInBackground({
-    required SongInfo currentSong,
-    required String seedVideoId,
-    required dynamic queueProvider,
-  }) {
-    Future<void>(() async {
-      try {
-        debugPrint(
-          'Background radio queue generation started for '
-          '$seedVideoId',
-        );
-
-        await _buildExpandedRadioQueueIncremental(
-          currentSong: currentSong,
-          seedVideoId: seedVideoId,
-          queueProvider: queueProvider,
-        );
-
-        debugPrint(
-          'Background radio queue generation completed for '
-          '$seedVideoId',
-        );
-      } catch (e, stackTrace) {
-        /*
-         * Radio generation is completely optional.
-         *
-         * If YouTube changes its response or a radio request fails,
-         * the currently playing song continues normally.
-         */
-
-        debugPrint('Background radio queue failed: $e');
-
-        debugPrint('$stackTrace');
-      }
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // EXPANDED RADIO QUEUE
-  // ---------------------------------------------------------------------------
-
-  Future<List<SongInfo>> _buildExpandedRadioQueueIncremental({
-    required SongInfo currentSong,
-    required String seedVideoId,
-    required dynamic queueProvider,
-  }) async {
-    final random = Random();
-
-    final seenVideoIds = <String>{currentSong.videoId};
-
-    var songs = <SongInfo>[currentSong];
-
-    /*
-     * The clicked song has already been placed into the queue.
-     *
-     * We DO NOT call setQueue() again here.
-     */
-
-    List<SongInfo> getUniqueSongs(Iterable<SongInfo> incoming) {
-      final unique = <SongInfo>[];
-
-      for (final item in incoming) {
-        if (item.videoId.isEmpty) {
-          continue;
-        }
-
-        if (seenVideoIds.contains(item.videoId)) {
-          continue;
-        }
-
-        seenVideoIds.add(item.videoId);
-
-        unique.add(item);
-
-        if (seenVideoIds.length >= _maxSearchQueueSize) {
-          break;
-        }
-      }
-
-      return unique;
-    }
-
-    // -------------------------------------------------------------------------
-    // FIRST RADIO REQUEST
-    // -------------------------------------------------------------------------
-
-    try {
-      final initialRadioData = await yt_api.getRadioSongs(
-        seedVideoId,
-        limit: _initialRadioBatchLimit,
-      );
-
-      final rawTracks = initialRadioData['tracks'];
-
-      if (rawTracks is List) {
-        final initialUniqueSongs = getUniqueSongs(
-          _mapRadioTracksToSongInfo(rawTracks),
-        );
-
-        if (initialUniqueSongs.isNotEmpty) {
-          try {
-            queueProvider.addAllToQueue(initialUniqueSongs);
-
-            songs = List<SongInfo>.from(queueProvider.queue);
-
-            debugPrint(
-              'Added ${initialUniqueSongs.length} radio songs. '
-              'Queue size: ${songs.length}',
-            );
-          } catch (e) {
-            debugPrint('Failed to add initial radio songs to queue: $e');
-          }
-        }
-      }
-    } catch (e) {
-      /*
-       * This is the exact area that was previously causing:
-       *
-       * NoSuchMethodError:
-       * The method '[]' was called on null.
-       *
-       * It is now isolated from playback.
-       */
-
-      debugPrint('Initial radio request failed: $e');
-    }
-
-    // -------------------------------------------------------------------------
-    // EXTRA RADIO REQUESTS
-    // -------------------------------------------------------------------------
-
-    for (
-      var i = 0;
-      i < _extraRadioFetchCount && songs.length < _maxSearchQueueSize;
-      i++
-    ) {
-      if (songs.isEmpty) {
-        break;
-      }
-
-      final randomSeedSong = songs[random.nextInt(songs.length)];
-
-      try {
-        final extraRadioData = await yt_api.getRadioSongs(
-          randomSeedSong.videoId,
-          limit: _initialRadioBatchLimit,
-        );
-
-        final rawTracks = extraRadioData['tracks'];
-
-        if (rawTracks is! List) {
-          debugPrint(
-            'Radio response had no valid tracks for '
-            '${randomSeedSong.videoId}',
-          );
-
-          continue;
-        }
-
-        final extraUniqueSongs = getUniqueSongs(
-          _mapRadioTracksToSongInfo(rawTracks),
-        );
-
-        if (extraUniqueSongs.isNotEmpty) {
-          try {
-            queueProvider.addAllToQueue(extraUniqueSongs);
-
-            songs = List<SongInfo>.from(queueProvider.queue);
-
-            debugPrint(
-              'Added ${extraUniqueSongs.length} extra radio songs. '
-              'Queue size: ${songs.length}',
-            );
-          } catch (e) {
-            debugPrint('Failed adding extra radio songs: $e');
-          }
-        }
-      } catch (e) {
-        /*
-         * One bad radio seed should NOT stop the remaining radio requests.
-         */
-
-        debugPrint(
-          'Extra radio fetch failed for '
-          '${randomSeedSong.videoId}: $e',
-        );
-      }
-    }
-
-    return songs.take(_maxSearchQueueSize).toList();
-  }
-
-  // ---------------------------------------------------------------------------
-  // RADIO TRACK MAPPING
-  // ---------------------------------------------------------------------------
-
-  List<SongInfo> _mapRadioTracksToSongInfo(List tracks) {
-    final result = <SongInfo>[];
-
-    for (final track in tracks) {
-      if (track is! Map) {
-        continue;
-      }
-
-      try {
-        final videoId = track['videoId']?.toString() ?? '';
-
-        if (videoId.isEmpty) {
-          continue;
-        }
-
-        final title = track['title']?.toString() ?? 'Unknown Title';
-
-        final trackArtists = track['artists'];
-
-        final artists = <Artist>[];
-
-        if (trackArtists is List) {
-          for (final artist in trackArtists) {
-            if (artist is Map) {
-              artists.add(
-                Artist(
-                  name: artist['name']?.toString() ?? 'Unknown Artist',
-                  id: artist['id']?.toString() ?? '',
-                ),
-              );
-            }
-          }
-        }
-
-        if (artists.isEmpty) {
-          artists.add(Artist(name: 'Unknown Artist', id: ''));
-        }
-
-        final thumbnails = track['thumbnails'];
-
-        String thumbnailUrl = '';
-
-        if (thumbnails is List && thumbnails.isNotEmpty) {
-          /*
-           * Pick the last/highest resolution thumbnail,
-           * but safely handle malformed data.
-           */
-
-          final last = thumbnails.last;
-
-          if (last is Map) {
-            thumbnailUrl = last['url']?.toString() ?? '';
-          }
-        }
-
-        final durationSeconds = _toInt(track['duration_seconds'], 0);
-
-        result.add(
-          SongInfo(
-            videoId: videoId,
-            name: title,
-            artists: artists,
-            thumbnails: [
-              Thumbnail(url: thumbnailUrl, width: 1280, height: 720),
-            ],
-            duration: Duration(seconds: durationSeconds),
-          ),
-        );
-      } catch (e) {
-        debugPrint('Failed to map radio track: $e');
-      }
-    }
-
-    return result;
-  }
 }

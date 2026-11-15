@@ -286,9 +286,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   final playlistName =
                       '${trendingProvider.selectedCountry?.name ?? 'Kenya'} Trending';
 
-                  trendingProvider.playSong(
+                  HomeScreenQueueService(context).playSong(
                     song,
-                    context,
                     playlistId,
                     playlistName: playlistName,
                   );
@@ -385,9 +384,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 song: songInfo,
                 onPlay: () async {
                   try {
-                    await HomeScreenQueueService(
-                      context,
-                    ).playAll(playlistType, currentIndex: index);
+                    final playlistName = playlistType == 'recently_played'
+                        ? 'Recently'
+                        : 'favorites';
+
+                    await HomeScreenQueueService(context).playSongFromMap(
+                      songMap,
+                      playlistType,
+                      playlistName: playlistName,
+                    );
 
                     if (!context.mounted) return;
                   } catch (e) {

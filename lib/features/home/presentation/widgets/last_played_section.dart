@@ -86,14 +86,14 @@ class LastPlayedSection extends StatelessWidget {
                   itemCount: pageItems.length,
                   itemBuilder: (context, index) {
                     final song = pageItems[index];
-                    final globalIndex = pageIndex * rowsPerPage + index;
                     return MusicListTile(
                       song: song,
                       onTap: () async {
                         try {
-                          await homeScreenQueueService.playAll(
+                          await homeScreenQueueService.playSongFromMap(
+                            song,
                             'recently_played',
-                            currentIndex: globalIndex,
+                            playlistName: 'Recently',
                           );
                         } catch (e) {
                           if (!context.mounted) return;

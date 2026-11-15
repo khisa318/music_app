@@ -14,6 +14,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../../core/services/content_details_service.dart';
 import '../../../../shared/components/app_snackbar.dart';
 import '../../data/providers/covers_and_remixes_provider.dart';
+import '../../data/services/home_screen_queue_service.dart';
 import 'home_screen_shimmer.dart';
 
 /// Alternate versions of what the listener has played: covers, remixes,
