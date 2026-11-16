@@ -19,6 +19,7 @@ import '../../../../core/providers/settings_provider.dart';
 import '../../../player/presentation/screens/player_ui.dart';
 import '../../../library/presentation/screens/library_screen.dart';
 import '../../../playlists/presentation/screens/playlists_screen.dart';
+import '../../../podcasts/data/providers/podcast_provider.dart';
 import '../../../podcasts/presentation/screens/podcasts_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../../stats/presentation/screens/stats_screen.dart';
@@ -164,6 +165,9 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final isDarkMode = settingsProvider.themeMode == ThemeMode.dark;
     final playerProvider = Provider.of<PlayerProvider>(context);
+    final podcastSheetOpen = context.select<PodcastProvider, bool>(
+      (provider) => provider.isPlayerSheetOpen,
+    );
     final hasPlayer =
         playerProvider.currentSong != null ||
         playerProvider.lastPlayedSong != null;
@@ -364,7 +368,7 @@ class _DesktopMainScreenState extends State<DesktopMainScreen> {
                 ],
               ),
             ),
-            if (hasPlayer)
+            if (hasPlayer && !podcastSheetOpen)
               SizedBox(
                 height: AppDimens.miniPlayerHeightWide,
                 child: PlayerUI(

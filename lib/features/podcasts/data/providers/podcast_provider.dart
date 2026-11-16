@@ -67,6 +67,7 @@ class PodcastProvider extends ChangeNotifier {
   Duration _currentPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
   DateTime _lastProgressWrite = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _isPlayerSheetOpen = false;
 
   Box<String>? get _libraryBox =>
       Hive.isBoxOpen(libraryBoxName) ? Hive.box<String>(libraryBoxName) : null;
@@ -78,6 +79,16 @@ class PodcastProvider extends ChangeNotifier {
   bool get isHomeLoading => _isHomeLoading;
   bool get homeHasError => _homeHasError;
   bool get isRefreshing => _isRefreshing;
+
+  /// True while the podcast player sheet is open. The shell hides its mini
+  /// player during that time so the sheet and the mini player never stack.
+  bool get isPlayerSheetOpen => _isPlayerSheetOpen;
+
+  void setPlayerSheetOpen(bool isOpen) {
+    if (_isPlayerSheetOpen == isOpen) return;
+    _isPlayerSheetOpen = isOpen;
+    notifyListeners();
+  }
 
   List<PodcastShow> get featuredShows => _featured;
   List<PodcastShow> get trendingShows => _trending;

@@ -7,20 +7,42 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/providers/player_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/liquid_glass.dart';
+import '../../../player/presentation/widgets/queued_bottomsheet.dart';
 import '../../data/providers/podcast_provider.dart';
 import 'podcast_widgets.dart';
+
+void _showQueue(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => const SafeArea(child: QueueBottomSheet()),
+  );
+}
 
 class PodcastPlayerSheet extends StatelessWidget {
   const PodcastPlayerSheet({super.key});
 
-  static Future<void> show(BuildContext context) {
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      enableDrag: true,
-      builder: (_) => const PodcastPlayerSheet(),
-    );
+  static Future<void> show(BuildContext context) async {
+    final podcast = context.read<PodcastProvider>();
+
+    // Hide the shell's mini player for as long as the sheet is on screen:
+    // both sit at the bottom, and stacking them hides the sheet's controls.
+    podcast.setPlayerSheetOpen(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        enableDrag: true,
+        builder: (_) => const PodcastPlayerSheet(),
+      );
+    } finally {
+      podcast.setPlayerSheetOpen(false);
+    }
   }
 
   @override
@@ -42,27 +64,19 @@ class PodcastPlayerSheet extends StatelessWidget {
 
         return SafeArea(
           top: false,
-          child: Container(
-            decoration: BoxDecoration(
-              color: MainScreenColors.getSurfaceColor(isDark),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppDimens.radiusXxxl),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withValues(
-                    alpha: isDark ? 0.12 : 0.0,
-                  ),
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 40,
-                  offset: const Offset(0, -10),
-                ),
-              ],
+          child: LiquidGlass(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppDimens.radiusXxxl),
             ),
+            tint: MainScreenColors.getSurfaceColor(isDark),
+            opacity: 0.2,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 40,
+                offset: const Offset(0, -10),
+              ),
+            ],
             padding: const EdgeInsets.fromLTRB(
               AppDimens.paddingXl,
               AppDimens.spacingSm,
@@ -203,9 +217,7 @@ class PodcastPlayerSheet extends StatelessWidget {
                   children: [
                     _ControlButton(
                       icon: Icons.replay_10_rounded,
-                      onTap: () => podcast.seekBy(
-                        const Duration(seconds: -15),
-                      ),
+                      onTap: () => podcast.seekBy(const Duration(seconds: -15)),
                       isDark: isDark,
                     ),
                     _ControlButton(
@@ -221,9 +233,7 @@ class PodcastPlayerSheet extends StatelessWidget {
                     ),
                     _ControlButton(
                       icon: Icons.forward_10_rounded,
-                      onTap: () => podcast.seekBy(
-                        const Duration(seconds: 15),
-                      ),
+                      onTap: () => podcast.seekBy(const Duration(seconds: 15)),
                       isDark: isDark,
                     ),
                   ],
@@ -251,8 +261,8 @@ class PodcastPlayerSheet extends StatelessWidget {
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: podcast.playNext,
-                      tooltip: 'podcast_next_episode'.tr(),
+                      onPressed: () => _showQueue(context),
+                      tooltip: 'queue'.tr(),
                       icon: Icon(
                         Icons.queue_music_rounded,
                         color: MainScreenColors.getTextColor(
@@ -329,9 +339,7 @@ class _ControlButton extends StatelessWidget {
       iconSize: 28,
       icon: Icon(
         icon,
-        color: MainScreenColors.getTextColor(
-          isDark,
-        ).withValues(alpha: 0.8),
+        color: MainScreenColors.getTextColor(isDark).withValues(alpha: 0.8),
       ),
     );
   }

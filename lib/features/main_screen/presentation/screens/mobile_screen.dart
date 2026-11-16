@@ -22,6 +22,7 @@ import '../../../ota/data/providers/ota_provider.dart';
 import '../../../ota/presentation/widgets/ota_dialog.dart';
 import '../../../ota/presentation/widgets/ota_install_dialog.dart';
 import '../../../player/presentation/screens/player_ui.dart';
+import '../../../podcasts/data/providers/podcast_provider.dart';
 import '../../../podcasts/presentation/screens/podcasts_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
@@ -428,24 +429,39 @@ class _MobileMainScreenState extends State<MobileMainScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (hasPlayer) ...[
-                                    SizedBox(
-                                      height:
-                                          AppDimens.miniPlayerHeight *
-                                          navIconScale,
-                                      child: PlayerUI(
-                                        showFullScreen: false,
-                                        isEmbedded: true,
-                                        provideGlass: true,
-                                        onMinimize: () {},
-                                        onExpand: () =>
-                                            _showFullPlayerBottomSheet(context),
-                                      ),
-                                    ),
-                                    const SizedBox(
-                                      height: AppDimens.spacingSmMd,
-                                    ),
-                                  ],
+                                  Selector<PodcastProvider, bool>(
+                                    selector: (_, provider) =>
+                                        provider.isPlayerSheetOpen,
+                                    builder:
+                                        (context, isPlayerSheetOpen, child) {
+                                          if (!hasPlayer || isPlayerSheetOpen) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          return Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              SizedBox(
+                                                height:
+                                                    AppDimens.miniPlayerHeight *
+                                                    navIconScale,
+                                                child: PlayerUI(
+                                                  showFullScreen: false,
+                                                  isEmbedded: true,
+                                                  provideGlass: true,
+                                                  onMinimize: () {},
+                                                  onExpand: () =>
+                                                      _showFullPlayerBottomSheet(
+                                                        context,
+                                                      ),
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                height: AppDimens.spacingSmMd,
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                  ),
                                   LiquidGlass(
                                     borderRadius: const BorderRadius.all(
                                       Radius.circular(AppDimens.radiusPill),
