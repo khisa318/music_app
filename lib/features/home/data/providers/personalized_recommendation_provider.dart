@@ -960,6 +960,8 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
     for (final section in _homeScreenProvider.carouselSections) {
       for (final content in section.contents) {
+        // Suggestions are a music shelf: never surface YouTube's plain videos.
+        if (content is VideoDetailed) continue;
         final song = songInfoFromHomeContent(content);
         if (song == null) continue;
         if (!seen.add(song.videoId)) continue;
@@ -1044,6 +1046,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
 
     for (final section in _homeScreenProvider.carouselSections.skip(2)) {
       for (final content in section.contents) {
+        if (content is VideoDetailed) continue;
         final song = songInfoFromHomeContent(content);
         if (song == null) continue;
         if (seen.add(song.videoId) &&
@@ -1094,6 +1097,7 @@ class PersonalizedRecommendationProvider with ChangeNotifier {
     // Default: YouTube Music home sections (first few)
     for (final section in _homeScreenProvider.carouselSections.take(3)) {
       final songs = section.contents
+          .where((content) => content is! VideoDetailed)
           .map(songInfoFromHomeContent)
           .whereType<SongInfo>()
           .take(_maxRecommendationsPerSection)
