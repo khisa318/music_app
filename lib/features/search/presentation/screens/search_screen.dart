@@ -419,7 +419,19 @@ class SearchScreenState extends State<SearchScreen>
     _clearSearch();
   }
 
-  void _onModeChanged() {
+  void _changeSearchMode(SearchMode mode) {
+    if (_searchMode == mode) {
+      return;
+    }
+
+    setState(() {
+      _searchMode = mode;
+    });
+
+    _onModeChanged(rerunSearch: true);
+  }
+
+  void _onModeChanged({bool rerunSearch = false}) {
     _tabController.dispose();
 
     _tabController = TabController(length: _getTabCount(), vsync: this);
@@ -441,6 +453,18 @@ class SearchScreenState extends State<SearchScreen>
     if (mounted) {
       setState(() {});
     }
+
+    if (!rerunSearch) {
+      return;
+    }
+
+    final query = _searchController.text.trim();
+
+    if (query.isEmpty) {
+      return;
+    }
+
+    unawaited(_onSearch(query));
   }
 
   @override
@@ -519,29 +543,12 @@ class SearchScreenState extends State<SearchScreen>
                                       },
                                       onClearPressed: _clearSearch,
                                       onVoiceSearchPressed: _startVoiceSearch,
-                                      onModeChangedToYouTubeMusic: () {
-                                        if (_searchMode ==
-                                            SearchMode.youtubeMusic) {
-                                          return;
-                                        }
-
-                                        setState(() {
-                                          _searchMode = SearchMode.youtubeMusic;
-                                        });
-
-                                        _onModeChanged();
-                                      },
-                                      onModeChangedToYouTube: () {
-                                        if (_searchMode == SearchMode.youtube) {
-                                          return;
-                                        }
-
-                                        setState(() {
-                                          _searchMode = SearchMode.youtube;
-                                        });
-
-                                        _onModeChanged();
-                                      },
+                                      onModeChangedToYouTubeMusic: () =>
+                                          _changeSearchMode(
+                                            SearchMode.youtubeMusic,
+                                          ),
+                                      onModeChangedToYouTube: () =>
+                                          _changeSearchMode(SearchMode.youtube),
                                     ),
                                   ),
                                 );
