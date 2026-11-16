@@ -194,6 +194,20 @@ class _CoversAndRemixesSectionState extends State<CoversAndRemixesSection> {
       debugPrint('Covers/remixes playback failed: $e');
     }
   }
+
+  static Future<void> _playSong(BuildContext context, SongInfo song) async {
+    try {
+      await HomeScreenQueueService(context).playSong(
+        song,
+        'covers_and_remixes',
+        playlistName: 'covers_and_remixes'.tr(),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      AppSnackBar.showError(context, 'failed_to_play_song_error'.tr());
+      debugPrint('Covers/remixes playback failed: $e');
+    }
+  }
 }
 
 class _CoversSkeleton extends StatelessWidget {
@@ -350,7 +364,7 @@ class _CoversList extends StatelessWidget {
               song: song,
               isDarkMode: isDarkMode,
               onTap: () =>
-                  _CoversAndRemixesSectionState._play(context, songs, index),
+                  _CoversAndRemixesSectionState._playSong(context, song),
             );
           },
         );
@@ -473,9 +487,7 @@ class _CoverFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-      ),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest),
       child: Center(
         child: Icon(
           Icons.music_note_rounded,
