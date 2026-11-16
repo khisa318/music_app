@@ -176,7 +176,7 @@ Interested in contributing to MusiX? Here's how to get started.
 
 ### Prerequisites
 
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) (pinned to `3.47.5`, see `.flutter-version`)
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) (pinned to `3.47.5`, see `.fvmrc`)
 - JDK 17
 - Android SDK (compileSdk 37.0.0, minSdk 24)
 - [Android Studio](https://developer.android.com/studio) or [Visual Studio Code](https://code.visualstudio.com/)
@@ -305,7 +305,7 @@ flutter test
 version: 1.0.4+5   # versionName 1.0.4, versionCode 5
 ```
 
-Both halves must increase. Merging a `version:` bump to `main` triggers `.github/workflows/tag-release.yml`, which creates the matching `v*` tag; `.github/workflows/release.yml` then builds, signs, verifies, and publishes the GitHub Release. CI pins Flutter to `.flutter-version` (`3.47.5`) rather than `latest`.
+Both halves must increase. Merging a `version:` bump to `main` triggers `.github/workflows/tag-release.yml`, which creates the matching `v*` tag; `.github/workflows/release.yml` then builds, signs, verifies, and publishes the GitHub Release. CI pins Flutter to `.fvmrc` (`3.47.5`) rather than `latest`.
 
 ### Release signing
 

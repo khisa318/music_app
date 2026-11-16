@@ -28,14 +28,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # Pinned to the version in .flutter-version, which is the version the
-      # project is actually developed against. Never "latest": a Flutter
-      # upgrade can change the analyzer, the Gradle plugin defaults and the
-      # build output, which would make CI disagree with local builds.
+      # Pinned to the version in .fvmrc, which is the version the project is
+      # actually developed against. Never "latest": a Flutter upgrade can
+      # change the analyzer, the Gradle plugin defaults and the build output,
+      # which would make CI disagree with local builds.
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version-file: .flutter-version
+          flutter-version-file: .fvmrc
           channel: stable
           cache: true
 
