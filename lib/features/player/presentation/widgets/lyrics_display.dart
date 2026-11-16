@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart'
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../screens/player_ui.dart';
 
@@ -124,6 +125,17 @@ class _LyricsDisplayState extends State<LyricsDisplay>
     )..forward();
 
     _positionSubscription = widget.positionStream.listen(_onPosition);
+
+    unawaited(_setWakelock(true));
+  }
+
+  /// Lyrics are read hands-free, so the display must stay awake while this
+  /// sheet is open. Wakelock failures (unsupported platform, missing plugin)
+  /// must not break the lyrics UI.
+  Future<void> _setWakelock(bool enabled) async {
+    try {
+      await WakelockPlus.toggle(enable: enabled);
+    } catch (_) {}
   }
 
   @override
@@ -910,11 +922,15 @@ class _LyricsDisplayState extends State<LyricsDisplay>
                       Container(
                         child: _showPlainLyrics
                             ? SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(
+                                padding: EdgeInsets.fromLTRB(
                                   AppDimens.paddingXxl,
                                   AppDimens.paddingLg,
                                   AppDimens.paddingXxl,
-                                  AppDimens.paddingXxl,
+                                  AppDimens.paddingXxl +
+                                      (hasPlayer
+                                          ? AppDimens.miniPlayerHeight +
+                                                AppDimens.spacingMd * 2
+                                          : 0),
                                 ),
                                 child: Center(
                                   child: ConstrainedBox(
@@ -995,30 +1011,24 @@ class _LyricsDisplayState extends State<LyricsDisplay>
                   ],
                 ),
               ),
-
-              if (hasPlayer)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    border: const Border(
-                      top: BorderSide(color: Color(0x14FFFFFF)),
-                    ),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: SizedBox(
-                      height: AppDimens.miniPlayerHeight * navIconScale,
-                      child: PlayerUI(
-                        showFullScreen: false,
-                        isEmbedded: true,
-                        onMinimize: () {},
-                        onExpand: () => widget.onClose(),
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
+          if (hasPlayer)
+            Positioned(
+              left: AppDimens.spacingMd,
+              right: AppDimens.spacingMd,
+              bottom: AppDimens.spacingMd,
+              child: SizedBox(
+                height: AppDimens.miniPlayerHeight * navIconScale,
+                child: PlayerUI(
+                  showFullScreen: false,
+                  isEmbedded: true,
+                  glassOpacity: 0.16,
+                  onMinimize: () {},
+                  onExpand: () => widget.onClose(),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1035,6 +1045,7 @@ class _LyricsDisplayState extends State<LyricsDisplay>
     _positionSubscription?.cancel();
     _lyricsProvider.removeListener(_onLyricsProviderChanged);
     _playerProvider.removeListener(_onPlayerProviderChanged);
+    unawaited(_setWakelock(false));
     super.dispose();
   }
 }
