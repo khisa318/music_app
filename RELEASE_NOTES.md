@@ -1,3 +1,27 @@
+# 1.3.0
+
+## Added
+
+- The lyrics screen now keeps the display awake while it is open.
+- The lyrics mini player floats over the lyrics as a see-through glass panel.
+
+## Changed
+
+- The podcast player sheet is now liquid glass, so the page behind it stays visible.
+- The podcast sheet's queue button opens the playback queue instead of skipping ahead.
+- The shell mini player hides while the podcast player sheet is open, so the two no longer overlap.
+- Personalized suggestions now show music only and skip YouTube videos.
+- Switching between YouTube Music and YouTube search reruns the active query automatically.
+
+## Fixed
+
+- Covers and remixes now play the tapped track with its own radio queue.
+
+## Notes
+
+- Built with Flutter.
+- Full changelog: https://github.com/khisa318/music_app/compare/v1.2.5...v1.3.0
+
 # 1.2.5
 
 ## Changed
